@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cheutils"
+version = "1.0.1"
+authors = [
+  { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
+]
+description = "A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/chewitty/cheutils"
+Issues = "https://github.com/chewitty/cheutils/issues"

@@ -1,0 +1,8 @@
+LICENSE
+README.md
+setup.py
+cheutils.egg-info/PKG-INFO
+cheutils.egg-info/SOURCES.txt
+cheutils.egg-info/dependency_links.txt
+cheutils.egg-info/requires.txt
+cheutils.egg-info/top_level.txt

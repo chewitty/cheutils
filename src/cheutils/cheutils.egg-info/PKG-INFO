@@ -1,0 +1,30 @@
+Metadata-Version: 2.1
+Name: cheutils
+Version: 1.0.1
+Summary: A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project.
+Home-page: https://github.com/chewitty/cheutils
+Author: Ferdinand Che
+Author-email: ferdinand.che@gmail.com
+Requires-Python: >=3.9
+License-File: LICENSE
+Requires-Dist: numpy>=1.10
+Requires-Dist: pandas
+Requires-Dist: codetiming
+Requires-Dist: tdqm
+Requires-Dist: dask
+Requires-Dist: faker
+Requires-Dist: pytz
+Requires-Dist: pyodbc
+Requires-Dist: pymysql
+Requires-Dist: mysqlclient
+Requires-Dist: pymssql
+Requires-Dist: mysql.connector
+Requires-Dist: sqlalchemy
+Requires-Dist: typing
+Requires-Dist: icecream
+Requires-Dist: regex
+Requires-Dist: inspect-it
+Requires-Dist: jproperties
+Requires-Dist: matplotlib
+Requires-Dist: scikit-learn
+Requires-Dist: icecream
