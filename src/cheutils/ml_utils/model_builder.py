@@ -1,14 +1,12 @@
 import numpy as np
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_timer import track_duration
+from cheutils.ml_utils.pipeline_details import show_pipeline
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
-
-# custom modules
-from pipeline_details import show_pipeline
 
 
 @track_duration(name='fit')
