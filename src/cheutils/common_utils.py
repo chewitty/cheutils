@@ -45,8 +45,8 @@ def find_numeric(row_str):
 def cat_to_numeric(data_in, drop_first: bool = False):
     """
     Return a DataFrame/Series with categorical columns encoded to integers.
-    :param df: the DataFrame/Series of interest
-    :drop_first: Whether to get k-1 dummies out of k categorical levels by removing the first level.
+    :param data_in: the DataFrame/Series of interest
+    :param drop_first: Whether to get k-1 dummies out of k categorical levels by removing the first level.
     :return: DataFrame/Series with all categorical columns changed to integers and column names prefixed with 'cat'
     """
     assert data_in is not None, 'A valid DataFrame/Series expected as input'
@@ -58,8 +58,8 @@ def quantilefy(df: pd.DataFrame, rel_col: str, q: list = None):
     Return the calcuated quantiles specified by the list otherwise a list containing the lower, median,
     and upper bounds for detecting outliers by default.
     :param df: the DataFrame containing the relevant column
-    :param rel_cols:
-    :q: a sequence of probabilities for the quantiles to compute
+    :param rel_col: the relevant column
+    :param q: a sequence of probabilities for the quantiles to compute
     :return: list of quantile values
     """
     assert df is not None, 'A valid DataFrame expected as input'
@@ -99,8 +99,9 @@ def apply_annova(df: pd.DataFrame, rel_col: list, between_col: str, alpha: float
 def get_date(data_row, date_cols: list=None):
     """
     Gets a suitable datetime from the specified columns - and fixes incorrect leap year date
-    :param data_row:
-    :type data_row:
+    :param data_row: the row of data
+    :type data_row: the relevant date columns
+    :param date_cols:
     :return:
     :rtype:
     """

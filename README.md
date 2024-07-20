@@ -1,19 +1,18 @@
 # cheutils
 
-[cheutils](https://github.com/chewitty/cheutils) is a set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project.
+A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project.
 
-### Features
+### Packages
 
-- propertiesutil: Using properties files to configure applications etc.
-- baseutils: a common approach to project folder structure.
-- stringutils: string processing utilities e.g., appending date pattern to file names
+- cheutils: basic utilities.
+- ml_utils: ML unitilies.
 
 ### Usage
 
 ```
 import cheutils
 
-# append date pattern to file name
-cheutils.stringutils.datestamped('test.txt')  # returns something like test-2024-03-06.txt
+# retrieve the path to the data folder, which is under the project root
+cheutils.project_tree.get_data_dir()  # returns the path
 
 ```

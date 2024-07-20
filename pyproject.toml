@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cheutils"
-version = "1.0.1"
+version = "1.0.3"
 authors = [
   { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
 ]
 description = "A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
