@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 1.0.2
+Version: 1.0.5
 Summary: A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Project-URL: Homepage, https://github.com/chewitty/cheutils
@@ -16,11 +16,10 @@ License-File: LICENSE
 
 A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project.
 
-### Features
+### Packages
 
-- project_tree: utility methods for accessing the project tree.
-- common_utils: utility methods to support common programming tasks
-- propertiesutil: Using properties files to configure applications etc.
+- cheutils: basic utilities.
+- ml_utils: ML unitilies.
 
 ### Usage
 

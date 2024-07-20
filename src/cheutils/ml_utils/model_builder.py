@@ -1,19 +1,15 @@
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import os
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import RandomizedSearchCV
-from sklearn.model_selection import GridSearchCV
-from sklearn import tree
+from cheutils.decorator_debug import debug_func
+from cheutils.decorator_timer import track_duration
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import Pipeline
 
 # custom modules
 from pipeline_details import show_pipeline
-from cheutils.decrator_timer import track_duration
-from cheutils.decorator_debug import debug_func
+
 
 @track_duration(name='fit')
 @debug_func(enable_debug=True, prefix='fit')

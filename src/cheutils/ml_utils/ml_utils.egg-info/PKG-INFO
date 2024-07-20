@@ -1,8 +1,8 @@
 Metadata-Version: 2.1
-Name: cheutils
-Version: 1.0.2
-Summary: A set of basic reusable utilities to and tools to facilitate quickly getting up and going on any project.
-Home-page: https://github.com/chewitty/cheutils/cheutils
+Name: ml_utils
+Version: 1.0.0
+Summary: Utilities for machine learning model development.
+Home-page: https://github.com/chewitty/cheutils/ml_utils
 Author: Ferdinand Che
 Author-email: ferdinand.che@gmail.com
 Requires-Python: >=3.9
@@ -18,6 +18,7 @@ Requires-Dist: pyodbc
 Requires-Dist: pymysql
 Requires-Dist: mysqlclient
 Requires-Dist: pymssql
+Requires-Dist: xgboost
 Requires-Dist: mysql.connector
 Requires-Dist: sqlalchemy
 Requires-Dist: typing
