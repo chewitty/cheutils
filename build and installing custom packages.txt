@@ -1,0 +1,4 @@
+pip uninstall cheutils --y
+py -m build
+python -m twine upload --repository testpypi dist/*
+pip install -i https://test.pypi.org/simple/ cheutils==1.0.8

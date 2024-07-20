@@ -2,16 +2,31 @@
 Set of plotting and visualization utilities.
 """
 import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from cheutils.project_tree import save_current_fig
 from sklearn.metrics import PredictionErrorDisplay
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
 
+# custom modules
+from cheutils.project_tree import save_current_fig
 
-def plot_reg_predictions(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, ):
+
+def plot_reg_predictions(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, **kwargs):
+    """
+    Plot the prediction error of a regression model given the true and predicted targets (actuals vs predicted.
+    :param y_true: True target values
+    :type y_true:
+    :param y_pred: Predicted target values
+    :type y_pred:
+    :param title:
+    :type title:
+    :param save_to_file:
+    :type save_to_file:
+    :return:
+    :rtype:
+    """
     fig, ax = plt.subplots(figsize=(8, 5))
     PredictionErrorDisplay.from_predictions(y_true, y_pred, kind='actual_vs_predicted',
                                             ax=ax, scatter_kwargs={'alpha': 0.5})
@@ -26,7 +41,21 @@ def plot_reg_predictions(y_true: pd.Series, y_pred: pd.Series, title: str = None
     plt.show()
 
 
-def plot_reg_residuals(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, ):
+def plot_reg_residuals(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, **kwargs):
+    """
+    Plot the prediction error of a regression model given the true and predicted targets (residuals vs predicted.
+    The residuals are difference between observed and predicted values.
+    :param y_true:
+    :type y_true:
+    :param y_pred:
+    :type y_pred:
+    :param title:
+    :type title:
+    :param save_to_file:
+    :type save_to_file:
+    :return:
+    :rtype:
+    """
     fig, ax = plt.subplots(figsize=(8, 5))
     PredictionErrorDisplay.from_predictions(y_true, y_pred, kind='residual_vs_predicted',
                                             ax=ax, scatter_kwargs={'alpha': 0.5})
@@ -40,6 +69,68 @@ def plot_reg_residuals(y_true: pd.Series, y_pred: pd.Series, title: str = None, 
         save_current_fig(file_name=save_to_file)
     plt.show()
 
+def plot_reg_predictions_dist(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, **kwargs):
+    """
+    Plot the prediction error of a regression model given the true and predicted targets (actuals vs predicted).
+    The width of each violin represents the density of the data points; the white dot is the median,
+    and the box represents the interquartile range (IQR), whereas, the whiskers are 1.5 times the IQR.
+    Ideally the mass of each violin should be centered on the true value.
+    as a violin plot.
+    :param y_true: True target values
+    :type y_true:
+    :param y_pred: Predicted target values
+    :type y_pred:
+    :param title:
+    :type title:
+    :param save_to_file:
+    :type save_to_file:
+    :return:
+    :rtype:
+    """
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.violinplot(x=y_true, y=y_pred, alpha=0.5)
+    # Add the score in the legend of each axis
+    for name, score in __compute_score(y_true, y_pred).items():
+        ax.plot([], [], ' ', label=f'{name}={score}')
+    ax.legend(loc='best')
+    ax.set_xlabel('Actual Values')
+    ax.set_ylabel('Predicted Values')
+    ax.set_title('Violin plot of Actuals vs Predicted' if title is None else title)
+    plt.tight_layout()
+    if save_to_file is not None:
+        save_current_fig(file_name=save_to_file)
+    plt.show()
+
+def plot_reg_residuals_dist(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, **kwargs):
+    """
+    Plot a distribution of the prediction error of a regression model given the true and predicted targets (residuals vs predicted.
+    The residuals are difference between observed and predicted values. A good model would have residuals that are normally
+    distributed around 0. If the residuals are not centered around 0 or have a skewed distribution, it may indicate
+    that the model is systematically overestimating or underestimating the target variable.
+    :param y_true:
+    :type y_true:
+    :param y_pred:
+    :type y_pred:
+    :param title:
+    :type title:
+    :param save_to_file:
+    :type save_to_file:
+    :return:
+    :rtype:
+    """
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.histplot(x=y_true-y_pred, ax=ax, alpha=0.5, **kwargs)
+    # Add the score in the legend of each axis
+    for name, score in __compute_score(y_true, y_pred).items():
+        ax.plot([], [], ' ', label=f'{name}={score}')
+    ax.legend(loc='best')
+    ax.set_xlabel('Residual')
+    ax.set_ylabel('Frequency')
+    ax.set_title('Distribution of residuals (i.e., Actual - Predicted)' if title is None else title)
+    plt.tight_layout()
+    if save_to_file is not None:
+        save_current_fig(file_name=save_to_file)
+    plt.show()
 
 def __compute_score(y_true: pd.Series, y_pred: pd):
     return {'R2': f'{r2_score(y_true, y_pred):.2f}', 'MSE': f'{abs(mean_squared_error(y_true, y_pred)):.2f}', }
