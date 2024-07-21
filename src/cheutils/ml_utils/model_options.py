@@ -1,4 +1,5 @@
 import numpy as np
+from cheutils.debugger import Debugger
 from cheutils.properties_util import PropertiesUtil
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
@@ -7,6 +8,7 @@ from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
 
 APP_PROPS = PropertiesUtil()
+DEBUGGER = Debugger()
 def get_regressor(**model_params):
     """
     Gets a specified regressor configured with key 'model_option'.
@@ -36,7 +38,8 @@ def get_regressor(**model_params):
     elif 'random_forest' == model_option:
         model = RandomForestRegressor(**cur_model_params)
     else:
-        raise KeyError('Unspecified regressor')
+        DEBUGGER.debug('Failure encountered: Unspecified or unsupported regressor')
+        raise KeyError('Unspecified or unsupported regressor')
     return model
 
 def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
@@ -44,68 +47,40 @@ def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.'
 
 def __get_regressor_params(model_option, params_key_stem: str='model.param_grids.', prefix: str=None):
     params_grid = {}
-    if prefix is None:
-        params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
-        param_keys = params_grid_dict.keys()
-        for param_key in param_keys:
-            param = params_grid_dict.get(param_key)
-            if param is not None:
-                print('Hyperparameter = ', param)
-                numsteps = int(param.get('num'))
-                param_type = param.get('type')
-                if param_type == int:
-                    start = int(param.get('start'))
-                    end = int(param.get('end'))
+    params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
+    param_keys = params_grid_dict.keys()
+    for param_key in param_keys:
+        param = params_grid_dict.get(param_key)
+        if param is not None:
+            numsteps = int(param.get('num'))
+            param_type = param.get('type')
+            if param_type == int:
+                start = int(param.get('start'))
+                end = int(param.get('end'))
+                if prefix is None:
                     params_grid[param_key] = np.linspace(start, end, numsteps).astype(int).tolist()
-                elif param_type == float:
-                    start = float(param.get('start'))
-                    end = float(param.get('end'))
+                else:
+                    params_grid[prefix + '__' + param_key] = np.linspace(start, end, numsteps).astype(int).tolist()
+            elif param_type == float:
+                start = float(param.get('start'))
+                end = float(param.get('end'))
+                if prefix is None:
                     params_grid[param_key] = np.linspace(start, end, numsteps).tolist()
-                elif param_type == bool:
+                else:
+                    params_grid[prefix + '__' + param_key] = np.linspace(start, end, numsteps).tolist()
+            elif param_type == bool:
+                if prefix is None:
                     params_grid[param_key] = [bool(x) for x in param.get('values') if (param.get('values') is not None)]
                 else:
+                    params_grid[prefix + '__' + param_key] = [bool(x) for x in param.get('values') if (param.get('values') is not None)]
+            else:
+                if prefix is None:
                     params_grid[param_key] = [x for x in param.get('values') if (param.get('values') is not None)]
-        if params_grid is None:
-            return {}
-    else:
-        if 'lasso' == model_option:
-            params_grid = {prefix + '_alpha': np.arange(0.0001, 5.2, 0.2).tolist()[0::2], }
-        elif 'ridge' == model_option:
-            params_grid = {prefix + '_alpha': np.arange(0.0001, 5.2, 0.2).tolist()[0::2], }
-        elif 'gradient_boosting' == model_option:
-            params_grid = {prefix + '_max_depth'    : np.arange(3, 17).tolist()[0::2],
-                           prefix + '_learning_rate': np.arange(0.05, 2.1, 0.2).tolist()[0::2],
-                           prefix + '_subsample'    : np.arange(0.1, 1.1, 0.2).tolist()[0::2],
-                           }
-        elif 'xgb_boost' == model_option:
-            params_grid = {prefix + '_n_estimators'    : np.arange(5, 15, 2).tolist()[0::2],
-                           prefix + '_max_depth'       : np.arange(2, 5).tolist()[0::2],
-                           prefix + '_max_leaves'      : np.arange(2, 7).tolist()[0::2],
-                           prefix + '_learning_rate'   : np.arange(0.01, 0.1, 0.02).tolist()[0::2],
-                           prefix + '_subsample'       : np.arange(0.8, 1.1, 0.1).tolist()[0::2],
-                           prefix + '_scale_pos_weight': np.arange(0.8, 1.1, 0.1).tolist()[0::2],
-                           prefix + '_gamma'           : np.arange(0.4, 1.1, 0.1).tolist()[0::2],
-                           prefix + '_reg_alpha'       : np.arange(0.025, 0.071, 0.01).tolist()[0::2],
-                           }
-        elif 'light_gbm' == model_option:
-            params_grid = {prefix + '_max_depth'    : np.arange(3, 17).tolist()[0::2],
-                           prefix + '_learning_rate': np.arange(0.0005, 1.1, 0.2).tolist()[0::2],
-                           prefix + '_reg_alpha'    : np.arange(0.1, 5.1, 0.2).tolist()[0::2],
-                           }
-        elif 'decision_tree' == model_option:
-            params_grid = {prefix + '_max_depth'       : np.arange(3, 17).tolist()[0::2],
-                           prefix + '_min_samples_leaf': np.arange(3, 13, 2).tolist()[0::2],
-                           prefix + '_max_leaf_nodes'  : np.arange(2, 100, 5).tolist()[0::2],
-                           }
-        elif 'random_forest' == model_option:
-            params_grid = {prefix + '_n_estimators'     : np.arange(370, 481, 20).tolist()[0::2],
-                           prefix + '_max_depth'        : np.arange(11, 15, 1).tolist()[0::2],
-                           prefix + '_min_samples_split': np.arange(7, 21, 3).tolist()[0::2],
-                           prefix + '_min_samples_leaf' : np.arange(2, 15, 3).tolist()[0::2],
-                           prefix + '_max_leaf_nodes'   : np.arange(300, 401, 10).tolist()[0::2],
-                           }
-        else:
-            params_grid = {}
+                else:
+                    params_grid[prefix + '__' + param_key] = [x for x in param.get('values') if (param.get('values') is not None)]
+    if params_grid is None:
+        params_grid = {}
+    DEBUGGER.debug('Hyperparameter grid params: {}'.format(params_grid))
     return params_grid
 
 def get_default_grid(param_key: str, model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
@@ -115,6 +90,7 @@ def get_default_grid(param_key: str, model_option: str, params_key_stem: str='mo
     for key in param_keys:
         if param_key == key:
             rel_param_grid = {key: param_grid.get(key)}
+    DEBUGGER.debug('Default hyperparameter grid params: {}'.format(rel_param_grid))
     return rel_param_grid
 
 def get_params(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):

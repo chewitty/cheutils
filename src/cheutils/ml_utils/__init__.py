@@ -1,6 +1,6 @@
 from cheutils.properties_util import PropertiesUtil
 from cheutils.debugger import Debugger
-DEBUGGER = Debugger(enable_debug=True)
+DEBUGGER = Debugger()
 APP_PROPS = PropertiesUtil()
 prop_key = 'project.namespace'
 PROJECT_NAMESPACE = APP_PROPS.get(prop_key)
