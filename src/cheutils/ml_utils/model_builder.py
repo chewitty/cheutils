@@ -1,4 +1,5 @@
 import numpy as np
+from cheutils.debugger import Debugger
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_timer import track_duration
 from cheutils.ml_utils.pipeline_details import show_pipeline
@@ -8,7 +9,7 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
-
+DBUGGER = Debugger()
 @track_duration(name='fit')
 @debug_func(enable_debug=True, prefix='fit')
 def fit(pipeline: Pipeline, X, y, **kwargs):
@@ -92,6 +93,7 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
     assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
     n_iters = 1000
     n_jobs = -1
+    DBUGGER.debug('Hyperparameters =', params_grid)
     search_cv = None
     if grid_search:
         if debug:
@@ -125,13 +127,13 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
 
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_factor: float = 2.0,
-                     scoring: str = "neg_mean_squared_error", random_state=100, debug: bool = False,
-                     full_results: bool=False, param_bounds=None, **kwargs):
+def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_factor: float = 0.10,
+                     scoring: str = "neg_mean_squared_error", random_state=100,
+                     full_results: bool=False, param_bounds=None, max_params: int=5, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
     to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
-    a fine search using GridSearchCV for a more detailed search within the narrower hyperparameter space
+    a fine search using another RandomizedSearchCV for a more detailed search within the narrower hyperparameter space
     to fine the best possible hyperparameter combination
     :param pipeline:
     :type pipeline:
@@ -149,11 +151,10 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_fa
     :type scoring:
     :param random_state:
     :type random_state:
-    :param debug:
-    :type debug:
     :param full_results:
     :type full_results:
     :param param_bounds
+    :param max_params: maximum number of parameter options for each hyperparameter in the second phase
     :param kwargs:
     :type kwargs:
     :return:
@@ -169,42 +170,34 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_fa
         name = kwargs.get("name")
         del kwargs["name"]
     # phase 1: Coarse search
-    search_rcv = None
-    if debug:
-        search_rcv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                       scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
-                                       random_state=random_state, verbose=2, error_score="raise", )
-    else:
-        search_rcv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                       scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
-                                       random_state=random_state, )
+    DBUGGER.debug('Hyperparameters =', params_grid)
+    search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
+                                    scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
+                                    random_state=random_state, verbose=2, error_score="raise", )
     if name is not None:
-        show_pipeline(search_rcv, name=name, save_to_file=True)
+        show_pipeline(search_cv, name=name, save_to_file=True)
     else:
-        show_pipeline(search_rcv)
-    search_rcv.fit(X, y)
+        show_pipeline(search_cv)
+    search_cv.fit(X, y)
+    DBUGGER.debug('Preliminary best estimator =', (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
-    # phase 2: fine search
-    search_gcv = None
-    narrow_param_grid = get_narrow_param_grid(search_rcv.best_params_, scaling_factor=scaling_factor, param_bounds=param_bounds)
-    if debug:
-        search_gcv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
-                                 scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
-    else:
-        search_gcv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
-                                 scoring=scoring, cv=cv, n_jobs=n_jobs, )
+    # phase 2: finer search
+    narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor, param_bounds=param_bounds)
+    DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
+    search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
+                              scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs, verbose=2, error_score="raise", )
     if name is not None:
-        show_pipeline(search_gcv, name=name, save_to_file=True)
+        show_pipeline(search_cv, name=name, save_to_file=True)
     else:
-        show_pipeline(search_gcv)
-    search_gcv.fit(X, y)
+        show_pipeline(search_cv)
+    search_cv.fit(X, y)
     # return the results accordingly
     if not full_results:
-        return search_gcv.best_estimator_, search_gcv.best_score_, search_gcv.best_params_
+        return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_
     else:
-        return search_gcv.cv_results_
+        return search_cv.cv_results_
 
-def get_narrow_param_grid(best_params: dict, scaling_factor: float=2.0, param_bounds=None):
+def get_narrow_param_grid(best_params: dict, scaling_factor: float=0.10, param_bounds=None, max_params: int=5):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param best_params: the best combination of hyperparameters obtained from the coarse search phase
@@ -212,9 +205,11 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float=2.0, param_bo
     :param scaling_factor: scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param param_bounds:
+    :param max_params: maximum number of parameter options for each hyperparameter in the second phase
     :return:
     :rtype:
     """
+    num_steps = max_params
     if param_bounds is None:
         param_bounds = {}
     param_grid = {}
@@ -223,11 +218,13 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float=2.0, param_bo
         if isinstance(value, int):
             min_val = int(param_bound.get('lower')) if param_bound is not None else value
             max_val = int(param_bound.get('upper')) if param_bound is not None else value
-            param_grid[param] = list(map(int, [max(value // scaling_factor, min_val), value, min(value * scaling_factor, max_val)]))
+            viable_span = int(((max_val - min_val + 1)/ 2)*scaling_factor)
+            param_grid[param] = list(set([int(x) for x in np.linspace(max(value - viable_span, min_val), min(value + viable_span, max_val), num_steps)]))
         elif isinstance(value, float):
             min_val = float(param_bound.get('lower')) if param_bound is not None else value
             max_val = float(param_bound.get('upper')) if param_bound is not None else value
-            param_grid[param] = [max(value / scaling_factor, min_val), value, min(value * scaling_factor, max_val)]
+            viable_span = ((max_val - min_val + 1) / 2) * scaling_factor
+            param_grid[param] = list(set([np.round(x, 3) for x in np.linspace(max(value - viable_span, min_val), min(value + viable_span, max_val), num_steps)]))
         else:
             param_grid[param] = [value]
     return param_grid
