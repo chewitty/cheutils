@@ -5,8 +5,9 @@ from sklearn.model_selection import cross_val_score
 from cheutils.ml_utils.model_options import get_regressor
 
 class BayesianSearch(object):
-    def __init__(self, param_grid: dict, **kwargs):
+    def __init__(self, param_grid: dict, model_option:str=None, **kwargs):
         self.param_grid = param_grid
+        self.model_option = model_option
         self.best_estimator_ = None
         self.best_params_ = None
         self.best_score_ = None
@@ -30,7 +31,7 @@ class BayesianSearch(object):
 
         # Define the objective function to minimize
         def objective(params):
-            model = get_regressor(**params)
+            model = get_regressor(model_option=self.model_option)
             model.fit(X, y)
             y_pred = model.predict(X)
             score = mean_squared_error(y, y_pred)
@@ -39,7 +40,7 @@ class BayesianSearch(object):
         self.best_params_ = fmin(objective, params_space, algo=tpe.suggest, max_evals=100)
         print("Best set of hyperparameters: ", self.best_params_)
         # fit the model and predict
-        self.best_estimator_ = get_regressor(**self.best_params_)
+        self.best_estimator_ = get_regressor(model_option=self.model_option)
         self.cv_results_ = cross_val_score(self.best_estimator_, X, y, scoring=self.scoring, cv=self.cv,)
         self.best_score_ = self.cv_results_.mean()
         return self

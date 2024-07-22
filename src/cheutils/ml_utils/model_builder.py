@@ -130,8 +130,8 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_search: str='random', scaling_factor: float = 0.10,
-                     scoring: str = "neg_mean_squared_error", random_state=100,
-                     full_results: bool=False, param_bounds=None, max_params: int=5, **kwargs):
+                     scoring: str = "neg_mean_squared_error", model_option: str=None,
+                     full_results: bool=False, param_bounds=None, max_params: int=5, random_state=100, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
     to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
@@ -152,6 +152,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_searc
     :type scaling_factor:
     :param scoring:
     :type scoring:
+    :param model_option:
     :param random_state:
     :type random_state:
     :param full_results:
