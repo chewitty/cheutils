@@ -16,6 +16,7 @@ src/cheutils.egg-info/SOURCES.txt
 src/cheutils.egg-info/dependency_links.txt
 src/cheutils.egg-info/top_level.txt
 src/cheutils/ml_utils/__init__.py
+src/cheutils/ml_utils/bayesian_search.py
 src/cheutils/ml_utils/model_builder.py
 src/cheutils/ml_utils/model_options.py
 src/cheutils/ml_utils/pipeline_details.py

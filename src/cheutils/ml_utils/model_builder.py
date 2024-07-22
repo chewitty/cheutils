@@ -9,6 +9,8 @@ from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
+from cheutils.ml_utils.bayesian_search import BayesianSearch
+
 DBUGGER = Debugger()
 @track_duration(name='fit')
 @debug_func(enable_debug=True, prefix='fit')
@@ -127,7 +129,7 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
 
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_factor: float = 0.10,
+def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_search: str='random', scaling_factor: float = 0.10,
                      scoring: str = "neg_mean_squared_error", random_state=100,
                      full_results: bool=False, param_bounds=None, max_params: int=5, **kwargs):
     """
@@ -145,6 +147,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_fa
     :type params_grid:
     :param cv:
     :type cv:
+    :param fine_search: the default is "random" but other options include "grid" and "bayesian", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param scoring:
@@ -184,8 +187,18 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, scaling_fa
     # phase 2: finer search
     narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor, param_bounds=param_bounds)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
-    search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
-                              scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs, verbose=2, error_score="raise", )
+    if 'random' == fine_search:
+        search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
+                                       scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs, verbose=2, error_score="raise", )
+    elif "grid" == fine_search:
+        search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
+                                 scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
+    elif "bayesian" == fine_search:
+        search_cv = BayesianSearch(param_grid=params_grid)
+    else:
+        DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
+        raise KeyError('Unspecified or unsupported finer search type')
+
     if name is not None:
         show_pipeline(search_cv, name=name, save_to_file=True)
     else:
@@ -236,6 +249,7 @@ def cross_val_model(pipeline: Pipeline, X, y, scoring, cv=5, **fit_params):
     assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
     cv_scores = cross_val_score(pipeline, X, y, scoring=scoring, cv=cv, **fit_params)
     return cv_scores
+
 
 
 
