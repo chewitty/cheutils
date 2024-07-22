@@ -195,7 +195,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_searc
         search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
-        search_cv = BayesianSearch(param_grid=params_grid)
+        search_cv = BayesianSearch(param_grid=params_grid, model_option=model_option)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
