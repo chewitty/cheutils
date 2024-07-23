@@ -50,7 +50,7 @@ class BayesianSearch(object):
                                                  trial_timeout=60, refit=True, n_jobs=-1, seed=self.random_state,)
         self.best_estimator_.fit(X, y)
         self.base_estimator_ = self.best_estimator_.best_model().get('learner')
-        self.best_score_ = self.best_estimator_.score(X, y)
+        self.best_score_ = min(self.best_estimator_.trials.losses())
         self.best_params_ = self.best_estimator_.get_params()
         self.trials_ = self.best_estimator_.trials
         DBUGGER.debug("Best bayesian hyperparameters: ", self.best_params_)
