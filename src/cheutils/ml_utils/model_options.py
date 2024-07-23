@@ -6,6 +6,8 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Lasso, LinearRegression, Ridge
 from sklearn.tree import DecisionTreeRegressor
 from xgboost import XGBRegressor
+from hpsklearn import lasso, linear_regression, ridge, gradient_boosting_regressor
+from hpsklearn import xgboost_regression, lightgbm_regression, decision_tree_regressor, random_forest_regressor
 
 APP_PROPS = PropertiesUtil()
 DEBUGGER = Debugger()
@@ -40,6 +42,28 @@ def get_regressor(**model_params):
     else:
         DEBUGGER.debug('Failure encountered: Unspecified or unsupported regressor')
         raise KeyError('Unspecified or unsupported regressor')
+    return model
+
+def get_hyperopt_regressor(model_option, **model_params):
+    if 'lasso' == model_option:
+        model = lasso(model_option, **model_params)
+    elif 'linear' == model_option:
+        model = linear_regression(model_option, **model_params)
+    elif 'ridge' == model_option:
+        model = ridge(model_option, **model_params)
+    elif 'gradient_boosting' == model_option:
+        model = gradient_boosting_regressor(model_option, **model_params)
+    elif 'xgb_boost' == model_option:
+        model = xgboost_regression(model_option, **model_params)
+    elif 'light_gbm' == model_option:
+        model = lightgbm_regression(model_option, **model_params)
+    elif 'decision_tree' == model_option:
+        model = decision_tree_regressor(model_option, **model_params)
+    elif 'random_forest' == model_option:
+        model = random_forest_regressor(model_option, **model_params)
+    else:
+        DEBUGGER.debug('Failure encountered: Unspecified or unsupported hyperopt wrapper')
+        raise KeyError('Unspecified or unsupported hyperopt wrapper')
     return model
 
 def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):

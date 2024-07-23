@@ -2,6 +2,7 @@ import numpy as np
 from cheutils.debugger import Debugger
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_timer import track_duration
+from cheutils.ml_utils.model_options import get_params_grid
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
@@ -129,8 +130,8 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
 
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_search: str='random', scaling_factor: float = 0.10,
-                     scoring: str = "neg_mean_squared_error", model_option: str=None,
+def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fine_search: str='random', scaling_factor: float = 1.0,
+                     scoring: str = "neg_mean_squared_error", model_option: str=None, prefix: str=None,
                      full_results: bool=False, param_bounds=None, max_params: int=5, random_state=100, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
@@ -143,16 +144,16 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_searc
     :type X:
     :param y:
     :type y:
-    :param params_grid:
-    :type params_grid:
     :param cv:
     :type cv:
+    :param skip_phase_1: elect to skip phase 1 and directly proceed to phase 2
     :param fine_search: the default is "random" but other options include "grid" and "bayesian", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param scoring:
     :type scoring:
     :param model_option:
+    :param prefix:
     :param random_state:
     :type random_state:
     :param full_results:
@@ -165,7 +166,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_searc
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
-    assert params_grid is not None, "A valid parameter grid (a dict) expected"
     assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
     n_iters = 1000
     n_jobs = -1
@@ -174,28 +174,32 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_searc
         name = kwargs.get("name")
         del kwargs["name"]
     # phase 1: Coarse search
+    params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
-    search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                    scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
-                                    random_state=random_state, verbose=2, error_score="raise", )
-    if name is not None:
-        show_pipeline(search_cv, name=name, save_to_file=True)
-    else:
-        show_pipeline(search_cv)
-    search_cv.fit(X, y)
-    DBUGGER.debug('Preliminary best estimator =', (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
+    search_cv = None
+    if not skip_phase_1:
+        search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
+                                       scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
+                                       random_state=random_state, verbose=2, error_score="raise", )
+        if name is not None:
+            show_pipeline(search_cv, name=name, save_to_file=True)
+        else:
+            show_pipeline(search_cv)
+        search_cv.fit(X, y)
+        DBUGGER.debug('Preliminary best estimator =', (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
     # phase 2: finer search
-    narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor, param_bounds=param_bounds)
+    phase2_params = get_seed_params(params_grid, param_bounds=param_bounds) if skip_phase_1 else search_cv.best_params_
+    narrow_param_grid = get_narrow_param_grid(phase2_params, scaling_factor=scaling_factor, param_bounds=param_bounds)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
                                        scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "grid" == fine_search:
-        search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
+        search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
-        search_cv = BayesianSearch(param_grid=params_grid, model_option=model_option, random_state=random_state)
+        search_cv = BayesianSearch(param_grid=narrow_param_grid, model_option=model_option, random_state=random_state)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
@@ -211,7 +215,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, params_grid: dict, cv, fine_searc
     else:
         return search_cv.cv_results_
 
-def get_narrow_param_grid(best_params: dict, scaling_factor: float=0.10, param_bounds=None, max_params: int=5):
+def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, param_bounds=None, max_params: int=5):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param best_params: the best combination of hyperparameters obtained from the coarse search phase
@@ -239,6 +243,31 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float=0.10, param_b
             max_val = float(param_bound.get('upper')) if param_bound is not None else value
             viable_span = ((max_val - min_val + 1) / 2) * scaling_factor
             param_grid[param] = list(set([np.round(x, 3) for x in np.linspace(max(value - viable_span, min_val), min(value + viable_span, max_val), num_steps)]))
+        else:
+            param_grid[param] = [value]
+    return param_grid
+
+def get_seed_params(default_grid: dict, param_bounds=None):
+    """
+    Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
+    :param default_grid: the default parameters grid
+    :type default_grid:
+    :param param_bounds:
+    :return:
+    :rtype:
+    """
+    if param_bounds is None:
+        param_bounds = {}
+    param_grid = {}
+    for param, value in default_grid.items():
+        param_bound = param_bounds.get(param.split('_')[-1])
+        if isinstance(value, list):
+            if isinstance(value[0], int):
+                param_grid[param] = int(np.mean(value))
+            elif isinstance(value[0], float):
+                param_grid[param] = np.mean(value)
+            else:
+                param_grid[param] = value[0]
         else:
             param_grid[param] = [value]
     return param_grid
