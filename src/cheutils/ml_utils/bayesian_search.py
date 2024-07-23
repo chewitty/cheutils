@@ -22,29 +22,29 @@ class BayesianSearch(object):
         self.scoring_ = kwargs.get('scoring', 'neg_mean_squared_error')
         self.cv_ = kwargs.get('cv', 5)
         self.trials_ = None
+        self.params_space_ = {}
 
     def fit(self, X, y=None, **kwargs):
         DBUGGER.debug('BayesianSearch: Fitting dataset, shape', X.shape, y.shape if y is not None else None)
         # Define the hyperparameter space
-        params_space = {}
         for key, value in self.param_grid.items():
             if isinstance(value[0], int):
                 if len(value) == 1 | (value[0] == value[-1]):
-                    params_space[key] = hp.choice(key, value)
+                    self.params_space_[key] = hp.choice(key, value)
                 else:
-                    params_space[key] = hp.choice(key, np.arange(value[0], value[-1], dtype=int))
+                    self.params_space_[key] = hp.choice(key, np.arange(value[0], value[-1], dtype=int))
             elif isinstance(value[0], float):
                 if len(value) == 1 | (value[0] == value[-1]):
-                    params_space[key] = hp.choice(key, value)
+                    self.params_space_[key] = hp.choice(key, value)
                 else:
-                    params_space[key] = hp.uniform(key, value[0], value[-1])
+                    self.params_space_[key] = hp.uniform(key, value[0], value[-1])
             elif isinstance(value[0], bool):
-                params_space[key] = hp.choice(key, value)
+                self.params_space_[key] = hp.choice(key, value)
             else:
-                params_space[key] = hp.choice(key, value)
-
+                self.params_space_[key] = hp.choice(key, value)
+        DBUGGER.debug('BayesianSearch: Parameter space', self.params_space_)
         # Perform the optimization
-        self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **params_space),
+        self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **self.params_space_),
                                                  preprocessing=self.preprocessing, loss_fn=mean_squared_error,
                                                  algo=tpe.suggest, max_evals=self.n_iters,
                                                  trial_timeout=60, refit=True, n_jobs=-1, seed=self.random_state,)
