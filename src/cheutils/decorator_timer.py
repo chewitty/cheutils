@@ -26,7 +26,7 @@ def track_duration(*, name: str = 'DurationStats', summary_stats: bool = False):
             # The lists of positional and keyword arguments is joined together to one signature string with
             # each argument separated by a comma
             signature = ', '.join(args_repr + kwargs_repr)
-            DBugger.debug(f'Calling {func.__name__}({signature})')
+            #DBugger.debug(f'Calling {func.__name__}({signature})')
             timer = create_timer(text='Completed task in {minutes:0.6f} minutes', name=name, logger=DBugger.debug)
             try:
                 timer.start()
