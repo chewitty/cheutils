@@ -131,7 +131,7 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fine_search: str='random', scaling_factor: float = 1.0,
-                     scoring: str = "neg_mean_squared_error", model_option: str=None, prefix: str=None,
+                     scoring: str = "neg_mean_squared_error", model_option: str=None, prefix: str=None, n_iters: int=1000,
                      full_results: bool=False, param_bounds=None, max_params: int=5, random_state=100, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
@@ -154,6 +154,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
     :type scoring:
     :param model_option:
     :param prefix:
+    :param n_iters:
     :param random_state:
     :type random_state:
     :param full_results:
@@ -167,7 +168,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
     """
     assert pipeline is not None, "A valid pipeline instance expected"
     assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
-    n_iters = 1000
     n_jobs = -1
     name = None
     if "name" in kwargs:
@@ -199,7 +199,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
-        search_cv = BayesianSearch(param_grid=narrow_param_grid, model_option=model_option, random_state=random_state)
+        search_cv = BayesianSearch(param_grid=narrow_param_grid, model_option=model_option, n_iters=n_iters, random_state=random_state)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
