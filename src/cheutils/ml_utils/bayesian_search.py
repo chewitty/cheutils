@@ -1,9 +1,11 @@
 import numpy as np
 from cheutils.debugger import Debugger
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
+from numpy.random import PCG64
 from sklearn.metrics import mean_squared_error
-from hpsklearn import HyperoptEstimator
-from cheutils.ml_utils.model_options import get_hyperopt_regressor
+from sklearn.model_selection import cross_val_score
+
+from cheutils.ml_utils.model_options import get_regressor
 
 DBUGGER = Debugger()
 class BayesianSearch(object):
@@ -26,7 +28,10 @@ class BayesianSearch(object):
         params_space = {}
         for key, value in self.param_grid.items():
             if isinstance(value[0], int):
-                params_space[key] = hp.choice(key, np.arange(value[0], value[-1], dtype=int))
+                if len(value) == 1 | (value[0] == value[-1]):
+                    params_space[key] = value
+                else:
+                    params_space[key] = hp.choice(key, np.arange(value[0], value[-1], dtype=int))
             elif isinstance(value[0], float):
                 if len(value) == 1 | (value[0] == value[-1]):
                     params_space[key] = value
@@ -38,17 +43,32 @@ class BayesianSearch(object):
                 params_space[key] = hp.choice(key, value)
 
         # Perform the optimization
-        opt_estimator = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **self.param_grid),
-                                          loss_fn=mean_squared_error, algo=tpe.suggest, max_evals=self.n_iters,
-                                          trial_timeout=60, refit=True, n_jobs=-1, seed=self.random_state, verbose=True)
-        opt_estimator.fit(X, y)
-        self.best_estimator_ = opt_estimator.best_model().get('learner')
-        predictions = np.round(self.best_estimator_.predict(X),0).astype(int)
-        self.best_score_ = mean_squared_error(y, predictions)
-        self.cv_results_ = [self.best_score_]
-        self.best_params_ = self.best_estimator_.get_params()
-        self.trials_ = opt_estimator.trials
+        trials = Trials()
+        self.best_params_ = fmin(self.best_mse_by_cv, params_space, algo=tpe.suggest, max_evals=100,
+                                 trials=trials, rstate=np.random.Generator(PCG64(self.random_state)))
         DBUGGER.debug("Best bayesian hyperparameters: ", self.best_params_)
+        # fit the model and predict
+        self.best_estimator_ = get_regressor(model_option=self.model_option, **self.best_params_, random_state=self.random_state)
+        best_result = self.best_mse_by_cv(self.best_params_)
+        self.best_score_ = best_result.get('loss')
+        self.cv_results_ = best_result.get('cv_results')
+        self.trials_ = trials
+        # fit estimator so it can be immediately used for predicting
+        self.best_estimator_.fit(X, y)
         return self
 
-
+    def best_mse_by_cv(self, params, X=None, y=None):
+        """
+        The objective function - minimizes loss
+        :param params:
+        :type params:
+        :param X:
+        :type X:
+        :param y:
+        :type y:
+        :return:
+        :rtype:
+        """
+        model = get_regressor(model_option=self.model_option, **params, random_state=self.random_state)
+        cv_scores = -cross_val_score(model, X, y, scoring='neg_mean_squared_error', cv=3, n_jobs=-1)
+        return {'loss': cv_scores.mean(), 'cv_results': cv_scores, 'status': STATUS_OK}
