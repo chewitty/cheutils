@@ -189,8 +189,10 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
         DBUGGER.debug('Preliminary best estimator =', (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
     # phase 2: finer search
-    phase2_params = get_seed_params(params_grid, param_bounds=param_bounds) if skip_phase_1 else search_cv.best_params_
-    narrow_param_grid = get_narrow_param_grid(phase2_params, scaling_factor=scaling_factor, param_bounds=param_bounds)
+    #phase2_params = get_seed_params(params_grid, param_bounds=param_bounds) if skip_phase_1 else search_cv.best_params_
+    narrow_param_grid = params_grid if skip_phase_1 else None
+    if not skip_phase_1:
+        narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor, param_bounds=param_bounds)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
