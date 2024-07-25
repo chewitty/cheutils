@@ -78,6 +78,7 @@ class BayesianSearch(object):
         self.best_score_ = min(self.best_estimator_.trials.losses())
         self.best_params_ = self.best_estimator_.get_params()
         self.trials_ = self.best_estimator_.trials
+        self.cv_results_ = self.best_estimator_.trials
         DBUGGER.debug("Best bayesian hyperparameters: ", self.best_params_)
         return self
 
