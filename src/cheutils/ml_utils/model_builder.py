@@ -172,7 +172,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str=None, de
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_search: str='random',
                      scaling_factor: float = 1.0, prefix: str=None,
-                     full_results: bool=False, num_params: int=5, **kwargs):
+                     num_params: int=5, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
     to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
@@ -189,8 +189,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_se
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param prefix:
-    :param full_results:
-    :type full_results:
     :param num_params: maximum number of parameter options for each hyperparameter in the second phase
     :param kwargs:
     :type kwargs:
@@ -244,10 +242,8 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_se
         show_pipeline(search_cv)
     search_cv.fit(X, y)
     # return the results accordingly
-    if not full_results:
-        return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_
-    else:
-        return search_cv.cv_results_
+    return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
+
 
 def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, params_bounds=None, num_params: int=5):
     """
