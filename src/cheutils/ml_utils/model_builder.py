@@ -1,9 +1,12 @@
 import numpy as np
+import pandas as pd
 from cheutils.debugger import Debugger
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_timer import track_duration
-from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds
+from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params
 from cheutils.ml_utils.pipeline_details import show_pipeline
+from cheutils.ml_utils.visualize import plot_hyperparameter
+from cheutils.properties_util import PropertiesUtil
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
@@ -11,7 +14,16 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 
 from cheutils.ml_utils.bayesian_search import BayesianSearch
+from cheutils.ml_utils.model_options import get_regressor
 
+n_jobs = -1
+APP_PROPS = PropertiesUtil()
+model_option = APP_PROPS.get('model.active.model_option')
+n_iters = int(APP_PROPS.get('model.num_params.to_sample'))
+scoring = APP_PROPS.get('model.cross_val.scoring')
+cv = int(APP_PROPS.get('model.cross_val.num_folds'))
+random_state = int(APP_PROPS.get('model.random_state'))
+grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
 DBUGGER = Debugger()
 @track_duration(name='fit')
 @debug_func(enable_debug=True, prefix='fit')
@@ -87,15 +99,45 @@ def score(y_true, y_pred, kind:str="mse"):
         return r2score
     else:
         raise ValueError("Score not yet implemented")
+
+def eval_metric_by_params(model_option, X, y, prefix: str=None, metric: str = 'mean_test_score', svg_file: bool=False):
+    """
+    Evaluate the performance metric vs configured hyperparameters for the current model option
+    using RandomizedSearchCV to identify optimal tuning ranges. This is a kind of coarse-to-fine search to
+    identify a narrower hyperparameter space for a possible subsequent GridSearch.
+    :param model_option:
+    :type model_option:
+    :param X:
+    :type X:
+    :param y:
+    :type y:
+    :param prefix:
+    :type prefix:
+    :param metric:
+    :type metric:
+    :param svg_file:
+    :type svg_file:
+    :return:
+    :rtype:
+    """
+    model = get_regressor(model_option=model_option)
+    model_params = get_params(model_option=model_option, prefix=prefix)
+    for param in model_params:
+        param_name = param.split(prefix)[-1]
+        cv_results = tune_model(model, X, y, model_option)
+        cur_results = pd.DataFrame(cv_results[3])[list(cv_results[3].keys())]
+        param_scores = cur_results[['param_' + param, metric]]
+        param_scores.rename(columns={'param_' + param: param_name, }, inplace=True)
+        param_scores[metric] = np.abs(param_scores[metric])
+        save_file = model_option + '_' + param_name + '_range.svg'
+        plot_hyperparameter(param_scores, metric_label='mean_test_score', param_label=param_name,
+                            save_to_file=save_file if svg_file else None)
+
 @track_duration(name='tune_model')
 @debug_func(enable_debug=True, prefix='tune_model')
-def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: bool = False,
-               scoring: str = "neg_mean_squared_error", random_state=100, debug: bool = False, scan_params: bool=False, **kwargs):
+def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str=None, debug: bool = False, **kwargs):
     assert pipeline is not None, "A valid pipeline instance expected"
-    assert params_grid is not None, "A valid parameter grid (a dict) expected"
-    assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
-    n_iters = 1000
-    n_jobs = -1
+    params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
     search_cv = None
     if grid_search:
@@ -123,16 +165,14 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
     else:
         show_pipeline(search_cv)
     search_cv.fit(X, y)
-    if not scan_params:
-        return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_
-    else:
-        return search_cv.cv_results_
+    return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
+
 
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fine_search: str='random', scaling_factor: float = 1.0,
-                     scoring: str = "neg_mean_squared_error", model_option: str=None, prefix: str=None, n_iters: int=1000,
-                     full_results: bool=False, num_params: int=5, random_state=100, **kwargs):
+def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_search: str='random',
+                     scaling_factor: float = 1.0, prefix: str=None,
+                     full_results: bool=False, num_params: int=5, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
     to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
@@ -144,19 +184,11 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
     :type X:
     :param y:
     :type y:
-    :param cv:
-    :type cv:
     :param skip_phase_1: elect to skip phase 1 and directly proceed to phase 2
     :param fine_search: the default is "random" but other options include "grid" and "bayesian", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
-    :param scoring:
-    :type scoring:
-    :param model_option:
     :param prefix:
-    :param n_iters:
-    :param random_state:
-    :type random_state:
     :param full_results:
     :type full_results:
     :param num_params: maximum number of parameter options for each hyperparameter in the second phase
@@ -166,8 +198,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
-    assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
-    n_jobs = -1
     name = None
     if "name" in kwargs:
         name = kwargs.get("name")
@@ -189,7 +219,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
 
     # phase 2: finer search
     params_bounds = get_params_pounds(model_option, prefix=prefix)
-    #phase2_params = get_seed_params(params_grid, param_bounds=param_bounds) if skip_phase_1 else search_cv.best_params_
     narrow_param_grid = params_grid if skip_phase_1 else None
     if not skip_phase_1:
         narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor,

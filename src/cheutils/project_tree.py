@@ -70,6 +70,7 @@ def save_excel(df: pd.DataFrame, file_name: str, index: bool = False):
     """
     assert df is not None, 'A valid DataFrame expected as input'
     assert file_name is not None, 'A valid file name expected as input'
+    os.makedirs(get_data_dir(), exist_ok=True)
     df.to_excel(os.path.join(get_data_dir(), file_name), index=index)
 
 
@@ -84,6 +85,7 @@ def save_current_fig(file_name: str, **kwargs):
     :rtype:
     """
     assert file_name is not None, 'A valid file name expected'
+    os.makedirs(get_output_dir(), exist_ok=True)
     plt.savefig(os.path.join(get_output_dir(), file_name), bbox_inches='tight', **kwargs)
 
 
@@ -99,7 +101,8 @@ def save_to_html(estimator, file_name: str):
     assert file_name is not None, 'A valid file name expected'
     # make the pipelines directory
     try:
-        html_dir = os.path.join(get_data_dir(), 'html')
+        os.makedirs(get_output_dir(), exist_ok=True)
+        html_dir = os.path.join(get_output_dir(), 'html')
         os.makedirs(html_dir, exist_ok=True)
         with open(os.path.join(html_dir + '/', file_name), 'w', encoding='utf-8') as file:
             file.write(estimator_html_repr(estimator))
