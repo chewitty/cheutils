@@ -79,7 +79,7 @@ class BayesianSearch(object):
         self.best_params_ = self.best_estimator_.get_params()
         self.trials_ = self.best_estimator_.trials
         self.cv_results_ = self.best_estimator_.trials
-        DBUGGER.debug("Best bayesian hyperparameters: ", self.best_params_)
+        DBUGGER.debug("Best bayesian hyperparameters: ", space_eval(self.params_space_, self.best_params_))
         return self
 
     def predict(self, X):
