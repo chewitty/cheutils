@@ -69,6 +69,9 @@ def get_hyperopt_regressor(model_option, **model_params):
 def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
     return __get_regressor_params(model_option, params_key_stem=params_key_stem, prefix=prefix)
 
+def get_params_pounds(model_option: str, params_key_stem: str='model.param_bounds.', prefix: str=None):
+    return APP_PROPS.get_ranges(prop_key=params_key_stem + model_option)
+
 def __get_regressor_params(model_option, params_key_stem: str='model.param_grids.', prefix: str=None):
     params_grid = {}
     params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
@@ -104,7 +107,7 @@ def __get_regressor_params(model_option, params_key_stem: str='model.param_grids
                     params_grid[prefix + '__' + param_key] = [x for x in param.get('values') if (param.get('values') is not None)]
     if params_grid is None:
         params_grid = {}
-    DEBUGGER.debug('Hyperparameter grid params: {}'.format(params_grid))
+    #DEBUGGER.debug('Hyperparameter grid: {}'.format(params_grid))
     return params_grid
 
 def get_default_grid(param_key: str, model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):

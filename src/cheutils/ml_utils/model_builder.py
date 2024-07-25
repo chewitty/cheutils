@@ -2,7 +2,7 @@ import numpy as np
 from cheutils.debugger import Debugger
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_timer import track_duration
-from cheutils.ml_utils.model_options import get_params_grid
+from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
@@ -132,7 +132,7 @@ def tune_model(pipeline: Pipeline, X, y, params_grid: dict, cv, grid_search: boo
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fine_search: str='random', scaling_factor: float = 1.0,
                      scoring: str = "neg_mean_squared_error", model_option: str=None, prefix: str=None, n_iters: int=1000,
-                     full_results: bool=False, param_bounds=None, max_params: int=5, random_state=100, **kwargs):
+                     full_results: bool=False, num_params: int=5, random_state=100, **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
     to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
@@ -159,8 +159,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
     :type random_state:
     :param full_results:
     :type full_results:
-    :param param_bounds
-    :param max_params: maximum number of parameter options for each hyperparameter in the second phase
+    :param num_params: maximum number of parameter options for each hyperparameter in the second phase
     :param kwargs:
     :type kwargs:
     :return:
@@ -189,10 +188,12 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
         DBUGGER.debug('Preliminary best estimator =', (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
     # phase 2: finer search
+    params_bounds = get_params_pounds(model_option, prefix=prefix)
     #phase2_params = get_seed_params(params_grid, param_bounds=param_bounds) if skip_phase_1 else search_cv.best_params_
     narrow_param_grid = params_grid if skip_phase_1 else None
     if not skip_phase_1:
-        narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor, param_bounds=param_bounds)
+        narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor,
+                                                  params_bounds=params_bounds, num_params=num_params)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
@@ -201,7 +202,9 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
-        search_cv = BayesianSearch(param_grid=narrow_param_grid, model_option=model_option, n_iters=n_iters, random_state=random_state)
+        search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
+                                   scaling_factor=scaling_factor, model_option=model_option, n_iters=n_iters,
+                                   random_state=random_state)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
@@ -217,34 +220,42 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, cv, skip_phase_1: bool=False, fin
     else:
         return search_cv.cv_results_
 
-def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, param_bounds=None, max_params: int=5):
+def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, params_bounds=None, num_params: int=5):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param best_params: the best combination of hyperparameters obtained from the coarse search phase
     :type best_params:
     :param scaling_factor: scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
-    :param param_bounds:
-    :param max_params: maximum number of parameter options for each hyperparameter in the second phase
+    :param params_bounds:
+    :param num_params: maximum number of parameter options for each hyperparameter in the second phase
     :return:
     :rtype:
     """
-    num_steps = max_params
-    if param_bounds is None:
+    num_steps = num_params
+    if params_bounds is None:
         param_bounds = {}
     param_grid = {}
     for param, value in best_params.items():
-        param_bound = param_bounds.get(param.split('_')[-1])
-        if isinstance(value, int):
-            min_val = int(param_bound.get('lower')) if param_bound is not None else value
-            max_val = int(param_bound.get('upper')) if param_bound is not None else value
-            viable_span = int(((max_val - min_val + 1)/ 2)*scaling_factor)
-            param_grid[param] = list(set([int(x) for x in np.linspace(max(value - viable_span, min_val), min(value + viable_span, max_val), num_steps)]))
-        elif isinstance(value, float):
-            min_val = float(param_bound.get('lower')) if param_bound is not None else value
-            max_val = float(param_bound.get('upper')) if param_bound is not None else value
-            viable_span = ((max_val - min_val + 1) / 2) * scaling_factor
-            param_grid[param] = list(set([np.round(x, 3) for x in np.linspace(max(value - viable_span, min_val), min(value + viable_span, max_val), num_steps)]))
+        bounds = params_bounds.get(param.split('__')[-1])
+        if bounds is not None:
+            min_val, max_val = bounds
+            if isinstance(value, int):
+                min_val = int(min_val) if min_val is not None else value
+                max_val = int(max_val) if max_val is not None else value
+                viable_span = int(((max_val - min_val)/ 2)*scaling_factor)
+                cur_val = np.array([int(x) for x in np.linspace(max(value + viable_span, min_val), min(value - viable_span, max_val), num_steps)])
+                cur_val = np.where(cur_val < 1, 1, cur_val)
+                cur_val = np.sort(np.where(cur_val > max_val, max_val, cur_val))
+                param_grid[param] = list(set(cur_val.tolist()))
+            elif isinstance(value, float):
+                min_val = float(min_val) if min_val is not None else value
+                max_val = float(max_val) if max_val is not None else value
+                viable_span = ((max_val - min_val) / 2) * scaling_factor
+                cur_val = np.array([np.round(x, 3) for x in np.linspace(max(value + viable_span, min_val), min(value - viable_span, max_val), num_steps)])
+                cur_val = np.where(cur_val < 0, 0, cur_val)
+                cur_val = np.sort(np.where(cur_val > max_val, max_val, cur_val))
+                param_grid[param] = list(set(cur_val.tolist()))
         else:
             param_grid[param] = [value]
     return param_grid
