@@ -19,7 +19,8 @@ from cheutils.ml_utils.model_options import get_regressor
 n_jobs = -1
 APP_PROPS = PropertiesUtil()
 model_option = APP_PROPS.get('model.active.model_option')
-n_iters = int(APP_PROPS.get('model.num_params.to_sample'))
+n_iters = int(APP_PROPS.get('model.n_iters.to_sample')) # number of iterations or parameters to sample
+num_params = int(APP_PROPS.get('model.num_params.to_sample')) # how fine or max number of parameters to create for narrower param_grip
 scoring = APP_PROPS.get('model.cross_val.scoring')
 cv = int(APP_PROPS.get('model.cross_val.num_folds'))
 random_state = int(APP_PROPS.get('model.random_state'))
@@ -172,7 +173,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str=None, de
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_search: str='random',
                      scaling_factor: float = 1.0, prefix: str=None,
-                     num_params: int=5, **kwargs):
+                     **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
     to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
@@ -189,7 +190,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_se
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param prefix:
-    :param num_params: maximum number of parameter options for each hyperparameter in the second phase
     :param kwargs:
     :type kwargs:
     :return:
@@ -220,7 +220,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_se
     narrow_param_grid = params_grid if skip_phase_1 else None
     if not skip_phase_1:
         narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor,
-                                                  params_bounds=params_bounds, num_params=num_params)
+                                                  params_bounds=params_bounds)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
@@ -245,7 +245,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_se
     return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
 
 
-def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, params_bounds=None, num_params: int=5):
+def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, params_bounds=None):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param best_params: the best combination of hyperparameters obtained from the coarse search phase
@@ -253,7 +253,6 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float=1.0, params_b
     :param scaling_factor: scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param params_bounds:
-    :param num_params: maximum number of parameter options for each hyperparameter in the second phase
     :return:
     :rtype:
     """
