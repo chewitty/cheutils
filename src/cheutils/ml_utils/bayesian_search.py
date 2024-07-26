@@ -43,14 +43,14 @@ class BayesianSearch(object):
                         cur_val = np.linspace(min_val, max_val, self.num_params, dtype=int)
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         self.params_space_[key] = hp.choice(key, cur_val.tolist())
-                        space_def[key] = cur_val.tolist()
+                        space_def[key] = list(set(cur_val.tolist()))
                     else:
                         min_val = max(int(value[0]), lbound)
                         max_val = min(int(value[-1]), ubound)
                         cur_val = np.linspace(min_val, max_val, self.num_params, dtype=int)
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         self.params_space_[key] = hp.choice(key, cur_val.tolist())
-                        space_def[key] = cur_val.tolist()
+                        space_def[key] = list(set(cur_val.tolist()))
                 elif isinstance(value[0], float):
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = max(value[0] * (1 + fudge_factor), lbound)
