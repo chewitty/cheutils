@@ -231,7 +231,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool=False, fine_se
     elif "bayesian" == fine_search:
         search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    scaling_factor=scaling_factor, model_option=model_option, n_iters=n_iters,
-                                   random_state=random_state)
+                                   num_params=num_params, random_state=random_state)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
