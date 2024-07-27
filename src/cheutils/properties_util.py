@@ -260,8 +260,8 @@ class AppProperties(object):
         prop_dict = self.get_dict_properties(prop_key)
         prop_ranges = {}
         for param, value in prop_dict.items():
-            min_val = int(value.get('lower')) if value is not None else value
-            max_val = int(value.get('upper')) if value is not None else value
+            min_val = int(value.get('start')) if value is not None else value
+            max_val = int(value.get('end')) if value is not None else value
             prop_ranges[param] = (min_val, max_val)
         return prop_ranges
 
