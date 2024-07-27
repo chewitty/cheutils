@@ -27,9 +27,11 @@ def timer_stats(name = None, prec: int = 2, formatted: bool = False):
             min_time = f'{min_time:.{prec}f}' if formatted else round(min_time, prec)
             mean_time = timers.mean(timer) / 60
             mean_time = f'{mean_time:.{prec}f}' if formatted else round(mean_time, prec)
+            median_time = timers.median(timer) / 60
+            median_time = f'{median_time:.{prec}f}' if formatted else round(median_time, prec)
             stdev_time = timers.stdev(timer) / 60
             stdev_time = f'{stdev_time:.{prec}f}' if formatted else round(stdev_time, prec)
-            timerstats[timer] = {'min':min_time, 'max': max_time, 'mean': mean_time, 'std':stdev_time}
+            timerstats[timer] = {'min':min_time, 'max': max_time, 'mean': mean_time, 'median': median_time, 'std':stdev_time}
     else:
         max_time = round(timers.max(name) / 60, prec)
         max_time = f'{max_time:.{prec}f}' if formatted else max_time
@@ -37,9 +39,11 @@ def timer_stats(name = None, prec: int = 2, formatted: bool = False):
         min_time = f'{min_time:.{prec}f}' if formatted else min_time
         mean_time = round(timers.mean(name) / 60, prec)
         mean_time = f'{mean_time:.{prec}f}' if formatted else mean_time
+        median_time = round(timers.median(name) / 60, prec)
+        median_time = f'{median_time:.{prec}f}' if formatted else median_time
         stdev_time = round(timers.stdev(name) / 60, prec)
         stdev_time = f'{stdev_time:.{prec}f}' if formatted else stdev_time
-        timerstats[name] = {'min': min_time, 'max': max_time, 'mean': mean_time, 'std': stdev_time}
+        timerstats[name] = {'min': min_time, 'max': max_time, 'mean': mean_time, 'median': median_time, 'std': stdev_time}
     return timerstats
 
 @debug_func(enable_debug=True, prefix='progress')
