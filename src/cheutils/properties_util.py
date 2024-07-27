@@ -2,13 +2,14 @@ import datetime
 import os
 
 from cheutils.debugger import Debugger
+from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.project_tree import get_data_dir, get_root_dir
 from jproperties import Properties
 
 APP_CONFIG_FILENAME = 'app-config.properties'
-
-class PropertiesUtilException(Exception):
+DBUGGER = Debugger()
+class PropertiesException(Exception):
     def __init__(self, *args):
         if args:
             self.message = args[0]
@@ -18,40 +19,41 @@ class PropertiesUtilException(Exception):
 
     def __str__(self):
         if self.message:
-            return 'PropertiesUtilException, {0} '.format(self.message)
+            return 'PropertiesException, {0} '.format(self.message)
         else:
-            return 'PropertiesUtilException raised'
+            return 'PropertiesException raised'
 
 """
 Utilities for reading properties files
 """
 @singleton
-class PropertiesUtil(object):
+class AppProperties(object):
     instance__ = None
     app_props__ = None
     '''
-    A statis method responsible for creating and returning a new instance (called before __init__)
+    A static method responsible for creating and returning a new instance (called before __init__)
     '''
     def __new__(cls, *args, **kwargs):
         """
         Creates a singleton instance if it is not yet created, 
         or else returns the previous singleton object
         """
-        if PropertiesUtil.instance__ is None:
-            PropertiesUtil.instance__ = super().__new__(cls)
-        return PropertiesUtil.instance__
+        if AppProperties.instance__ is None:
+            AppProperties.instance__ = super().__new__(cls)
+        return AppProperties.instance__
 
     '''
     An instance method, the class constructor, responsible for initializing the attributes of the newly created
     '''
+
+    @debug_func(enable_debug=True, prefix='app_config')
     def __init__(self, *args, **kwargs):
         """
         Initializes the properties utility.
         """
-        self.debugger_ = Debugger()
         # prepare to load app-config.properties
         path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
-        self.debugger_.debug('Desired application config', path_to_app_config)
+        DBUGGER.debug('Desired application config', path_to_app_config)
         # walk through the directory tree and try to locate correct resource suggest
         found_resource = False
         for dirpath, dirnames, files in os.walk('.', topdown=False):
@@ -59,25 +61,25 @@ class PropertiesUtil(object):
                 if APP_CONFIG_FILENAME in files:
                     path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
                     found_resource = True
-                    self.debugger_.debug('Using project-specific application config', path_to_app_config)
+                    DBUGGER.debug('Using project-specific application config', path_to_app_config)
                     break
         if not found_resource:
-            self.debugger_.debug('Using global application config', path_to_app_config)
+            DBUGGER.debug('Using global application config', path_to_app_config)
             path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG_FILENAME)
         try:
             self.app_props__ = Properties()
-            self.debugger_.debug('Loading', path_to_app_config)
+            DBUGGER.debug('Loading', path_to_app_config)
             with open(path_to_app_config, 'rb') as prop_file:
                 self.app_props__.load(prop_file)                
         except Exception as ex:
-            raise PropertiesUtilException(ex)
+            raise PropertiesException(ex)
         # log message on completion
-        self.debugger_.debug(self)
+        DBUGGER.debug('Application properties loaded', path_to_app_config)
 
     def __str__(self):
         path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
-        info = 'PropertiesUtil created, using properties file' + path_to_app_config
-        self.debugger_.debug(info)
+        info = 'AppProperties created, using properties file' + path_to_app_config
+        DBUGGER.debug(info)
         return info
     
     '''
@@ -183,7 +185,7 @@ class PropertiesUtil(object):
             return False
         # otherwise, identify the specific key-value pair
         key_val_pairs = self.get_flags(prop_stem)
-        self.debugger_.debug('Flags', key_val_pairs)
+        DBUGGER.debug('Flags', key_val_pairs)
         key_set = key_val_pairs.get(key_part)
         if key_set is None:
             return False
@@ -203,7 +205,7 @@ class PropertiesUtil(object):
         if prop_key is None:
             return None
         prop_value = self.app_props__.get(prop_key).data
-        self.debugger_.debug('Key-value property stem', prop_key)
+        DBUGGER.debug('Key-value property stem', prop_key)
         if prop_value is None:
             return None
         tmp_list = prop_value.replace('\'', '').replace('\"', '').strip('][').split(',')
@@ -290,7 +292,7 @@ class PropertiesUtil(object):
             return None
         # otherwise, identify the specific key-value pair
         key_val_pairs = self.get_properties(prop_stem)
-        #self.debugger_.debug('Properties', key_val_pairs)
+        #DBUGGER.debug('Properties', key_val_pairs)
         val_part = key_val_pairs.get(key_part)
         if val_part is None:
             return None
@@ -305,7 +307,8 @@ class PropertiesUtil(object):
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
-            dict(str): a dict of key-value pairs based on the specified key; the default is None.
+            dict(str): a dict of key-value pairs based on the specified key, with the
+            value being the object type associated with the key; the default is None.
         """
         if prop_key is None:
             return None

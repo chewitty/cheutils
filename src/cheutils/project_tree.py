@@ -8,12 +8,14 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import estimator_html_repr
 
+from cheutils.debugger import Debugger
+
 # Define project navigation constants.
 PROJ_ROOT_DIR = './'
 PROJ_DATA_DIR = './data/'
 PROJ_OUTPUT_DIR = './output/'
 
-
+DBUGGER = Debugger()
 def get_root_dir():
     """
     Get the root directory of the project. The assumption execution is from the root folder (.).
@@ -56,7 +58,7 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
         dataset_df = pd.read_csv(path_to_dataset)
     else:
         dataset_df = pd.read_excel(path_to_dataset, parse_dates=date_cols)
-    print('Loaded dataset shape', dataset_df.shape)
+    DBUGGER.debug('Loaded dataset shape', dataset_df.shape)
     return dataset_df
 
 
@@ -107,6 +109,6 @@ def save_to_html(estimator, file_name: str):
         with open(os.path.join(html_dir + '/', file_name), 'w', encoding='utf-8') as file:
             file.write(estimator_html_repr(estimator))
     except OSError as error:
-        print("Directory '%s' cannot be created")
+        DBUGGER.debug("Directory '%s' cannot be created")
 
 

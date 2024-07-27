@@ -1,6 +1,6 @@
 import numpy as np
 from cheutils.debugger import Debugger
-from cheutils.properties_util import PropertiesUtil
+from cheutils.properties_util import AppProperties
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Lasso, LinearRegression, Ridge
@@ -9,7 +9,7 @@ from xgboost import XGBRegressor
 from hpsklearn import lasso, linear_regression, ridge, gradient_boosting_regressor
 from hpsklearn import xgboost_regression, lightgbm_regression, decision_tree_regressor, random_forest_regressor
 
-APP_PROPS = PropertiesUtil()
+APP_PROPS = AppProperties()
 DEBUGGER = Debugger()
 def get_regressor(**model_params):
     """
