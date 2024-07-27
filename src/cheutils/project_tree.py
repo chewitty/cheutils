@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import estimator_html_repr
-
+from cheutils.common_utils import label, datestamped
 from cheutils.debugger import Debugger
 
 # Define project navigation constants.
@@ -62,18 +62,44 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
     return dataset_df
 
 
-def save_excel(df: pd.DataFrame, file_name: str, index: bool = False):
+def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False):
     """
     Save the specified dataframe to Excel.
     :param df: the dataframe to be saved
     :param file_name: the file name to be saved, which is expected to be saved in the data folder in the project root directory
     :param index: to include the index column or not
+    :param tag_label: the label to be added to the file name - e.g., test-<tag_label>.xlsx
+    :param date_stamped: to include the date stamped to the file name - e.g., test-<date_stamped>.xlsx
     :return:
     """
     assert df is not None, 'A valid DataFrame expected as input'
     assert file_name is not None, 'A valid file name expected as input'
-    os.makedirs(get_data_dir(), exist_ok=True)
-    df.to_excel(os.path.join(get_data_dir(), file_name), index=index)
+    os.makedirs(get_output_dir(), exist_ok=True)
+    target_file = os.path.join(get_output_dir(), file_name) if tag_label is None else os.path.join(get_output_dir(),
+                                                                                                   label(file_name,
+                                                                                                         label=tag_label))
+    target_file = datestamped(target_file) if date_stamped else target_file
+
+    df.to_excel(target_file, index=index)
+
+def save_csv(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False):
+    """
+    Save the specified dataframe to Excel.
+    :param df: the dataframe to be saved
+    :param file_name: the file name to be saved, which is expected to be saved in the data folder in the project root directory
+    :param index: to include the index column or not
+    :param tag_label: the label to be added to the file name - e.g., test-<tag_label>.csv
+    :param date_stamped: to include the date stamped to the file name - e.g., test-<date_stamped>.csv
+    :return:
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert file_name is not None, 'A valid file name expected as input'
+    os.makedirs(get_output_dir(), exist_ok=True)
+    target_file = os.path.join(get_output_dir(), file_name) if tag_label is None else os.path.join(get_output_dir(),
+                                                                                                   label(file_name,
+                                                                                                         label=tag_label))
+    target_file = datestamped(target_file) if date_stamped else target_file
+    df.to_csv(target_file, index=index)
 
 
 def save_current_fig(file_name: str, **kwargs):
@@ -91,7 +117,7 @@ def save_current_fig(file_name: str, **kwargs):
     plt.savefig(os.path.join(get_output_dir(), file_name), bbox_inches='tight', **kwargs)
 
 
-def save_to_html(estimator, file_name: str):
+def save_to_html(estimator, file_name: str, **kwargs):
     """
     Save an image representation of a pipeline or estimator or search object.
     :param estimator:
