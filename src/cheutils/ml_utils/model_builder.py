@@ -293,8 +293,9 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
                                     np.linspace(max(value + viable_span, min_val), min(value - viable_span, max_val),
                                                 num_steps)])
                 cur_val = np.where(cur_val < 1, 1, cur_val)
-                cur_val = np.sort(np.where(cur_val > max_val, max_val, cur_val))
-                param_grid[param] = list(set(cur_val.tolist()))
+                cur_val = list(set(np.where(cur_val > max_val, max_val, cur_val)))
+                cur_val.sort()
+                param_grid[param] = cur_val
             elif isinstance(value, float):
                 min_val = float(min_val) if min_val is not None else value
                 max_val = float(max_val) if max_val is not None else value
@@ -303,8 +304,9 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
                                     np.linspace(max(value + viable_span, min_val), min(value - viable_span, max_val),
                                                 num_steps)])
                 cur_val = np.where(cur_val < 0, 0, cur_val)
-                cur_val = np.sort(np.where(cur_val > max_val, max_val, cur_val))
-                param_grid[param] = list(set(cur_val.tolist()))
+                cur_val = list(set(np.where(cur_val > max_val, max_val, cur_val)))
+                cur_val.sort()
+                param_grid[param] = cur_val
         else:
             param_grid[param] = [value]
     return param_grid

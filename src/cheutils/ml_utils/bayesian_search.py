@@ -42,15 +42,19 @@ class BayesianSearch(object):
                         max_val = min(int(value[0]*(1 + fudge_factor)), ubound)
                         cur_val = np.linspace(min_val, max_val, self.num_params, dtype=int)
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
-                        self.params_space_[key] = hp.choice(key, cur_val.tolist())
-                        space_def[key] = list(set(cur_val.tolist()))
+                        cur_range = cur_val.tolist()
+                        cur_range.sort()
+                        self.params_space_[key] = hp.choice(key, cur_range)
+                        space_def[key] = list(set(cur_range))
                     else:
                         min_val = max(int(value[0]), lbound)
                         max_val = min(int(value[-1]), ubound)
                         cur_val = np.linspace(min_val, max_val, self.num_params, dtype=int)
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
-                        self.params_space_[key] = hp.choice(key, cur_val.tolist())
-                        space_def[key] = list(set(cur_val.tolist()))
+                        cur_range = cur_val.tolist()
+                        cur_range.sort()
+                        self.params_space_[key] = hp.choice(key, cur_range)
+                        space_def[key] = list(set(cur_range))
                 elif isinstance(value[0], float):
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = max(value[0] * (1 + fudge_factor), lbound)
@@ -65,14 +69,20 @@ class BayesianSearch(object):
                 else:
                     pass
             else:
-                self.params_space_[key] = hp.choice(key, value)
-                space_def[key] = value
+                if isinstance(value[0], int):
+                    cur_range = value
+                    cur_range.sort()
+                    self.params_space_[key] = hp.choice(key, cur_range)
+                    space_def[key] = cur_range
+                else:
+                    self.params_space_[key] = hp.choice(key, value)
+                    space_def[key] = value
         DBUGGER.debug('BayesianSearch: Parameter space', space_def)
         # Perform the optimization
         self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **self.params_space_),
                                                  preprocessing=self.preprocessing, loss_fn=mean_squared_error,
                                                  algo=tpe.suggest, max_evals=self.n_iters,
-                                                 trial_timeout=60, refit=True, n_jobs=-1, seed=self.random_state,)
+                                                 trial_timeout=60, refit=True, n_jobs=-1, seed=self.random_state, verbose=True)
         self.best_estimator_.fit(X, y)
         self.base_estimator_ = self.best_estimator_.best_model().get('learner')
         self.best_score_ = min(self.best_estimator_.trials.losses())
