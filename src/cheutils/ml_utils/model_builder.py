@@ -25,6 +25,7 @@ num_params = int(APP_PROPS.get('model.num_params.to_sample'))
 scoring = APP_PROPS.get('model.cross_val.scoring')
 cv = int(APP_PROPS.get('model.cross_val.num_folds'))
 random_state = int(APP_PROPS.get('model.random_state'))
+trial_timeout = int(APP_PROPS.get('model.trial_timeout'))
 grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
 DBUGGER = Debugger()
 
@@ -252,7 +253,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     elif "bayesian" == fine_search:
         search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    scaling_factor=scaling_factor, model_option=model_option, n_iters=n_iters,
-                                   num_params=num_params, random_state=random_state)
+                                   num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')

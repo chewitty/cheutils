@@ -9,7 +9,7 @@ DBUGGER = Debugger()
 class BayesianSearch(object):
     def __init__(self, param_grid: dict, params_bounds: dict,
                  model_option:str=None, n_iters: int=100, num_params: int=5,
-                 preprocessing: list=None, random_state: int=100, **kwargs):
+                 preprocessing: list=None, random_state: int=100, trial_timeout: int=60, **kwargs):
         self.param_grid = param_grid
         self.params_bounds = params_bounds
         self.model_option = model_option
@@ -17,6 +17,7 @@ class BayesianSearch(object):
         self.num_params = num_params
         self.preprocessing = [] if preprocessing is None else preprocessing
         self.random_state = random_state
+        self.trial_timeout = trial_timeout
         self.base_estimator_ = None
         self.best_estimator_ = None
         self.best_params_ = None
@@ -82,7 +83,8 @@ class BayesianSearch(object):
         self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **self.params_space_),
                                                  preprocessing=self.preprocessing, loss_fn=mean_squared_error,
                                                  algo=tpe.suggest, max_evals=self.n_iters,
-                                                 trial_timeout=60, refit=True, n_jobs=-1, seed=self.random_state, verbose=True)
+                                                 trial_timeout=self.trial_timeout, refit=True, n_jobs=-1,
+                                                 seed=self.random_state, verbose=True)
         self.best_estimator_.fit(X, y)
         self.base_estimator_ = self.best_estimator_.best_model().get('learner')
         self.best_score_ = min(self.best_estimator_.trials.losses())
