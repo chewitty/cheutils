@@ -20,6 +20,8 @@ APP_PROPS = AppProperties()
 model_option = APP_PROPS.get('model.active.model_option')
 # number of iterations or parameters to sample
 n_iters = int(APP_PROPS.get('model.n_iters.to_sample'))
+# number of hyperopt trials to iterate over
+n_trials = int(APP_PROPS.get('model.n_trials.to_sample'))
 # how fine or max number of parameters to create for narrower param_grip
 num_params = int(APP_PROPS.get('model.num_params.to_sample'))
 scoring = APP_PROPS.get('model.cross_val.scoring')
@@ -252,7 +254,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
         search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
-                                   scaling_factor=scaling_factor, model_option=model_option, n_iters=n_iters,
+                                   scaling_factor=scaling_factor, model_option=model_option, max_evals=n_trials,
                                    num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
@@ -289,7 +291,8 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
             if isinstance(value, int):
                 min_val = int(min_val) if min_val is not None else value
                 max_val = int(max_val) if max_val is not None else value
-                viable_span = int(((max_val - min_val) / 2) * scaling_factor)
+                std_dev = np.std([min_val, max_val])
+                viable_span = int(std_dev * scaling_factor)
                 cur_val = np.array([int(x) for x in
                                     np.linspace(max(value + viable_span, min_val), min(value - viable_span, max_val),
                                                 num_steps)])
@@ -300,7 +303,8 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
             elif isinstance(value, float):
                 min_val = float(min_val) if min_val is not None else value
                 max_val = float(max_val) if max_val is not None else value
-                viable_span = ((max_val - min_val) / 2) * scaling_factor
+                std_dev = np.std([min_val, max_val])
+                viable_span = std_dev * scaling_factor
                 cur_val = np.array([np.round(x, 3) for x in
                                     np.linspace(max(value + viable_span, min_val), min(value - viable_span, max_val),
                                                 num_steps)])
