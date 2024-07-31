@@ -31,6 +31,9 @@ trial_timeout = int(APP_PROPS.get('model.trial_timeout'))
 grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
 DBUGGER = Debugger()
 
+# cache narrower parameter grid
+narrow_param_grids = {}
+
 
 @track_duration(name='fit')
 @debug_func(enable_debug=True, prefix='fit')
@@ -226,7 +229,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
     search_cv = None
-    if not skip_phase_1:
+    if (not skip_phase_1) & (narrow_param_grids.get(num_params) is None):
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
                                        scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
                                        random_state=random_state, verbose=2, error_score="raise", )
@@ -242,7 +245,8 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     params_bounds = get_params_pounds(model_option, prefix=prefix)
     narrow_param_grid = params_grid if skip_phase_1 else None
     if not skip_phase_1:
-        narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, scaling_factor=scaling_factor,
+        best_params = search_cv.best_params_ if search_cv is not None else None
+        narrow_param_grid = get_narrow_param_grid(best_params, scaling_factor=scaling_factor,
                                                   params_bounds=params_bounds)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
@@ -280,6 +284,10 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
     :return:
     :rtype:
     """
+    narrower_grid = narrow_param_grids.get(num_params)
+    if narrower_grid is not None:
+        DBUGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
+        return narrower_grid
     num_steps = num_params
     if params_bounds is None:
         param_bounds = {}
@@ -314,6 +322,7 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
                 param_grid[param] = cur_val
         else:
             param_grid[param] = [value]
+    narrow_param_grids[num_params] = param_grid
     return param_grid
 
 
