@@ -105,7 +105,7 @@ def exclude_nulls(X, y):
     null_rows = X_pred.isna().any(axis=1)
     X_pred.dropna(inplace=True)
     y_pred = y_pred[~null_rows]
-    print("Shape of dataset available for predictions", X_pred.shape, y_pred.shape)
+    DBUGGER.debug("Shape of dataset available for predictions", X_pred.shape, y_pred.shape)
     return X_pred, y_pred
 
 
@@ -268,7 +268,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         show_pipeline(search_cv, name=name, save_to_file=True)
     else:
         show_pipeline(search_cv)
-    _ = search_cv.fit(X, y)
+    search_cv.fit(X, y)
     # return the results accordingly
     return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
 
