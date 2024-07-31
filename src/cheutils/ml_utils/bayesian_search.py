@@ -4,12 +4,14 @@ from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
 from sklearn.metrics import mean_squared_error
 from hpsklearn import HyperoptEstimator
 from cheutils.ml_utils.model_options import get_hyperopt_regressor
+from cheutils.common_base import CheutilsBase
 
 DBUGGER = Debugger()
-class BayesianSearch(object):
+class BayesianSearch(CheutilsBase):
     def __init__(self, param_grid: dict, params_bounds: dict,
                  model_option:str=None, max_evals: int=100, num_params: int=5,
                  preprocessing: list=None, random_state: int=100, trial_timeout: int=60, **kwargs):
+        super().__init()
         self.param_grid = param_grid
         self.params_bounds = params_bounds
         self.model_option = model_option
@@ -98,15 +100,5 @@ class BayesianSearch(object):
         assert X is not None, "A valid X expected"
         return self.base_estimator_.predict(X)
 
-    def __str__(self):
-        details = {'param_grid': self.param_grid, 'params_bounds': self.params_bounds,
-                   'model_option': self.model_option, 'max_evals': self.max_evals,
-                   'num_params': self.num_params, 'preprocessing': self.preprocessing,
-                   'random_state': self.random_state, 'trial_timeout': self.trial_timeout,
-                   'base_estimator_': self.base_estimator_, 'best_estimator_': self.best_estimator_,
-                   'best_params_': self.best_params_, 'best_score_': self.best_score_,
-                   'cv_results_': self.cv_results_, 'scoring_': self.scoring_,
-                   'cv': self.cv_, 'trials_': self.trials_, 'params_space_': self.params_space_,}
-        return details
 
 
