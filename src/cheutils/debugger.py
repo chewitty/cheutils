@@ -44,7 +44,6 @@ class Debugger(object):
         else:
             self.prefix_ = f'|Debug'
         debug.configureOutput(prefix=f'{self.prefix_} |')
-        debug(self)
 
     def __str__(self):
         info = 'Debugger'

@@ -268,7 +268,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         show_pipeline(search_cv, name=name, save_to_file=True)
     else:
         show_pipeline(search_cv)
-    search_cv.fit(X, y)
+    _ = search_cv.fit(X, y)
     # return the results accordingly
     return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
 
