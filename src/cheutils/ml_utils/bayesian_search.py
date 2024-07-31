@@ -11,7 +11,7 @@ class BayesianSearch(CheutilsBase):
     def __init__(self, param_grid: dict, params_bounds: dict,
                  model_option:str=None, max_evals: int=100, num_params: int=5,
                  preprocessing: list=None, random_state: int=100, trial_timeout: int=60, **kwargs):
-        super().__init()
+        super().__init__()
         self.param_grid = param_grid
         self.params_bounds = params_bounds
         self.model_option = model_option
