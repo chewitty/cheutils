@@ -1,3 +1,7 @@
+# setting path in the cloud
+export PATH=$PATH:/home/repl/.local/bin
+
+# then building and installing
 pip uninstall cheutils --y
 py -m build
 python -m twine upload --repository testpypi dist/*

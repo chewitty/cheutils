@@ -26,7 +26,7 @@ n_trials = int(APP_PROPS.get('model.n_trials.to_sample'))
 num_params = int(APP_PROPS.get('model.num_params.to_sample'))
 scoring = APP_PROPS.get('model.cross_val.scoring')
 cv = int(APP_PROPS.get('model.cross_val.num_folds'))
-random_state = int(APP_PROPS.get('model.random_state'))
+random_seed = int(APP_PROPS.get('model.random_seed'))
 trial_timeout = int(APP_PROPS.get('model.trial_timeout'))
 grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
 DBUGGER = Debugger()
@@ -161,8 +161,11 @@ def eval_metric_by_params(model_option, X, y, prefix: str = None, metric: str = 
 
 @track_duration(name='tune_model')
 @debug_func(enable_debug=True, prefix='tune_model')
-def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, debug: bool = False, **kwargs):
+def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, debug: bool = False,
+               random_state: int=None, **kwargs):
     assert pipeline is not None, "A valid pipeline instance expected"
+    if random_state is None:
+        random_state = random_seed
     params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
     search_cv = None
@@ -197,7 +200,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
 @track_duration(name='coarse_fine_tune')
 @debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_search: str = 'random',
-                     scaling_factor: float = 1.0, prefix: str = None,
+                     scaling_factor: float = 1.0, prefix: str = None, random_state: int=None,
                      **kwargs):
     """
     Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
@@ -215,12 +218,15 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
+    :param random_state: random seed for reproducibility
     :param kwargs:
     :type kwargs:
     :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_)
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
+    if random_state is None:
+        random_state = random_seed
     name = None
     if "name" in kwargs:
         name = kwargs.get("name")
