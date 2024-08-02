@@ -13,6 +13,8 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
+from skopt import BayesSearchCV
+from skopt.space import Integer, Real, Categorical
 
 n_jobs = -1
 APP_PROPS = AppProperties()
@@ -260,6 +262,10 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    scaling_factor=scaling_factor, model_option=model_option, max_evals=n_trials,
                                    num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
+    elif 'skoptimizer' == fine_search:
+        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid),
+                                  scoring=scoring, cv=cv, n_iter=n_trials, n_jobs=n_jobs,
+                                  random_state=random_state, error_score="raise", )
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
@@ -325,6 +331,26 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
     narrow_param_grids[num_params] = param_grid
     return param_grid
 
+def parse_params(default_grid: dict) -> dict:
+    param_grid = {}
+    for param, value in default_grid.items():
+
+        if isinstance(value, list):
+            min_val, max_val = value[0], value[-1]
+            if isinstance(value[0], int):
+                param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
+            elif isinstance(value[0], float):
+                param_grid[param] = Real(min_val, max_val, prior='log-uniform')
+            else:
+                param_grid[param] = Categorical(value)
+        else:
+            if isinstance(value, int):
+                param_grid[param] = Integer(value, value, prior='log-uniform')
+            elif isinstance(value[0], float):
+                param_grid[param] = Real(value, value, prior='log-uniform')
+            else:
+                param_grid[param] = Categorical(value)
+    return param_grid
 
 def get_seed_params(default_grid: dict, param_bounds=None):
     """

@@ -1,6 +1,8 @@
+from functools import partial
+
 import numpy as np
 from cheutils.debugger import Debugger
-from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
+from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval, mix, anneal, rand
 from hyperopt.pyll import scope
 from sklearn.metrics import mean_squared_error
 from hpsklearn import HyperoptEstimator
@@ -81,13 +83,16 @@ class BayesianSearch(CheutilsBase):
                 else:
                     self.params_space_[key] = hp.choice(key, value)
                     space_def[key] = value
+        self.params_space_['random_state'] = self.random_state
         DBUGGER.debug('BayesianSearch: Parameter space', space_def)
         # Perform the optimization
+        p_suggest = [(0.05, rand.suggest), (0.75, tpe.suggest), (0.20, anneal.suggest)]
+        mix_algo = partial(mix.suggest, p_suggest=p_suggest)
         self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **self.params_space_),
                                                  preprocessing=self.preprocessing, loss_fn=mean_squared_error,
-                                                 algo=tpe.suggest, max_evals=self.max_evals,
+                                                 algo=mix_algo, max_evals=self.max_evals,
                                                  trial_timeout=self.trial_timeout, refit=True, n_jobs=-1,
-                                                 seed=self.random_state, verbose=False)
+                                                 seed=self.random_state, verbose=True)
         self.best_estimator_.fit(X, y)
         self.base_estimator_ = self.best_estimator_.best_model().get('learner')
         self.best_score_ = min(self.best_estimator_.trials.losses())
