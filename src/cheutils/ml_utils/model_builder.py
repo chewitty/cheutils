@@ -334,22 +334,23 @@ def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params
 def parse_params(default_grid: dict) -> dict:
     param_grid = {}
     for param, value in default_grid.items():
-
         if isinstance(value, list):
-            min_val, max_val = value[0], value[-1]
             if isinstance(value[0], int):
+                min_val, max_val = int(np.min(value)), int(np.max(value))
                 param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
             elif isinstance(value[0], float):
+                min_val, max_val = np.min(value), np.max(value)
                 param_grid[param] = Real(min_val, max_val, prior='log-uniform')
             else:
-                param_grid[param] = Categorical(value)
+                param_grid[param] = Categorical(value, transform='identity')
         else:
             if isinstance(value, int):
                 param_grid[param] = Integer(value, value, prior='log-uniform')
             elif isinstance(value[0], float):
                 param_grid[param] = Real(value, value, prior='log-uniform')
             else:
-                param_grid[param] = Categorical(value)
+                param_grid[param] = Categorical(value, transform='identity')
+    DBUGGER.debug('Parsed search space = ', param_grid)
     return param_grid
 
 def get_seed_params(default_grid: dict, param_bounds=None):
