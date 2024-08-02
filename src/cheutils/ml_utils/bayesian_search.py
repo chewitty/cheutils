@@ -1,6 +1,7 @@
 import numpy as np
 from cheutils.debugger import Debugger
 from hyperopt import fmin, tpe, hp, STATUS_OK, Trials, space_eval
+from hyperopt.pyll import scope
 from sklearn.metrics import mean_squared_error
 from hpsklearn import HyperoptEstimator
 from cheutils.ml_utils.model_options import get_hyperopt_regressor
@@ -47,7 +48,7 @@ class BayesianSearch(CheutilsBase):
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         cur_range = cur_val.tolist()
                         cur_range.sort()
-                        self.params_space_[key] = hp.choice(key, cur_range)
+                        self.params_space_[key] = scope.int(hp.quniform(key, cur_range))
                         space_def[key] = list(set(cur_range))
                     else:
                         min_val = max(int(value[0]), lbound)
@@ -56,7 +57,7 @@ class BayesianSearch(CheutilsBase):
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         cur_range = cur_val.tolist()
                         cur_range.sort()
-                        self.params_space_[key] = hp.choice(key, cur_range)
+                        self.params_space_[key] = scope.int(hp.quniform(key, cur_range))
                         space_def[key] = list(set(cur_range))
                 elif isinstance(value[0], float):
                     if len(value) == 1 | (value[0] == value[-1]):
