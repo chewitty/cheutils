@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 from cheutils.debugger import Debugger
-from cheutils.decorator_debug import debug_func
 from cheutils.decorator_timer import track_duration
 from cheutils.ml_utils.bayesian_search import BayesianSearch
 from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params
@@ -36,7 +35,6 @@ narrow_param_grids = {}
 
 
 @track_duration(name='fit')
-@debug_func(enable_debug=True, prefix='fit')
 def fit(pipeline: Pipeline, X, y, **kwargs):
     """
     Fit the model based on the pipeline
@@ -60,7 +58,6 @@ def fit(pipeline: Pipeline, X, y, **kwargs):
 
 
 @track_duration(name='predict')
-@debug_func(enable_debug=True, prefix='predict')
 def predict(pipeline: Pipeline, X):
     """
     Do prediction based on the pipeline and the X.
@@ -110,7 +107,6 @@ def exclude_nulls(X, y):
 
 
 @track_duration(name='score')
-@debug_func(enable_debug=True, prefix='score')
 def score(y_true, y_pred, kind: str = "mse"):
     assert y_true is not None, "A valid y_true expected"
     assert y_pred is not None, "A valid y_pred expected"
@@ -160,7 +156,6 @@ def eval_metric_by_params(model_option, X, y, prefix: str = None, metric: str = 
 
 
 @track_duration(name='tune_model')
-@debug_func(enable_debug=True, prefix='tune_model')
 def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, debug: bool = False,
                random_state: int=None, **kwargs):
     assert pipeline is not None, "A valid pipeline instance expected"
@@ -198,7 +193,6 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
 
 
 @track_duration(name='coarse_fine_tune')
-@debug_func(enable_debug=True, prefix='coarse_fine_tune')
 def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_search: str = 'random',
                      scaling_factor: float = 1.0, prefix: str = None, random_state: int=None,
                      **kwargs):
@@ -359,7 +353,6 @@ def get_seed_params(default_grid: dict, param_bounds=None):
 
 
 @track_duration(name='cv')
-@debug_func(enable_debug=True, prefix='cv')
 def cross_val_model(pipeline: Pipeline, X, y, scoring, cv=5, **fit_params):
     assert pipeline is not None, "A valid pipeline instance expected"
     assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
