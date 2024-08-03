@@ -25,6 +25,9 @@ n_iters = int(APP_PROPS.get('model.n_iters.to_sample'))
 n_trials = int(APP_PROPS.get('model.n_trials.to_sample'))
 # how fine or max number of parameters to create for narrower param_grip
 num_params = int(APP_PROPS.get('model.num_params.to_sample'))
+use_optimal_num_params = APP_PROPS.get_bol('model.num_params.use_optimal')
+num_params_range = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
+                       int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
 scoring = APP_PROPS.get('model.cross_val.scoring')
 cv = int(APP_PROPS.get('model.cross_val.num_folds'))
 random_seed = int(APP_PROPS.get('model.random_seed'))
@@ -32,8 +35,10 @@ trial_timeout = int(APP_PROPS.get('model.trial_timeout'))
 grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
 DBUGGER = Debugger()
 
-# cache narrower parameter grid
+# cache narrower parameter grid, keyed by num_params
 narrow_param_grids = {}
+# cache optimal num_params, keyed by model option
+optimal_num_params = {}
 
 
 @track_duration(name='fit')
@@ -230,6 +235,10 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     # phase 1: Coarse search
     params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
+    # use_optimal_num_params
+    params_bounds = get_params_pounds(model_option, prefix=prefix)
+    num_params = get_optimal_num_params(X, y, search_space=params_grid, params_bounds=params_bounds, cache_value=False,
+                                        random_state=random_state)
     search_cv = None
     if (not skip_phase_1) & (narrow_param_grids.get(num_params) is None):
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
@@ -244,7 +253,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
                       (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
     # phase 2: finer search
-    params_bounds = get_params_pounds(model_option, prefix=prefix)
     narrow_param_grid = params_grid if skip_phase_1 else None
     if not skip_phase_1:
         best_params = search_cv.best_params_ if search_cv is not None else None
@@ -259,8 +267,10 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
+        num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
+                                            random_state=random_state)
         search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
-                                   scaling_factor=scaling_factor, model_option=model_option, max_evals=n_trials,
+                                   model_option=model_option, max_evals=n_trials,
                                    num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
     elif 'skoptimizer' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid),
@@ -277,6 +287,39 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     search_cv.fit(X, y)
     # return the results accordingly
     return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
+
+def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_value: bool = True, random_state: int=100,):
+    """
+    Use hyperopt estimator to find optimal number of parameters to specify given hyperparameter space.
+    :param X:
+    :type X:
+    :param y:
+    :type y:
+    :param search_space:
+    :type search_space:
+    :param params_bounds:
+    :type params_bounds:
+    :param cache_value: cache the value to be reused subsequently
+    :param random_state:
+    :type random_state:
+    :return:
+    :rtype:
+    """
+    num_params = optimal_num_params.get(model_option)
+    if num_params is None:
+        scores = []
+        param_ids = range(num_params_range[0], num_params_range[1] + 1)
+        for n_params in param_ids:
+            finder = BayesianSearch(param_grid=search_space, params_bounds=params_bounds,
+                                    model_option=model_option, max_evals=10,
+                                    num_params=n_params, trial_timeout=trial_timeout, random_state=random_state)
+            finder.fit(X, y)
+            scores.append(finder.best_score_)
+        num_params = param_ids[np.argmin(scores)]
+        if cache_value:
+            optimal_num_params[model_option] = num_params
+    return num_params
+
 
 
 def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params_bounds=None):
