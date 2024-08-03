@@ -50,7 +50,7 @@ class BayesianSearch(CheutilsBase):
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         cur_range = cur_val.tolist()
                         cur_range.sort()
-                        self.params_space_[key] = scope.int(hp.quniform(key, cur_range))
+                        self.params_space_[key] = scope.int(hp.quniform(key, min(cur_range), max(cur_range), self.num_params))
                         space_def[key] = list(set(cur_range))
                     else:
                         min_val = max(int(value[0]), lbound)
@@ -59,7 +59,7 @@ class BayesianSearch(CheutilsBase):
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         cur_range = cur_val.tolist()
                         cur_range.sort()
-                        self.params_space_[key] = scope.int(hp.quniform(key, cur_range))
+                        self.params_space_[key] = scope.int(hp.quniform(key, min(cur_range), max(cur_range), self.num_params))
                         space_def[key] = list(set(cur_range))
                 elif isinstance(value[0], float):
                     if len(value) == 1 | (value[0] == value[-1]):

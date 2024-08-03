@@ -336,20 +336,15 @@ def parse_params(default_grid: dict) -> dict:
     for param, value in default_grid.items():
         if isinstance(value, list):
             if isinstance(value[0], int):
-                min_val, max_val = int(np.min(value)), int(np.max(value))
+                min_val, max_val = int(max(1, min(value))), int(max(value))
                 param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
             elif isinstance(value[0], float):
-                min_val, max_val = np.min(value), np.max(value)
+                min_val, max_val = max(0.0001, min(value)), max(value)
                 param_grid[param] = Real(min_val, max_val, prior='log-uniform')
             else:
                 param_grid[param] = Categorical(value, transform='identity')
         else:
-            if isinstance(value, int):
-                param_grid[param] = Integer(value, value, prior='log-uniform')
-            elif isinstance(value[0], float):
-                param_grid[param] = Real(value, value, prior='log-uniform')
-            else:
-                param_grid[param] = Categorical(value, transform='identity')
+            param_grid[param] = [value]
     DBUGGER.debug('Parsed search space = ', param_grid)
     return param_grid
 
