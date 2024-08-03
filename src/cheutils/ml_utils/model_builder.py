@@ -16,7 +16,7 @@ from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
 
-from project_tree import save_excel
+from cheutils.project_tree import save_excel
 
 n_jobs = -1
 APP_PROPS = AppProperties()
@@ -321,7 +321,7 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
             finder.fit(X, y)
             scores.append(finder.best_score_)
         num_params = param_ids[np.argmin(scores)]
-        opt_params_df = pd.DataFrame({'param_id': param_ids, 'score': scores})
+        opt_params_df = pd.DataFrame({'num_params': param_ids, 'score': scores})
         filename = 'optimal_num_params.xlsx'
         save_excel(opt_params_df, file_name=filename)
         if cache_value:
