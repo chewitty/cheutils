@@ -240,9 +240,6 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     # use_optimal_num_params
     params_bounds = get_params_pounds(model_option, prefix=prefix)
     num_params = configured_num_params
-    if use_optimal_num_params:
-        num_params = get_optimal_num_params(X, y, search_space=params_grid, params_bounds=params_bounds, cache_value=False,
-                                        random_state=random_state)
     search_cv = None
     if (not skip_phase_1) & (narrow_param_grids.get(num_params) is None):
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
