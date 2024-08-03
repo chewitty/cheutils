@@ -258,7 +258,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     narrow_param_grid = params_grid if skip_phase_1 else None
     if not skip_phase_1:
         best_params = search_cv.best_params_ if search_cv is not None else None
-        narrow_param_grid = get_narrow_param_grid(best_params, scaling_factor=scaling_factor,
+        narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
                                                   params_bounds=params_bounds)
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
@@ -321,15 +321,17 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
         num_params = param_ids[np.argmin(scores)]
         if cache_value:
             optimal_num_params[model_option] = num_params
+    DBUGGER.debug('Optimal num_params = ', num_params)
     return num_params
 
 
 
-def get_narrow_param_grid(best_params: dict, scaling_factor: float = 1.0, params_bounds=None):
+def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds=None):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param best_params: the best combination of hyperparameters obtained from the coarse search phase
     :type best_params:
+    :param num_params: the number that defines the granularity of the narrower hyperparameter space
     :param scaling_factor: scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param params_bounds:
