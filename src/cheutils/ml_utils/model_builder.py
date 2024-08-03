@@ -24,7 +24,7 @@ n_iters = int(APP_PROPS.get('model.n_iters.to_sample'))
 # number of hyperopt trials to iterate over
 n_trials = int(APP_PROPS.get('model.n_trials.to_sample'))
 # how fine or max number of parameters to create for narrower param_grip
-num_params = int(APP_PROPS.get('model.num_params.to_sample'))
+configured_num_params = int(APP_PROPS.get('model.num_params.to_sample'))
 use_optimal_num_params = APP_PROPS.get_bol('model.num_params.use_optimal')
 num_params_range = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
@@ -237,7 +237,9 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     DBUGGER.debug('Hyperparameters =', params_grid)
     # use_optimal_num_params
     params_bounds = get_params_pounds(model_option, prefix=prefix)
-    num_params = get_optimal_num_params(X, y, search_space=params_grid, params_bounds=params_bounds, cache_value=False,
+    num_params = configured_num_params
+    if use_optimal_num_params:
+        num_params = get_optimal_num_params(X, y, search_space=params_grid, params_bounds=params_bounds, cache_value=False,
                                         random_state=random_state)
     search_cv = None
     if (not skip_phase_1) & (narrow_param_grids.get(num_params) is None):
@@ -267,8 +269,9 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
     elif "bayesian" == fine_search:
-        num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                            random_state=random_state)
+        if use_optimal_num_params:
+            num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
+                                                random_state=random_state)
         search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    model_option=model_option, max_evals=n_trials,
                                    num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
