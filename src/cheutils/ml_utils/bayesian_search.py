@@ -29,7 +29,6 @@ class HyperoptSearch(CheutilsBase):
         self.best_score_ = None
         self.cv_results_ = None
         self.scoring_ = kwargs.get('scoring', 'neg_mean_squared_error')
-        self.cv_ = kwargs.get('cv', 5)
         self.trials_ = None
         self.params_space_ = {}
 

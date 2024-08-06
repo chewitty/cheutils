@@ -314,7 +314,8 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
         for n_params in param_ids:
             finder = HyperoptSearch(param_grid=search_space, params_bounds=params_bounds,
                                     model_option=model_option, max_evals=10,
-                                    num_params=n_params, trial_timeout=trial_timeout, random_state=random_state)
+                                    num_params=n_params, trial_timeout=trial_timeout,
+                                    random_state=random_state)
             finder.fit(X, y)
             scores.append(finder.best_score_)
         num_params = param_ids[np.argmin(scores)]
