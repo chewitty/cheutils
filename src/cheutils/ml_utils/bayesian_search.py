@@ -10,7 +10,7 @@ from cheutils.ml_utils.model_options import get_hyperopt_regressor
 from cheutils.common_base import CheutilsBase
 
 DBUGGER = Debugger()
-class BayesianSearch(CheutilsBase):
+class HyperoptSearch(CheutilsBase):
     def __init__(self, param_grid: dict, params_bounds: dict,
                  model_option:str=None, max_evals: int=100, num_params: int=5,
                  preprocessing: list=None, random_state: int=100, trial_timeout: int=60, **kwargs):
@@ -34,7 +34,7 @@ class BayesianSearch(CheutilsBase):
         self.params_space_ = {}
 
     def fit(self, X, y=None, **kwargs):
-        DBUGGER.debug('BayesianSearch: Fitting dataset, shape', X.shape, y.shape if y is not None else None)
+        DBUGGER.debug('HyperoptSearch: Fitting dataset, shape', X.shape, y.shape if y is not None else None)
         # Define the hyperparameter space
         fudge_factor = 0.20 # in cases where the hyperparameter is a single value instead of a list of at least 2
         space_def = {}
@@ -84,7 +84,7 @@ class BayesianSearch(CheutilsBase):
                     self.params_space_[key] = hp.choice(key, value)
                     space_def[key] = value
         self.params_space_['random_state'] = self.random_state
-        DBUGGER.debug('BayesianSearch: Parameter space', space_def)
+        DBUGGER.debug('HyperoptSearch: Parameter space', space_def)
         # Perform the optimization
         p_suggest = [(0.05, rand.suggest), (0.75, tpe.suggest), (0.20, anneal.suggest)]
         mix_algo = partial(mix.suggest, p_suggest=p_suggest)

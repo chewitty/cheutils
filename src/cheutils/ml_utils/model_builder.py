@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from cheutils.debugger import Debugger
 from cheutils.decorator_timer import track_duration
-from cheutils.ml_utils.bayesian_search import BayesianSearch
+from cheutils.ml_utils.bayesian_search import HyperoptSearch
 from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params
 from cheutils.ml_utils.model_options import get_regressor
 from cheutils.ml_utils.pipeline_details import show_pipeline
@@ -267,11 +267,11 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     elif "grid" == fine_search:
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
-    elif "bayesian" == fine_search:
+    elif "hyperopt" == fine_search:
         if use_optimal_num_params:
             num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                 random_state=random_state)
-        search_cv = BayesianSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
+        search_cv = HyperoptSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    model_option=model_option, max_evals=n_trials,
                                    num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
     elif 'skoptimizer' == fine_search:
@@ -312,7 +312,7 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
         scores = []
         param_ids = range(num_params_range[0], num_params_range[1] + 1)
         for n_params in param_ids:
-            finder = BayesianSearch(param_grid=search_space, params_bounds=params_bounds,
+            finder = HyperoptSearch(param_grid=search_space, params_bounds=params_bounds,
                                     model_option=model_option, max_evals=10,
                                     num_params=n_params, trial_timeout=trial_timeout, random_state=random_state)
             finder.fit(X, y)
