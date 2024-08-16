@@ -15,33 +15,36 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
-
 from cheutils.project_tree import save_excel
 
 n_jobs = -1
 APP_PROPS = AppProperties()
+# the model option selected as default
 model_option = APP_PROPS.get('model.active.model_option')
 # number of iterations or parameters to sample
 n_iters = int(APP_PROPS.get('model.n_iters.to_sample'))
 # number of hyperopt trials to iterate over
 n_trials = int(APP_PROPS.get('model.n_trials.to_sample'))
-# how fine or max number of parameters to create for narrower param_grip
+# max number of parameters to create for narrower param_grip - which defines how finely discretized the grid is
 configured_num_params = int(APP_PROPS.get('model.num_params.to_sample'))
-use_optimal_num_params = APP_PROPS.get_bol('model.num_params.use_optimal')
+# determine optimal number of parameters automatically, using the range specified as the boundary
+use_optimal_num_params = APP_PROPS.get_bol('model.num_params.find_optimal')
 num_params_range = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
+# the cross_validation scoring metric
 scoring = APP_PROPS.get('model.cross_val.scoring')
 cv = int(APP_PROPS.get('model.cross_val.num_folds'))
 random_seed = int(APP_PROPS.get('model.random_seed'))
+# the hyperopt trial timeout
 trial_timeout = int(APP_PROPS.get('model.trial_timeout'))
+# whether grid search is on
 grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
-DBUGGER = Debugger()
-
 # cache narrower parameter grid, keyed by num_params
 narrow_param_grids = {}
 # cache optimal num_params, keyed by model option
 optimal_num_params = {}
-
+# instantiate the debugger
+DBUGGER = Debugger()
 
 @track_duration(name='fit')
 def fit(pipeline: Pipeline, X, y, **kwargs):
@@ -237,7 +240,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     # phase 1: Coarse search
     params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
-    # use_optimal_num_params
+    # get the parameter boundaries from the range specified in properties file
     params_bounds = get_params_pounds(model_option, prefix=prefix)
     num_params = configured_num_params
     search_cv = None
