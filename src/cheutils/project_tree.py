@@ -7,8 +7,9 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import estimator_html_repr
-from cheutils.common_utils import label, datestamped
-from cheutils.debugger import Debugger
+
+from .debugger import Debugger
+from .common_utils import label, datestamped
 
 # Define project navigation constants.
 PROJ_ROOT_DIR = './'

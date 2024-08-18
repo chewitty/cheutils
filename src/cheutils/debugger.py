@@ -5,7 +5,7 @@ from inspect import getframeinfo, stack
 from icecream import ic as debug
 from icecream import install
 
-from cheutils.decorator_singleton import singleton
+from .decorator_singleton import singleton
 
 
 @singleton

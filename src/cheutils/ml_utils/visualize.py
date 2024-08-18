@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from cheutils.project_tree import save_current_fig
+from ..project_tree import save_current_fig
 from sklearn.metrics import PredictionErrorDisplay
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score

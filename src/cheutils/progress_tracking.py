@@ -1,8 +1,8 @@
 from codetiming import Timer
 from tqdm.auto import tqdm
 
-from cheutils.debugger import Debugger
-from cheutils.decorator_debug import debug_func
+from .debugger import Debugger
+from .decorator_debug import debug_func
 
 
 def create_timer(text=None, name: str = 'Timer', logger = None):

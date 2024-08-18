@@ -1,6 +1,4 @@
 import numpy as np
-from cheutils.debugger import Debugger
-from cheutils.properties_util import AppProperties
 from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import Lasso, LinearRegression, Ridge
@@ -9,8 +7,9 @@ from xgboost import XGBRegressor
 from hpsklearn import lasso, linear_regression, ridge, gradient_boosting_regressor
 from hpsklearn import xgboost_regression, lightgbm_regression, decision_tree_regressor, random_forest_regressor
 
+from ..properties_util import AppProperties
+
 APP_PROPS = AppProperties()
-DEBUGGER = Debugger()
 def get_regressor(**model_params):
     """
     Gets a specified regressor configured with key 'model_option'.
@@ -40,7 +39,7 @@ def get_regressor(**model_params):
     elif 'random_forest' == model_option:
         model = RandomForestRegressor(**cur_model_params)
     else:
-        DEBUGGER.debug('Failure encountered: Unspecified or unsupported regressor')
+        DBUGGER.debug('Failure encountered: Unspecified or unsupported regressor')
         raise KeyError('Unspecified or unsupported regressor')
     return model
 
@@ -62,7 +61,7 @@ def get_hyperopt_regressor(model_option, **model_params):
     elif 'random_forest' == model_option:
         model = random_forest_regressor(model_option, **model_params)
     else:
-        DEBUGGER.debug('Failure encountered: Unspecified or unsupported hyperopt wrapper')
+        DBUGGER.debug('Failure encountered: Unspecified or unsupported hyperopt wrapper')
         raise KeyError('Unspecified or unsupported hyperopt wrapper')
     return model
 
@@ -107,7 +106,7 @@ def __get_regressor_params(model_option, params_key_stem: str='model.param_grids
                     params_grid[prefix + '__' + param_key] = [x for x in param.get('values') if (param.get('values') is not None)]
     if params_grid is None:
         params_grid = {}
-    #DEBUGGER.debug('Hyperparameter grid: {}'.format(params_grid))
+    #DBUGGER.debug('Hyperparameter grid: {}'.format(params_grid))
     return params_grid
 
 def get_default_grid(param_key: str, model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
@@ -117,7 +116,7 @@ def get_default_grid(param_key: str, model_option: str, params_key_stem: str='mo
     for key in param_keys:
         if param_key == key:
             rel_param_grid = {key: param_grid.get(key)}
-    DEBUGGER.debug('Default hyperparameter grid params: {}'.format(rel_param_grid))
+    DBUGGER.debug('Default hyperparameter grid params: {}'.format(rel_param_grid))
     return rel_param_grid
 
 def get_params(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):

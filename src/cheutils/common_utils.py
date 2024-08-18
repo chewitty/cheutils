@@ -1,4 +1,3 @@
-import re
 import numpy as np
 import pandas as pd
 import re
@@ -135,7 +134,7 @@ def get_date(data_row, date_cols: list=None):
     return date_val
 
 
-def datestamped(fname, fmt='%Y-%m-%d'):
+def datestamped(fname, fmt='%Y-%m-%d') -> str:
     """
     Append the date to the filename.
     Parameters

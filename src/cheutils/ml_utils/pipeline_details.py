@@ -1,5 +1,5 @@
 from IPython.display import display
-from cheutils.project_tree import save_to_html
+from ..project_tree import save_to_html
 from sklearn import set_config
 
 

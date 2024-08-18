@@ -1,10 +1,9 @@
 import datetime
 import os
-
-from cheutils.debugger import Debugger
-from cheutils.decorator_debug import debug_func
-from cheutils.decorator_singleton import singleton
-from cheutils.project_tree import get_data_dir, get_root_dir
+from .debugger import Debugger
+from .decorator_debug import debug_func
+from .decorator_singleton import singleton
+from .project_tree import get_data_dir, get_root_dir
 from jproperties import Properties
 
 APP_CONFIG_FILENAME = 'app-config.properties'

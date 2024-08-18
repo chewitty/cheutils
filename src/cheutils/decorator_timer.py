@@ -1,9 +1,8 @@
 import functools
 
-from cheutils.debugger import Debugger
-from cheutils.progress_tracking import create_timer
-from cheutils.progress_tracking import timer_stats
-
+from .debugger import Debugger
+from .progress_tracking import create_timer
+from .progress_tracking import timer_stats
 
 def track_duration(*, name: str = 'DurationStats', summary_stats: bool = False):
     """

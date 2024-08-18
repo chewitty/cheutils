@@ -1,13 +1,14 @@
 import numpy as np
 import pandas as pd
-from cheutils.debugger import Debugger
-from cheutils.decorator_timer import track_duration
-from cheutils.ml_utils.bayesian_search import HyperoptSearch
-from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params
-from cheutils.ml_utils.model_options import get_regressor
-from cheutils.ml_utils.pipeline_details import show_pipeline
-from cheutils.ml_utils.visualize import plot_hyperparameter
-from cheutils.properties_util import AppProperties
+
+from ..debugger import Debugger
+from ..properties_util import AppProperties
+from ..decorator_timer import track_duration
+from .bayesian_search import HyperoptSearch
+from .model_options import get_params_grid, get_params_pounds, get_params
+from .model_options import get_regressor
+from .pipeline_details import show_pipeline
+from .visualize import plot_hyperparameter
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
@@ -15,36 +16,40 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
-from cheutils.project_tree import save_excel
+from ..project_tree import save_excel
 
-n_jobs = -1
 APP_PROPS = AppProperties()
+prop_key = 'project.models.supported'
+MODELS_SUPPORTED = APP_PROPS.get_list(prop_key)
+assert (MODELS_SUPPORTED is not None), 'Models supported must be specified'
+DBUGGER = Debugger()
+DBUGGER.debug('Models supported = ', MODELS_SUPPORTED)
+N_JOBS = -1
+#APP_PROPS = AppProperties()
 # the model option selected as default
-model_option = APP_PROPS.get('model.active.model_option')
+MODEL_OPTION = APP_PROPS.get('model.active.model_option')
 # number of iterations or parameters to sample
-n_iters = int(APP_PROPS.get('model.n_iters.to_sample'))
+N_ITERS = int(APP_PROPS.get('model.n_iters.to_sample'))
 # number of hyperopt trials to iterate over
-n_trials = int(APP_PROPS.get('model.n_trials.to_sample'))
+N_TRIALS = int(APP_PROPS.get('model.n_trials.to_sample'))
 # max number of parameters to create for narrower param_grip - which defines how finely discretized the grid is
-configured_num_params = int(APP_PROPS.get('model.num_params.to_sample'))
+CONFIGURED_NUM_PARAMS = int(APP_PROPS.get('model.num_params.to_sample'))
 # determine optimal number of parameters automatically, using the range specified as the boundary
-use_optimal_num_params = APP_PROPS.get_bol('model.num_params.find_optimal')
-num_params_range = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
+USE_OPTIMAL_NUM_PARAMS = APP_PROPS.get_bol('model.num_params.find_optimal')
+NUM_PARAMS_RANGE = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
 # the cross_validation scoring metric
-scoring = APP_PROPS.get('model.cross_val.scoring')
-cv = int(APP_PROPS.get('model.cross_val.num_folds'))
-random_seed = int(APP_PROPS.get('model.random_seed'))
+SCORING = APP_PROPS.get('model.cross_val.scoring')
+CV = int(APP_PROPS.get('model.cross_val.num_folds'))
+RANDOM_SEED = int(APP_PROPS.get('model.random_seed'))
 # the hyperopt trial timeout
-trial_timeout = int(APP_PROPS.get('model.trial_timeout'))
+TRIAL_TIMEOUT = int(APP_PROPS.get('model.trial_timeout'))
 # whether grid search is on
-grid_search = APP_PROPS.get_bol('model.tuning.grid_search.on')
+GRID_SEARCH_ON = APP_PROPS.get_bol('model.tuning.grid_search.on')
 # cache narrower parameter grid, keyed by num_params
-narrow_param_grids = {}
+NARROW_PARAM_GRIDS = {}
 # cache optimal num_params, keyed by model option
-optimal_num_params = {}
-# instantiate the debugger
-DBUGGER = Debugger()
+OPTIMAL_NUM_PARAMS = {}
 
 @track_duration(name='fit')
 def fit(pipeline: Pipeline, X, y, **kwargs):
@@ -153,16 +158,16 @@ def eval_metric_by_params(model_option, X, y, prefix: str = None, metric: str = 
     :return:
     :rtype:
     """
-    model = get_regressor(model_option=model_option)
-    model_params = get_params(model_option=model_option, prefix=prefix)
+    model = get_regressor(model_option=MODEL_OPTION)
+    model_params = get_params(model_option=MODEL_OPTION, prefix=prefix)
     for param in model_params:
         param_name = param.split(prefix)[-1]
-        cv_results = tune_model(model, X, y, model_option)
+        cv_results = tune_model(model, X, y, model_option=MODEL_OPTION)
         cur_results = pd.DataFrame(cv_results[3])[list(cv_results[3].keys())]
         param_scores = cur_results[['param_' + param, metric]]
         param_scores.rename(columns={'param_' + param: param_name, }, inplace=True)
         param_scores[metric] = np.abs(param_scores[metric])
-        save_file = model_option + '_' + param_name + '_range.svg'
+        save_file = MODEL_OPTION + '_' + param_name + '_range.svg'
         plot_hyperparameter(param_scores, metric_label='mean_test_score', param_label=param_name,
                             save_to_file=save_file if svg_file else None)
 
@@ -172,25 +177,25 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
                random_state: int=None, **kwargs):
     assert pipeline is not None, "A valid pipeline instance expected"
     if random_state is None:
-        random_state = random_seed
+        random_state = RANDOM_SEED
     params_grid = get_params_grid(model_option, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
     search_cv = None
-    if grid_search:
+    if GRID_SEARCH_ON:
         if debug:
             search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
-                                     scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
+                                     scoring=SCORING, cv=CV, n_jobs=N_JOBS, verbose=2, error_score="raise", )
         else:
             search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
-                                     scoring=scoring, cv=cv, n_jobs=n_jobs, )
+                                     scoring=SCORING, cv=CV, n_jobs=N_JOBS, )
     else:
         if debug:
             search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                           scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
+                                           scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
                                            random_state=random_state, verbose=2, error_score="raise", )
         else:
             search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                           scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
+                                           scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
                                            random_state=random_state, )
     name = None
     if "name" in kwargs:
@@ -232,21 +237,21 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     """
     assert pipeline is not None, "A valid pipeline instance expected"
     if random_state is None:
-        random_state = random_seed
+        random_state = RANDOM_SEED
     name = None
     if "name" in kwargs:
         name = kwargs.get("name")
         del kwargs["name"]
     # phase 1: Coarse search
-    params_grid = get_params_grid(model_option, prefix=prefix)
+    params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
     DBUGGER.debug('Hyperparameters =', params_grid)
     # get the parameter boundaries from the range specified in properties file
-    params_bounds = get_params_pounds(model_option, prefix=prefix)
-    num_params = configured_num_params
+    params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
+    num_params = CONFIGURED_NUM_PARAMS
     search_cv = None
-    if (not skip_phase_1) & (narrow_param_grids.get(num_params) is None):
+    if (not skip_phase_1) & (NARROW_PARAM_GRIDS.get(num_params) is None):
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                       scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs,
+                                       scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
                                        random_state=random_state, verbose=2, error_score="raise", )
         if name is not None:
             show_pipeline(search_cv, name=name, save_to_file=True)
@@ -265,21 +270,21 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
     if 'random' == fine_search:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
-                                       scoring=scoring, cv=cv, n_iter=n_iters, n_jobs=n_jobs, verbose=2,
+                                       scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS, verbose=2,
                                        error_score="raise", )
     elif "grid" == fine_search:
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
-                                 scoring=scoring, cv=cv, n_jobs=n_jobs, verbose=2, error_score="raise", )
+                                 scoring=SCORING, cv=CV, n_jobs=N_JOBS, verbose=2, error_score="raise", )
     elif "hyperopt" == fine_search:
-        if use_optimal_num_params:
+        if USE_OPTIMAL_NUM_PARAMS:
             num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                 random_state=random_state)
         search_cv = HyperoptSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
-                                   model_option=model_option, max_evals=n_trials,
-                                   num_params=num_params, trial_timeout=trial_timeout, random_state=random_state)
+                                   model_option=MODEL_OPTION, max_evals=N_TRIALS,
+                                   num_params=num_params, trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimizer' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid),
-                                  scoring=scoring, cv=cv, n_iter=n_trials, n_jobs=n_jobs,
+                                  scoring=SCORING, cv=CV, n_iter=N_TRIALS, n_jobs=N_JOBS,
                                   random_state=random_state, error_score="raise", )
     else:
         DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
@@ -310,14 +315,14 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
     :return:
     :rtype:
     """
-    num_params = optimal_num_params.get(model_option)
+    num_params = OPTIMAL_NUM_PARAMS.get(MODEL_OPTION)
     if num_params is None:
         scores = []
-        param_ids = range(num_params_range[0], num_params_range[1] + 1)
+        param_ids = range(NUM_PARAMS_RANGE[0], NUM_PARAMS_RANGE[1] + 1)
         for n_params in param_ids:
             finder = HyperoptSearch(param_grid=search_space, params_bounds=params_bounds,
-                                    model_option=model_option, max_evals=10,
-                                    num_params=n_params, trial_timeout=trial_timeout,
+                                    model_option=MODEL_OPTION, max_evals=10,
+                                    num_params=n_params, trial_timeout=TRIAL_TIMEOUT,
                                     random_state=random_state)
             finder.fit(X, y)
             scores.append(finder.best_score_)
@@ -326,7 +331,7 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
         filename = 'optimal_num_params.xlsx'
         save_excel(opt_params_df, file_name=filename)
         if cache_value:
-            optimal_num_params[model_option] = num_params
+            OPTIMAL_NUM_PARAMS[MODEL_OPTION] = num_params
     DBUGGER.debug('Optimal num_params = ', num_params)
     return num_params
 
@@ -344,7 +349,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
     :return:
     :rtype:
     """
-    narrower_grid = narrow_param_grids.get(num_params)
+    narrower_grid = NARROW_PARAM_GRIDS.get(num_params)
     if narrower_grid is not None:
         DBUGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
         return narrower_grid
@@ -382,7 +387,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
                 param_grid[param] = cur_val
         else:
             param_grid[param] = [value]
-    narrow_param_grids[num_params] = param_grid
+    NARROW_PARAM_GRIDS[num_params] = param_grid
     return param_grid
 
 def parse_params(default_grid: dict) -> dict:
