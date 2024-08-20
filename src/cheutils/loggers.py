@@ -76,5 +76,5 @@ class LoguruWrapper(object):
         LoguruWrapper.logger__.info('Disabling logging for ' + prefix)
         LoguruWrapper.logger__.disable(name=prefix)
 
-    def status(self):
-        return LoguruWrapper.logger__.__getstate__()
+    def get_prefix(self):
+        return LoguruWrapper.config__['extra']['prefix']
