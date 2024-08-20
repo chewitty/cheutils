@@ -7,9 +7,9 @@ from sklearn.metrics import mean_squared_error
 from hpsklearn import HyperoptEstimator
 from cheutils.common_base import CheutilsBase
 from cheutils.ml_utils.model_options import get_hyperopt_regressor
-from cheutils.debugger import Debugger
+from cheutils.loggers import LoguruWrapper
 
-DBUGGER = Debugger()
+LOGGER = LoguruWrapper().get_logger()
 
 class HyperoptSearch(CheutilsBase):
     def __init__(self, param_grid: dict, params_bounds: dict,
@@ -34,7 +34,7 @@ class HyperoptSearch(CheutilsBase):
         self.params_space_ = {}
 
     def fit(self, X, y=None, **kwargs):
-        DBUGGER.debug('HyperoptSearch: Fitting dataset, shape', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('HyperoptSearch: Fitting dataset, shape {}, {}', X.shape, y.shape if y is not None else None)
         # Define the hyperparameter space
         fudge_factor = 0.20 # in cases where the hyperparameter is a single value instead of a list of at least 2
         space_def = {}
@@ -84,7 +84,7 @@ class HyperoptSearch(CheutilsBase):
                     self.params_space_[key] = hp.choice(key, value)
                     space_def[key] = value
         self.params_space_['random_state'] = self.random_state
-        DBUGGER.debug('HyperoptSearch: Parameter space', space_def)
+        LOGGER.debug('HyperoptSearch: Parameter space = {}', space_def)
         # Perform the optimization
         p_suggest = [(0.05, rand.suggest), (0.75, tpe.suggest), (0.20, anneal.suggest)]
         mix_algo = partial(mix.suggest, p_suggest=p_suggest)
@@ -99,7 +99,7 @@ class HyperoptSearch(CheutilsBase):
         self.best_params_ = self.base_estimator_.get_params()
         self.trials_ = self.best_estimator_.trials
         self.cv_results_ = self.best_estimator_.trials
-        DBUGGER.debug("Best bayesian hyperparameters: ", self.best_params_)
+        LOGGER.debug("Best bayesian hyperparameters  = {}", self.best_params_)
         return self
 
     def predict(self, X):

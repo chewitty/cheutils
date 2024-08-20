@@ -1,12 +1,12 @@
 from codetiming import Timer
 from tqdm.auto import tqdm
 
-from cheutils.debugger import Debugger
+from cheutils.loggers import LoguruWrapper
 from cheutils.decorator_debug import debug_func
 
 
 def create_timer(text=None, name: str = 'Timer', logger = None):
-    dblogger = logger if logger is not None else Debugger().debug
+    dblogger = logger if logger is not None else LoguruWrapper().get_logger()
     return Timer(text=text, name=name, logger=dblogger)
 
 def timer_stats(name = None, prec: int = 2, formatted: bool = False):

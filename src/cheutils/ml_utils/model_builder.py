@@ -13,14 +13,14 @@ from cheutils.ml_utils.bayesian_search import HyperoptSearch
 from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params, get_regressor
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from cheutils.ml_utils.visualize import plot_hyperparameter
-from cheutils.debugger import Debugger
+from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
+LOGGER = LoguruWrapper().get_logger()
 APP_PROPS = AppProperties()
-DBUGGER = Debugger()
 prop_key = 'project.models.supported'
 MODELS_SUPPORTED = APP_PROPS.get_list(prop_key)
 assert (MODELS_SUPPORTED is not None), 'Models supported must be specified'
-DBUGGER.debug('Models supported = ', MODELS_SUPPORTED)
+LOGGER.info('Models supported = {}', MODELS_SUPPORTED)
 N_JOBS = -1
 # the model option selected as default
 MODEL_OPTION = APP_PROPS.get('model.active.model_option')
@@ -115,7 +115,7 @@ def exclude_nulls(X, y):
     null_rows = X_pred.isna().any(axis=1)
     X_pred.dropna(inplace=True)
     y_pred = y_pred[~null_rows]
-    DBUGGER.debug("Shape of dataset available for predictions", X_pred.shape, y_pred.shape)
+    LOGGER.debug('Shape of dataset available for predictions {}, {}', X_pred.shape, y_pred.shape)
     return X_pred, y_pred
 
 
@@ -175,7 +175,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
     if random_state is None:
         random_state = RANDOM_SEED
     params_grid = get_params_grid(model_option, prefix=prefix)
-    DBUGGER.debug('Hyperparameters =', params_grid)
+    LOGGER.debug('Hyperparameters = {}', params_grid)
     search_cv = None
     if GRID_SEARCH_ON:
         if debug:
@@ -240,7 +240,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         del kwargs["name"]
     # phase 1: Coarse search
     params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
-    DBUGGER.debug('Hyperparameters =', params_grid)
+    LOGGER.debug('Hyperparameters = {}', params_grid)
     # get the parameter boundaries from the range specified in properties file
     params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
     num_params = CONFIGURED_NUM_PARAMS
@@ -254,7 +254,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         else:
             show_pipeline(search_cv)
         search_cv.fit(X, y)
-        DBUGGER.debug('Preliminary best estimator =',
+        LOGGER.debug('Preliminary best estimator = {}',
                       (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
     # phase 2: finer search
@@ -263,7 +263,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
         best_params = search_cv.best_params_ if search_cv is not None else None
         narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
                                                   params_bounds=params_bounds)
-    DBUGGER.debug('Narrower hyperparameters =', narrow_param_grid)
+    LOGGER.debug('Narrower hyperparameters = {}', narrow_param_grid)
     if 'random' == fine_search:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
                                        scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS, verbose=2,
@@ -283,7 +283,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
                                   scoring=SCORING, cv=CV, n_iter=N_TRIALS, n_jobs=N_JOBS,
                                   random_state=random_state, error_score="raise", )
     else:
-        DBUGGER.debug('Failure encountered: Unspecified or unsupported finer search type')
+        LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
         raise KeyError('Unspecified or unsupported finer search type')
 
     if name is not None:
@@ -328,7 +328,7 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
         save_excel(opt_params_df, file_name=filename)
         if cache_value:
             OPTIMAL_NUM_PARAMS[MODEL_OPTION] = num_params
-    DBUGGER.debug('Optimal num_params = ', num_params)
+    LOGGER.debug('Optimal num_params = {}', num_params)
     return num_params
 
 
@@ -347,7 +347,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
     """
     narrower_grid = NARROW_PARAM_GRIDS.get(num_params)
     if narrower_grid is not None:
-        DBUGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
+        LOGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
         return narrower_grid
     num_steps = num_params
     if params_bounds is None:
@@ -400,7 +400,7 @@ def parse_params(default_grid: dict) -> dict:
                 param_grid[param] = Categorical(value, transform='identity')
         else:
             param_grid[param] = [value]
-    DBUGGER.debug('Parsed search space = ', param_grid)
+    LOGGER.debug('Parsed search space = {}', param_grid)
     return param_grid
 
 def get_seed_params(default_grid: dict, param_bounds=None):

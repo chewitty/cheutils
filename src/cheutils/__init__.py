@@ -1,6 +1,5 @@
 import os
 from .properties_util import AppProperties
-from .debugger import Debugger
 from .exceptions import PropertiesException
 from .decorator_singleton import singleton
 from .project_tree import (get_data_dir, get_root_dir, get_output_dir, load_dataset, save_to_html,
@@ -18,7 +17,6 @@ from .ml_utils import (fit, predict, score, cross_val_model, get_regressor, coar
                        get_narrow_param_grid, get_seed_params, eval_metric_by_params)
 from .loggers import LoguruWrapper
 
-DBUGGER = Debugger()
 APP_PROPS = AppProperties()
 LOGGER = LoguruWrapper()
 LOGGER.addHandler({'sink': os.path.join(get_output_dir(), 'app-log.log'), 'serialize': False, 'backtrace': True})
