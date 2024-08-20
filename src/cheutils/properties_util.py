@@ -5,11 +5,11 @@ from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.project_tree import get_data_dir, get_root_dir
 from cheutils.exceptions import PropertiesException
-from cheutils.debugger import Debugger
+from cheutils.loggers import LoguruWrapper
 
 # Define project constants.
 APP_CONFIG_FILENAME = 'app-config.properties'
-DBUGGER = Debugger()
+LOGGER = LoguruWrapper().get_logger()
 
 """
 Utilities for reading properties files
@@ -41,7 +41,7 @@ class AppProperties(object):
         """
         # prepare to load app-config.properties
         path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
-        DBUGGER.debug('Desired application config', path_to_app_config)
+        LOGGER.info('Desired application config = {}', path_to_app_config)
         # walk through the directory tree and try to locate correct resource suggest
         found_resource = False
         for dirpath, dirnames, files in os.walk('.', topdown=False):
@@ -49,25 +49,26 @@ class AppProperties(object):
                 if APP_CONFIG_FILENAME in files:
                     path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
                     found_resource = True
-                    DBUGGER.debug('Using project-specific application config', path_to_app_config)
+                    LOGGER.info('Using project-specific application config = {}', path_to_app_config)
                     break
         if not found_resource:
-            DBUGGER.debug('Using global application config', path_to_app_config)
+            LOGGER.warning('Using global application config = {}', path_to_app_config)
             path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG_FILENAME)
         try:
             self.app_props__ = Properties()
-            DBUGGER.debug('Loading', path_to_app_config)
+            LOGGER.info('Loading {}', path_to_app_config)
             with open(path_to_app_config, 'rb') as prop_file:
                 self.app_props__.load(prop_file)                
         except Exception as ex:
+            LOGGER.exception(ex)
             raise PropertiesException(ex)
         # log message on completion
-        DBUGGER.debug('Application properties loaded', path_to_app_config)
+        LOGGER.info('Application properties loaded = {}', path_to_app_config)
 
     def __str__(self):
         path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
-        info = 'AppProperties created, using properties file' + path_to_app_config
-        DBUGGER.debug(info)
+        info = 'AppProperties created, using properties file = ' + path_to_app_config
+        LOGGER.info(info)
         return info
     
     '''
@@ -173,7 +174,7 @@ class AppProperties(object):
             return False
         # otherwise, identify the specific key-value pair
         key_val_pairs = self.get_flags(prop_stem)
-        DBUGGER.debug('Flags', key_val_pairs)
+        LOGGER.info('Flags = {}', key_val_pairs)
         key_set = key_val_pairs.get(key_part)
         if key_set is None:
             return False
@@ -193,7 +194,7 @@ class AppProperties(object):
         if prop_key is None:
             return None
         prop_value = self.app_props__.get(prop_key).data
-        DBUGGER.debug('Key-value property stem', prop_key)
+        LOGGER.info('Key-value property stem = {}', prop_key)
         if prop_value is None:
             return None
         tmp_list = prop_value.replace('\'', '').replace('\"', '').strip('][').split(',')
@@ -280,7 +281,6 @@ class AppProperties(object):
             return None
         # otherwise, identify the specific key-value pair
         key_val_pairs = self.get_properties(prop_stem)
-        #DBUGGER.debug('Properties', key_val_pairs)
         val_part = key_val_pairs.get(key_part)
         if val_part is None:
             return None

@@ -6,10 +6,10 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import estimator_html_repr
-from cheutils.debugger import Debugger
+from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import label, datestamped
 
-DBUGGER = Debugger()
+LOGGER = LoguruWrapper().get_logger()
 
 PROJ_ROOT_DIR = './'
 PROJ_DATA_DIR = './data/'
@@ -57,7 +57,7 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
         dataset_df = pd.read_csv(path_to_dataset)
     else:
         dataset_df = pd.read_excel(path_to_dataset, parse_dates=date_cols)
-    DBUGGER.debug('Loaded dataset shape', dataset_df.shape)
+    LOGGER.info('Loaded dataset shape {}', dataset_df.shape)
     return dataset_df
 
 
@@ -134,6 +134,6 @@ def save_to_html(estimator, file_name: str, **kwargs):
         with open(os.path.join(html_dir + '/', file_name), 'w', encoding='utf-8') as file:
             file.write(estimator_html_repr(estimator))
     except OSError as error:
-        DBUGGER.debug("Directory '%s' cannot be created")
+        LOGGER.exception("Directory '%s' cannot be created")
 
 

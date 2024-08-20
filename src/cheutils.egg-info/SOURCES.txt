@@ -9,6 +9,7 @@ src/cheutils/decorator_debug.py
 src/cheutils/decorator_singleton.py
 src/cheutils/decorator_timer.py
 src/cheutils/exceptions.py
+src/cheutils/loggers.py
 src/cheutils/progress_tracking.py
 src/cheutils/project_tree.py
 src/cheutils/properties_util.py
