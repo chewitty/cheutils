@@ -1,7 +1,6 @@
 from IPython.display import display
-from ..project_tree import save_to_html
 from sklearn import set_config
-
+from cheutils.project_tree import save_to_html
 
 def show_pipeline(pipeline, name: str='pipeline.png', save_to_file: bool=False):
     # Review the pipeline

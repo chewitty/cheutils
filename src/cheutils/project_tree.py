@@ -3,20 +3,18 @@ Utilities for generic project tree navigation and io. The basic project tree str
 the project has a data folder and an output folder
 """
 import os
-
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import estimator_html_repr
+from cheutils.debugger import Debugger
+from cheutils.common_utils import label, datestamped
 
-from .debugger import Debugger
-from .common_utils import label, datestamped
+DBUGGER = Debugger()
 
-# Define project navigation constants.
 PROJ_ROOT_DIR = './'
 PROJ_DATA_DIR = './data/'
 PROJ_OUTPUT_DIR = './output/'
 
-DBUGGER = Debugger()
 def get_root_dir():
     """
     Get the root directory of the project. The assumption execution is from the root folder (.).

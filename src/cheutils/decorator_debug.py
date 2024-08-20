@@ -1,5 +1,5 @@
 import functools
-from .debugger import Debugger
+from cheutils.debugger import Debugger
 
 
 def debug_func(enable_debug: bool = True, prefix: str = None):

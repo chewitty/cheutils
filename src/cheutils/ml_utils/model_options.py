@@ -7,9 +7,9 @@ from xgboost import XGBRegressor
 from hpsklearn import lasso, linear_regression, ridge, gradient_boosting_regressor
 from hpsklearn import xgboost_regression, lightgbm_regression, decision_tree_regressor, random_forest_regressor
 
-from ..properties_util import AppProperties
-
+from cheutils.properties_util import AppProperties
 APP_PROPS = AppProperties()
+
 def get_regressor(**model_params):
     """
     Gets a specified regressor configured with key 'model_option'.

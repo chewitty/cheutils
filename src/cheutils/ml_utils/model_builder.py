@@ -1,14 +1,5 @@
 import numpy as np
 import pandas as pd
-
-from ..debugger import Debugger
-from ..properties_util import AppProperties
-from ..decorator_timer import track_duration
-from .bayesian_search import HyperoptSearch
-from .model_options import get_params_grid, get_params_pounds, get_params
-from .model_options import get_regressor
-from .pipeline_details import show_pipeline
-from .visualize import plot_hyperparameter
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
@@ -16,16 +7,21 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
-from ..project_tree import save_excel
-
+from cheutils.project_tree import save_excel
+from cheutils.decorator_timer import track_duration
+from cheutils.ml_utils.bayesian_search import HyperoptSearch
+from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params, get_regressor
+from cheutils.ml_utils.pipeline_details import show_pipeline
+from cheutils.ml_utils.visualize import plot_hyperparameter
+from cheutils.debugger import Debugger
+from cheutils.properties_util import AppProperties
 APP_PROPS = AppProperties()
+DBUGGER = Debugger()
 prop_key = 'project.models.supported'
 MODELS_SUPPORTED = APP_PROPS.get_list(prop_key)
 assert (MODELS_SUPPORTED is not None), 'Models supported must be specified'
-DBUGGER = Debugger()
 DBUGGER.debug('Models supported = ', MODELS_SUPPORTED)
 N_JOBS = -1
-#APP_PROPS = AppProperties()
 # the model option selected as default
 MODEL_OPTION = APP_PROPS.get('model.active.model_option')
 # number of iterations or parameters to sample

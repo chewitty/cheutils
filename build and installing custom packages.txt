@@ -4,5 +4,10 @@ export PATH=$PATH:/home/repl/.local/bin
 # then building and installing
 pip uninstall cheutils --y
 py -m build
+
+# to install locally, from the module root folder
+pip install -e .
+
+# to install on pytest
 python -m twine upload --repository testpypi dist/*
-pip install -i https://test.pypi.org/simple/ cheutils==1.0.8
+pip install -i https://test.pypi.org/simple/ cheutils==2.0.3

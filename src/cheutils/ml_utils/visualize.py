@@ -5,11 +5,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from ..project_tree import save_current_fig
 from sklearn.metrics import PredictionErrorDisplay
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import r2_score
-
+from cheutils.project_tree import save_current_fig
 
 def plot_reg_predictions(y_true: pd.Series, y_pred: pd.Series, title: str = None, save_to_file: str = None, **kwargs):
     """

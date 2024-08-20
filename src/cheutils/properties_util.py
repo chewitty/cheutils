@@ -1,26 +1,15 @@
 import datetime
 import os
-from .debugger import Debugger
-from .decorator_debug import debug_func
-from .decorator_singleton import singleton
-from .project_tree import get_data_dir, get_root_dir
 from jproperties import Properties
+from cheutils.decorator_debug import debug_func
+from cheutils.decorator_singleton import singleton
+from cheutils.project_tree import get_data_dir, get_root_dir
+from cheutils.exceptions import PropertiesException
+from cheutils.debugger import Debugger
 
+# Define project constants.
 APP_CONFIG_FILENAME = 'app-config.properties'
 DBUGGER = Debugger()
-class PropertiesException(Exception):
-    def __init__(self, *args):
-        if args:
-            self.message = args[0]
-        else:
-            self.message = None
-        super().__init__(self.message)
-
-    def __str__(self):
-        if self.message:
-            return 'PropertiesException, {0} '.format(self.message)
-        else:
-            return 'PropertiesException raised'
 
 """
 Utilities for reading properties files

@@ -5,9 +5,9 @@ from hyperopt import tpe, hp, mix, anneal, rand
 from hyperopt.pyll import scope
 from sklearn.metrics import mean_squared_error
 from hpsklearn import HyperoptEstimator
-from .model_options import get_hyperopt_regressor
-from ..common_base import CheutilsBase
-from ..debugger import Debugger
+from cheutils.common_base import CheutilsBase
+from cheutils.ml_utils.model_options import get_hyperopt_regressor
+from cheutils.debugger import Debugger
 
 DBUGGER = Debugger()
 
