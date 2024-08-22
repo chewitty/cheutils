@@ -16,7 +16,11 @@ from .ml_utils import (fit, predict, score, cross_val_model, get_regressor, coar
                        get_optimal_num_params, get_params_grid, get_params_pounds, get_default_grid, get_params,
                        get_narrow_param_grid, get_seed_params, eval_metric_by_params)
 from .loggers import LoguruWrapper
+from .check import check_logger
 
 APP_PROPS = AppProperties()
 LOGGER = LoguruWrapper()
-LOGGER.addHandler({'sink': os.path.join(get_output_dir(), 'app-log.log'), 'serialize': False, 'backtrace': True})
+log_handler = {'sink': os.path.join(get_output_dir(), 'app-log.log'), 'serialize': False, 'backtrace': True,
+               'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}', 'level': 'TRACE',
+               'rotation': '00:00', }
+LOGGER.addHandler(log_handler)

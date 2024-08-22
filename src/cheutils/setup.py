@@ -21,6 +21,7 @@ setup(
     install_requires=['numpy>=1.10', 'pandas', 'codetiming', 'tdqm', 'dask', 'faker',
                       'pytz', 'pyodbc', 'pymysql', 'mysqlclient', 'pymssql',
                       'mysql.connector', 'sqlalchemy', 'typing', 'icecream', 'regex',
-                      'inspect-it', 'jproperties', 'matplotlib', 'scikit-learn', 'icecream', ],
+                      'inspect-it', 'jproperties', 'matplotlib', 'scikit-learn', 'loguru',
+                      'scikit-optimize', 'hyperopt', 'fast_ml', ],
     python_requires='>=3.9',
 )

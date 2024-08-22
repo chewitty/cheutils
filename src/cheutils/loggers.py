@@ -5,10 +5,10 @@ from cheutils.decorator_singleton import singleton
 @singleton
 class LoguruWrapper(object):
     instance__ = None
-    logger__ = logger
+    logger__ = logger.opt(colors=True)
     config__ = {'handlers': [{'sink': sys.stdout,
-                              'format': '{extra[prefix]} |{level} |{time} | {file}:{line} |{message}',
-                              'colorize': True, 'backtrace': True},
+                              'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}',
+                              'colorize': True, 'backtrace': True, 'level': 'TRACE', },
                              ],
                 'extra'   : {'prefix': 'app-log'},
                 }
@@ -23,6 +23,12 @@ class LoguruWrapper(object):
             LoguruWrapper.instance__ = super().__new__(cls)
         if LoguruWrapper.logger__ is None:
             LoguruWrapper.logger__ = logger
+        # reset the minimum log level to include TRACE
+        # In addition, the logger is pre-configured for convenience with a default handler which writes messages
+        # to sys.stderr. You should remove() it first if you plan to add() another handler logging messages to the
+        # console, otherwise you may end up with duplicated logs.
+        LoguruWrapper.logger__.remove()
+        # configure any handlers
         if 'config' in kwargs.keys() and kwargs['config']:
             logger_config = kwargs['config']
             prefix = logger_config.get('prefix')
@@ -59,6 +65,7 @@ class LoguruWrapper(object):
         if handler is not None:
             LoguruWrapper.config__['handlers'].append(handler)
             LoguruWrapper.logger__.configure(**LoguruWrapper.config__)
+
     def get_logger(self):
         return self.logger__
 

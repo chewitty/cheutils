@@ -4,10 +4,10 @@ from cheutils.loggers import LoguruWrapper
 
 def debug_func(enable_debug: bool = True, prefix: str = None):
     """
-    Enables or disables the debugger for the specified function
-    :param enable_debug: enables the debugger if true
-    :param prefix: any string to prefix the debugger
-    :return: a decorator to enable or disable the underlying debugger
+    Enables or disables the logger (debug level) for the specified function
+    :param enable_debug: enables the logger if true
+    :param prefix: any string to prefix the logger
+    :return: a decorator to enable or disable the underlying logger
     """
     def debug_decorator(func):
         assert (func is not None), 'A function expected but None found'
@@ -15,12 +15,12 @@ def debug_func(enable_debug: bool = True, prefix: str = None):
         def wrapper(*args, **kwargs):
             LOGGER = LoguruWrapper().get_logger()
             LOGGER.debug(f'Debug decorator ({func.__name__}) ... IN')
-            LOGGER.debug('New status = {}', enable_debug)
+            LOGGER.debug('Set logging status = {}', enable_debug)
             orig_prefix = LoguruWrapper().get_prefix()
             LOGGER.debug('Origin prefix = {} and New prefix = {}', orig_prefix, prefix)
-            LoguruWrapper().set_prefix(prefix=prefix)
             # adjust status accordingly
             if enable_debug:
+                LoguruWrapper().set_prefix(prefix=prefix)
                 LOGGER.enable(prefix)
             else:
                 LOGGER.disable(orig_prefix)
@@ -32,9 +32,9 @@ def debug_func(enable_debug: bool = True, prefix: str = None):
             finally:
                 # return to origin status
                 if not enable_debug:
-                    LOGGER.enable(prefix)
+                    LOGGER.enable(orig_prefix)
                 else:
-                    LOGGER.disable(orig_prefix)
+                    LOGGER.disable(prefix)
                 LoguruWrapper().set_prefix(prefix=orig_prefix)
                 LOGGER.debug(f'Debug decorator ({func.__name__}) ... OUT')
         return wrapper
