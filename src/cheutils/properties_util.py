@@ -48,7 +48,15 @@ class AppProperties(object):
         :return:
         :rtype:
         """
-        self.__load()
+        cur_props = self.app_props__
+        try:
+            self.__load()
+            LOGGER.success('Successfully reloaded = {}', APP_CONFIG_FILENAME)
+        except Exception as ex:
+            # revert to previous version
+            self.app_props__ = cur_props
+            LOGGER.warning('Could not reload = {}', APP_CONFIG_FILENAME)
+            raise ex
 
     def __str__(self):
         path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
