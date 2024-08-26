@@ -39,31 +39,16 @@ class AppProperties(object):
         """
         Initializes the properties utility.
         """
-        # prepare to load app-config.properties
-        path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
-        LOGGER.info('Desired application config = {}', path_to_app_config)
-        # walk through the directory tree and try to locate correct resource suggest
-        found_resource = False
-        for dirpath, dirnames, files in os.walk('.', topdown=False):
-            if dirpath.endswith('data'):
-                if APP_CONFIG_FILENAME in files:
-                    path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
-                    found_resource = True
-                    LOGGER.info('Using project-specific application config = {}', path_to_app_config)
-                    break
-        if not found_resource:
-            LOGGER.warning('Using global application config = {}', path_to_app_config)
-            path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG_FILENAME)
-        try:
-            self.app_props__ = Properties()
-            LOGGER.info('Loading {}', path_to_app_config)
-            with open(path_to_app_config, 'rb') as prop_file:
-                self.app_props__.load(prop_file)                
-        except Exception as ex:
-            LOGGER.exception(ex)
-            raise PropertiesException(ex)
-        # log message on completion
-        LOGGER.info('Application properties loaded = {}', path_to_app_config)
+        # Load the properties file
+        self.__load()
+
+    def reload(self) -> None:
+        """
+        Reload the properties configuration file.
+        :return:
+        :rtype:
+        """
+        self.__load()
 
     def __str__(self):
         path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
@@ -323,3 +308,35 @@ class AppProperties(object):
             else:
                 properties[val_pair[0].strip()] = str
         return properties
+
+    def __load(self)->None:
+        """
+        Load the underlying properties file.
+        :return:
+        :rtype:
+        """
+        # prepare to load app-config.properties
+        path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
+        LOGGER.info('Desired application config = {}', path_to_app_config)
+        # walk through the directory tree and try to locate correct resource suggest
+        found_resource = False
+        for dirpath, dirnames, files in os.walk('.', topdown=False):
+            if dirpath.endswith('data'):
+                if APP_CONFIG_FILENAME in files:
+                    path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
+                    found_resource = True
+                    LOGGER.info('Using project-specific application config = {}', path_to_app_config)
+                    break
+        if not found_resource:
+            LOGGER.warning('Using global application config = {}', path_to_app_config)
+            path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG_FILENAME)
+        try:
+            self.app_props__ = Properties()
+            LOGGER.info('Loading {}', path_to_app_config)
+            with open(path_to_app_config, 'rb') as prop_file:
+                self.app_props__.load(prop_file)
+        except Exception as ex:
+            LOGGER.exception(ex)
+            raise PropertiesException(ex)
+        # log message on completion
+        LOGGER.info('Application properties loaded = {}', path_to_app_config)

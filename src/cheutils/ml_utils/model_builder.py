@@ -280,7 +280,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
                                    num_params=num_params, trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimizer' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid),
-                                  scoring=SCORING, cv=CV, n_iter=N_TRIALS, n_jobs=N_JOBS,
+                                  scoring=SCORING, cv=CV, n_iter=num_params*10, n_jobs=N_JOBS,
                                   random_state=random_state, error_score="raise", )
     else:
         LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
