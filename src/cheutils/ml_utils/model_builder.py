@@ -206,7 +206,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
 
 
 @track_duration(name='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_search: str = 'random',
+def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False, fine_search: str = 'random',
                      scaling_factor: float = 1.0, prefix: str = None, random_state: int=None,
                      **kwargs):
     """
@@ -220,7 +220,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     :type X:
     :param y: pandas Series or numpy array
     :type y:
-    :param skip_phase_1: elect to skip phase 1 and directly proceed to phase 2
+    :param with_narrower_grid: run the step 1 random search if True and not otherwise
     :param fine_search: the default is "random" but other options include "grid" and "bayesian", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
@@ -245,7 +245,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
     params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
     num_params = CONFIGURED_NUM_PARAMS
     search_cv = None
-    if (not skip_phase_1) & (NARROW_PARAM_GRIDS.get(num_params) is None):
+    if with_narrower_grid & (NARROW_PARAM_GRIDS.get(num_params) is None):
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
                                        scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
                                        random_state=random_state, verbose=2, error_score="raise", )
@@ -258,8 +258,8 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, skip_phase_1: bool = False, fine_
                       (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
 
     # phase 2: finer search
-    narrow_param_grid = params_grid if skip_phase_1 else None
-    if not skip_phase_1:
+    narrow_param_grid = params_grid if not with_narrower_grid else None
+    if with_narrower_grid:
         best_params = search_cv.best_params_ if search_cv is not None else None
         narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
                                                   params_bounds=params_bounds)
