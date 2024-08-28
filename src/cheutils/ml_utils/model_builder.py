@@ -7,9 +7,11 @@ from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
+from hyperopt import tpe, hp, mix, anneal, rand
+from hyperopt.pyll import scope
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
-from cheutils.ml_utils.bayesian_search import HyperoptSearch
+from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
 from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params, get_regressor
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from cheutils.ml_utils.visualize import plot_hyperparameter
@@ -206,7 +208,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
 
 
 @track_duration(name='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False, fine_search: str = 'random',
+def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False, fine_search: str = 'hyperopt',
                      scaling_factor: float = 1.0, prefix: str = None, random_state: int=None,
                      **kwargs):
     """
@@ -221,7 +223,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
     :param y: pandas Series or numpy array
     :type y:
     :param with_narrower_grid: run the step 1 random search if True and not otherwise
-    :param fine_search: the default is "random" but other options include "grid" and "bayesian", for the second phase
+    :param fine_search: the default is "hyperopt" but other options include "random", "grid" and "skoptimizer", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
@@ -275,11 +277,23 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
         if USE_OPTIMAL_NUM_PARAMS:
             num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                 random_state=random_state)
-        search_cv = HyperoptSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
+        """search_cv = HyperoptSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    model_option=MODEL_OPTION, max_evals=N_TRIALS,
-                                   num_params=num_params, trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
+                                   num_params=num_params, trial_timeout=TRIAL_TIMEOUT, random_state=random_state)"""
+        search_cv = HyperoptSearchCV(param_space=parse_params(narrow_param_grid,
+                                                              num_params=num_params,
+                                                              params_bounds=params_bounds,
+                                                              fine_search=fine_search,
+                                                              random_state=random_state),
+                                     model_option=MODEL_OPTION, cv=CV, scoring=SCORING,
+                                     max_evals=N_TRIALS, num_params=num_params, n_jobs=N_JOBS,
+                                     trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimizer' == fine_search:
-        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid),
+        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
+                                                                                 num_params=num_params,
+                                                                                 params_bounds=params_bounds,
+                                                                                 fine_search=fine_search,
+                                                                                 random_state=random_state),
                                   scoring=SCORING, cv=CV, n_iter=num_params*10, n_jobs=N_JOBS,
                                   random_state=random_state, error_score="raise", )
     else:
@@ -333,7 +347,7 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
 
 
 
-def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds=None):
+def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= {}):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param best_params: the best combination of hyperparameters obtained from the coarse search phase
@@ -386,21 +400,78 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
     NARROW_PARAM_GRIDS[num_params] = param_grid
     return param_grid
 
-def parse_params(default_grid: dict) -> dict:
+def parse_params(default_grid: dict, params_bounds: dict={}, num_params: int=3, fine_search: str = 'hyperopt', random_state: int=100) -> dict:
     param_grid = {}
-    for param, value in default_grid.items():
-        if isinstance(value, list):
-            if isinstance(value[0], int):
-                min_val, max_val = int(max(1, min(value))), int(max(value))
-                param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
-            elif isinstance(value[0], float):
-                min_val, max_val = max(0.0001, min(value)), max(value)
-                param_grid[param] = Real(min_val, max_val, prior='log-uniform')
+    if 'skoptimizer' == fine_search:
+        for param, value in default_grid.items():
+            if isinstance(value, list):
+                if isinstance(value[0], int):
+                    min_val, max_val = int(max(1, min(value))), int(max(value))
+                    param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
+                elif isinstance(value[0], float):
+                    min_val, max_val = max(0.0001, min(value)), max(value)
+                    param_grid[param] = Real(min_val, max_val, prior='log-uniform')
+                else:
+                    param_grid[param] = Categorical(value, transform='identity')
             else:
-                param_grid[param] = Categorical(value, transform='identity')
-        else:
-            param_grid[param] = [value]
-    LOGGER.debug('Parsed search space = {}', param_grid)
+                param_grid[param] = [value]
+        LOGGER.debug('Scikit-optimize parameter space = {}', param_grid)
+    elif 'hyperopt' == fine_search:
+        # Define the hyperparameter space
+        fudge_factor = 0.20  # in cases where the hyperparameter is a single value instead of a list of at least 2
+        space_def = {}
+        for key, value in default_grid.items():
+            bounds = params_bounds.get(key.split('__')[-1])
+            if bounds is not None:
+                lbound, ubound = bounds
+                if isinstance(value[0], int):
+                    if len(value) == 1 | (value[0] == value[-1]):
+                        min_val = max(int(value[0] * (1 - fudge_factor)), lbound)
+                        max_val = min(int(value[0] * (1 + fudge_factor)), ubound)
+                        cur_val = np.linspace(min_val, max_val, num_params, dtype=int)
+                        cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
+                        cur_range = cur_val.tolist()
+                        cur_range.sort()
+                        param_grid[key] = scope.int(
+                            hp.quniform(key, min(cur_range), max(cur_range), num_params))
+                        space_def[key] = list(set(cur_range))
+                    else:
+                        min_val = max(int(value[0]), lbound)
+                        max_val = min(int(value[-1]), ubound)
+                        cur_val = np.linspace(min_val, max_val, num_params, dtype=int)
+                        cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
+                        cur_range = cur_val.tolist()
+                        cur_range.sort()
+                        param_grid[key] = scope.int(
+                            hp.quniform(key, min(cur_range), max(cur_range), num_params))
+                        space_def[key] = list(set(cur_range))
+                elif isinstance(value[0], float):
+                    if len(value) == 1 | (value[0] == value[-1]):
+                        min_val = max(value[0] * (1 + fudge_factor), lbound)
+                        max_val = min(value[0] * (1 - fudge_factor), ubound)
+                        param_grid[key] = hp.uniform(key, min_val, max_val)
+                        space_def[key] = np.linspace(min_val, max_val, num_params, dtype=float)
+                    else:
+                        min_val = max(value[0], lbound)
+                        max_val = min(value[-1], ubound)
+                        param_grid[key] = hp.uniform(key, min_val, max_val)
+                        space_def[key] = np.linspace(min_val, max_val, num_params, dtype=float)
+                else:
+                    pass
+            else:
+                if isinstance(value[0], int):
+                    cur_range = value
+                    cur_range.sort()
+                    param_grid[key] = hp.choice(key, cur_range)
+                    space_def[key] = cur_range
+                else:
+                    param_grid[key] = hp.choice(key, value)
+                    space_def[key] = value
+        param_grid['random_state'] = random_state
+        LOGGER.debug('Hyperopt parameter space = {}', param_grid)
+    else:
+        LOGGER.error('Parsed search space = {}', param_grid)
+        raise ValueError(f'Missing implementation for search type = {fine_search}')
     return param_grid
 
 def get_seed_params(default_grid: dict, param_bounds=None):
