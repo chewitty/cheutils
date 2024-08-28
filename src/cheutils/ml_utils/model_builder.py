@@ -280,7 +280,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
         """search_cv = HyperoptSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
                                    model_option=MODEL_OPTION, max_evals=N_TRIALS,
                                    num_params=num_params, trial_timeout=TRIAL_TIMEOUT, random_state=random_state)"""
-        search_cv = HyperoptSearchCV(param_space=parse_params(narrow_param_grid,
+        search_cv = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
                                                               num_params=num_params,
                                                               params_bounds=params_bounds,
                                                               fine_search=fine_search,

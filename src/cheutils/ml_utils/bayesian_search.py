@@ -4,6 +4,7 @@ import numpy as np
 from numpy.random import RandomState
 from hyperopt import fmin, tpe, hp, mix, anneal, rand, space_eval
 from hyperopt.pyll import scope
+from sklearn.base import BaseEstimator
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import cross_val_score
 from hpsklearn import HyperoptEstimator
@@ -112,22 +113,22 @@ class HyperoptSearch(CheutilsBase):
         assert X is not None, 'A valid X expected'
         return self.base_estimator_.predict_proba(X)
 
-class HyperoptSearchCV(CheutilsBase):
+class HyperoptSearchCV(CheutilsBase, BaseEstimator):
     def __init__(self, model_option:str=None, max_evals: int=100,
-                 preprocessing: list=None, cv=3, n_jobs: int=-1, param_space: dict= {},
-                 random_state: int=100, trial_timeout: int=60, **kwargs):
+                 cv=3, n_jobs: int=-1, params_space: dict= {},
+                 random_state: int=100, **kwargs):
         super().__init__()
         self.model_option = model_option
         self.max_evals = max_evals
-        self.cv_ = cv
-        self.n_jobs_ = n_jobs
+        self.cv = cv
+        self.n_jobs = n_jobs
         self.random_state = random_state
         self.best_estimator_ = None
         self.best_params_ = None
         self.best_score_ = float('inf')
         self.cv_results_ = None
         self.scoring_ = kwargs.get('scoring', 'neg_mean_squared_error')
-        self.params_space_ = param_space
+        self.params_space = params_space
         self.X = None
         self.y = None
 
@@ -138,9 +139,9 @@ class HyperoptSearchCV(CheutilsBase):
         # Perform the optimization
         p_suggest = [(0.05, rand.suggest), (0.75, tpe.suggest), (0.20, anneal.suggest)]
         mix_algo = partial(mix.suggest, p_suggest=p_suggest)
-        best_params = fmin(fn=self.__objective, space=self.params_space_, algo=mix_algo,
+        best_params = fmin(fn=self.__objective, space=self.params_space, algo=mix_algo,
                            max_evals=self.max_evals, rstate=np.random.default_rng(self.random_state))
-        self.best_params_ = space_eval(self.params_space_, best_params)
+        self.best_params_ = space_eval(self.params_space, best_params)
         self.best_estimator_ = get_regressor(**self.__get_model_params(self.best_params_))
         self.best_estimator_.fit(X, y)
         LOGGER.debug('HyperoptSearchCV: Best hyperparameters  = {}', self.best_params_)
@@ -159,7 +160,7 @@ class HyperoptSearchCV(CheutilsBase):
     def __objective(self, params):
         underlying_model = get_regressor(**self.__get_model_params(params))
         cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
-                                cv=self.cv_, n_jobs=self.n_jobs_)
+                                cv=self.cv, n_jobs=self.n_jobs)
         score = abs(cv_score.mean())
         if score < self.best_score_:
             self.best_score_ = score

@@ -10,4 +10,4 @@ pip install -e .
 
 # to install on pytest
 python -m twine upload --repository testpypi dist/*
-pip install -i https://test.pypi.org/simple/ cheutils==2.0.6
+pip install -i https://test.pypi.org/simple/ cheutils==2.1.2
