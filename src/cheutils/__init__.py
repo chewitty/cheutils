@@ -16,7 +16,7 @@ from .ml_utils import (fit, predict, score, cross_val_model, get_regressor, coar
                        get_optimal_num_params, get_params_grid, get_params_pounds, get_default_grid, get_params,
                        get_narrow_param_grid, get_seed_params, eval_metric_by_params)
 from .loggers import LoguruWrapper
-from .check import check_logger
+from .check import check_logger, check_exception, sample_hyperopt_space
 
 APP_PROPS = AppProperties()
 LOGGER = LoguruWrapper()

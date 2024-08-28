@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from functools import partial
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
@@ -8,6 +9,7 @@ from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
 from hyperopt import tpe, hp, mix, anneal, rand
+from hyperopt.pyll.stochastic import sample
 from hyperopt.pyll import scope
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
@@ -48,6 +50,16 @@ GRID_SEARCH_ON = APP_PROPS.get_bol('model.tuning.grid_search.on')
 NARROW_PARAM_GRIDS = {}
 # cache optimal num_params, keyed by model option
 OPTIMAL_NUM_PARAMS = {}
+# Hyperopt algorithms
+SUPPORTED_ALGOS = {'rand.suggest': rand.suggest, 'tpe.suggest': tpe.suggest, 'anneal.suggest': anneal.suggest}
+CONFIG_ALGOS = APP_PROPS.get_dict_properties('model.hyperopt.algos')
+p_suggest = []
+if CONFIG_ALGOS is not None:
+    for key, value in CONFIG_ALGOS.items():
+        algo = SUPPORTED_ALGOS.get(key)
+        if algo is not None:
+            p_suggest.append((value, SUPPORTED_ALGOS.get(key)))
+HYPEROPT_ALGOS = partial(mix.suggest, p_suggest=p_suggest)
 
 @track_duration(name='fit')
 def fit(pipeline: Pipeline, X, y, **kwargs):
@@ -277,16 +289,20 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
         if USE_OPTIMAL_NUM_PARAMS:
             num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                 random_state=random_state)
-        """search_cv = HyperoptSearch(param_grid=narrow_param_grid, params_bounds=params_bounds,
-                                   model_option=MODEL_OPTION, max_evals=N_TRIALS,
+        """search_cv = HyperoptSearch(params_space=parse_params(narrow_param_grid,
+                                                              num_params=num_params,
+                                                              params_bounds=params_bounds,
+                                                              fine_search=fine_search,
+                                                              random_state=random_state),
+                                   model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS,
                                    num_params=num_params, trial_timeout=TRIAL_TIMEOUT, random_state=random_state)"""
         search_cv = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
                                                               num_params=num_params,
                                                               params_bounds=params_bounds,
                                                               fine_search=fine_search,
                                                               random_state=random_state),
-                                     model_option=MODEL_OPTION, cv=CV, scoring=SCORING,
-                                     max_evals=N_TRIALS, num_params=num_params, n_jobs=N_JOBS,
+                                     model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                     max_evals=N_TRIALS, n_jobs=N_JOBS,
                                      trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimizer' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
@@ -330,10 +346,14 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
         scores = []
         param_ids = range(NUM_PARAMS_RANGE[0], NUM_PARAMS_RANGE[1] + 1)
         for n_params in param_ids:
-            finder = HyperoptSearch(param_grid=search_space, params_bounds=params_bounds,
-                                    model_option=MODEL_OPTION, max_evals=10,
-                                    num_params=n_params, trial_timeout=TRIAL_TIMEOUT,
-                                    random_state=random_state)
+            finder = HyperoptSearchCV(params_space=parse_params(search_space,
+                                                              num_params=n_params,
+                                                              params_bounds=params_bounds,
+                                                              fine_search='hyperopt',
+                                                              random_state=random_state),
+                                     model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                     max_evals=N_TRIALS, n_jobs=N_JOBS,
+                                     trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
             finder.fit(X, y)
             scores.append(finder.best_score_)
         num_params = param_ids[np.argmin(scores)]
@@ -415,11 +435,11 @@ def parse_params(default_grid: dict, params_bounds: dict={}, num_params: int=3, 
                     param_grid[param] = Categorical(value, transform='identity')
             else:
                 param_grid[param] = [value]
-        LOGGER.debug('Scikit-optimize parameter space = {}', param_grid)
+        #LOGGER.debug('Scikit-optimize parameter space = {}', param_grid)
     elif 'hyperopt' == fine_search:
         # Define the hyperparameter space
         fudge_factor = 0.20  # in cases where the hyperparameter is a single value instead of a list of at least 2
-        space_def = {}
+        eps = 1e-4 # added to floats to avoid encountering log(0) situations
         for key, value in default_grid.items():
             bounds = params_bounds.get(key.split('__')[-1])
             if bounds is not None:
@@ -428,32 +448,20 @@ def parse_params(default_grid: dict, params_bounds: dict={}, num_params: int=3, 
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = max(int(value[0] * (1 - fudge_factor)), lbound)
                         max_val = min(int(value[0] * (1 + fudge_factor)), ubound)
-                        cur_val = np.linspace(min_val, max_val, num_params, dtype=int)
-                        cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
-                        cur_range = cur_val.tolist()
-                        cur_range.sort()
-                        param_grid[key] = scope.int(hp.quniform(key, min(cur_range), max(cur_range), num_params))
-                        space_def[key] = list(set(cur_range))
+                        param_grid[key] = scope.int(hp.quniform(key, min_val, max_val, num_params))
                     else:
                         min_val = max(int(value[0]), lbound)
                         max_val = min(int(value[-1]), ubound)
-                        cur_val = np.linspace(min_val, max_val, num_params, dtype=int)
-                        cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
-                        cur_range = cur_val.tolist()
-                        cur_range.sort()
-                        param_grid[key] = scope.int(hp.quniform(key, min(cur_range), max(cur_range), num_params))
-                        space_def[key] = list(set(cur_range))
+                        param_grid[key] = scope.int(hp.quniform(key, min_val, max_val, num_params))
                 elif isinstance(value[0], float):
                     if len(value) == 1 | (value[0] == value[-1]):
-                        min_val = max(value[0] * (1 + fudge_factor), lbound)
+                        min_val = max(value[0] * (1 + fudge_factor), lbound) + eps
                         max_val = min(value[0] * (1 - fudge_factor), ubound)
-                        param_grid[key] = hp.uniform(key, min_val, max_val)
-                        space_def[key] = np.linspace(min_val, max_val, num_params, dtype=float)
+                        param_grid[key] = hp.qloguniform(key, min_val, max_val, num_params)/10
                     else:
-                        min_val = max(value[0], lbound)
+                        min_val = max(value[0], lbound) + eps
                         max_val = min(value[-1], ubound)
-                        param_grid[key] = hp.uniform(key, min_val, max_val)
-                        space_def[key] = np.linspace(min_val, max_val, num_params, dtype=float)
+                        param_grid[key] = hp.qloguniform(key, min_val, max_val, num_params)/10
                 else:
                     pass
             else:
@@ -461,12 +469,10 @@ def parse_params(default_grid: dict, params_bounds: dict={}, num_params: int=3, 
                     cur_range = value
                     cur_range.sort()
                     param_grid[key] = hp.choice(key, cur_range)
-                    space_def[key] = cur_range
                 else:
                     param_grid[key] = hp.choice(key, value)
-                    space_def[key] = value
         param_grid['random_state'] = random_state
-        LOGGER.debug('Hyperopt parameter space = {}', param_grid)
+        #LOGGER.debug('Sample in hyperopt parameter space = {}', sample(param_grid))
     else:
         LOGGER.error('Parsed search space = {}', param_grid)
         raise ValueError(f'Missing implementation for search type = {fine_search}')
