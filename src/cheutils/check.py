@@ -1,3 +1,4 @@
+import numpy as np
 from hyperopt.pyll.stochastic import sample
 from hyperopt import hp
 from hyperopt.pyll import scope
@@ -26,16 +27,19 @@ def check_exception():
         LOGGER.exception('This is an EXCEPTION message = {}', ex)
 
 def sample_hyperopt_space():
-    space = {'lognormal: 0->1'       : hp.lognormal('lognormal: 0->1', 0, 1),
-             'uniform:-10->10 size=1'       : hp.uniform('uniform:-10->10', -10, 10, size=1),
-             'quniform: 3->17 by 4': scope.int(hp.quniform('quniform: 0->1 by 4', 3, 17, 4)),
-             'loguniform: 0->1'      : hp.loguniform('loguniform: 0->1', 0, 1) / 10,
-             'qloguniform: 0->1 by 4': hp.qloguniform('qloguniform: 0->1 by 4', 0.001, 1, 4) / 10,
-             'qlognormal: 3->17 by 4': scope.int(hp.qlognormal('loguniform: 0->1 by 4', 3, 17, 1) / 10),
-             'qloguniform: 3->17 by high': scope.int(hp.qloguniform('qloguniform: 0->1 by 4', 3, 17, 1) / 10),
+    small_num = 1e-10
+    space = {'normal(0): 0->1'       : hp.lognormal('normal(0): 0->1', small_num, np.log(1.11)),
+             'lognormal(1): 0->1'       : hp.lognormal('lognormal(1): 0->1', np.log(small_num), np.log(1.11)),
+             'qlognormal(2): 3->17': scope.int(hp.qlognormal('qlognormal(2): 3->17', np.log(3), np.log(17), np.log(20.5))),
+             'uniform:-10->10'       : hp.uniform('uniform:-10->19', -10, 19),
+             'quniform(0),4: 3->17': scope.int(hp.quniform('quniform(0),4: 3->17', 3, 17, 1)),
+             'loguniform(0): 0->1': hp.loguniform('loguniform(0): 0->1', np.log(small_num), np.log(1)),
+             'qloguniform(3): 0->1': hp.qloguniform('qloguniform(3)/10: 0->1', np.log(small_num), np.log(1), np.log(1.1055)),
              'choice: 3,4,5'         : hp.choice('choice: 3,4,5', [3, 4, 5]),
              'pchoice: 3,4,5'        : hp.choice('pchoice: 3,4,5', [(3, 0.10), (4, 0.6), (5, 0.3)])}
-    LOGGER.info('Sample hyperopt space: {}'.format(sample(space)))
+    sample_params = sample(space)
+    for key, param in sample_params.items():
+        LOGGER.info('Sample hyperopt param: {} = {}', key, param)
 
 # main entry point
 if __name__ == "__main__":

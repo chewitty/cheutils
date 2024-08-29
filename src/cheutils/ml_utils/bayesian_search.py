@@ -15,12 +15,13 @@ from cheutils.loggers import LoguruWrapper
 LOGGER = LoguruWrapper().get_logger()
 
 class HyperoptSearch(CheutilsBase):
-    def __init__(self, model_option:str=None, max_evals: int=100, params_space: dict= {}, loss_fn=mean_squared_error,
-                 preprocessing: list=None, n_jobs: int=-1, algo=None,
+    def __init__(self, model_option:str=None, max_evals: int=100, params_space: dict= None, loss_fn=mean_squared_error,
+                 preprocessing: list=None, n_jobs: int=-1, algo=None, cv=None,
                  random_state: int=100, trial_timeout: int=60, **kwargs):
         super().__init__()
         self.model_option = model_option
         self.max_evals = max_evals
+        self.cv = cv
         self.preprocessing = [] if preprocessing is None else preprocessing
         self.random_state = random_state
         self.trial_timeout = trial_timeout
@@ -31,7 +32,7 @@ class HyperoptSearch(CheutilsBase):
         self.best_score_ = None
         self.cv_results_ = None
         self.trials_ = None
-        self.params_space = params_space
+        self.params_space = params_space if params_space is not None else {}
         self.loss_fn = mean_squared_error if loss_fn is None else loss_fn
         self.algo = algo
 
@@ -43,7 +44,7 @@ class HyperoptSearch(CheutilsBase):
                                                  algo=self.algo, max_evals=self.max_evals,
                                                  trial_timeout=self.trial_timeout, refit=True, n_jobs=self.n_jobs,
                                                  seed=self.random_state, )
-        self.best_estimator_.fit(X, y)
+        self.best_estimator_.fit(X, y, n_folds=self.cv, cv_shuffle=True if self.cv is not None else False)
         self.base_estimator_ = self.best_estimator_.best_model().get('learner')
         self.best_score_ = min(self.best_estimator_.trials.losses())
         self.best_params_ = self.base_estimator_.get_params()
@@ -62,7 +63,7 @@ class HyperoptSearch(CheutilsBase):
 
 class HyperoptSearchCV(CheutilsBase, BaseEstimator):
     def __init__(self, model_option:str=None, max_evals: int=100, algo=None,
-                 cv=3, n_jobs: int=-1, params_space: dict= {}, trial_timeout: int=60,
+                 cv=None, n_jobs: int=-1, params_space: dict= None, trial_timeout: int=60,
                  random_state: int=100, **kwargs):
         super().__init__()
         self.model_option = model_option
@@ -76,7 +77,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         self.best_score_ = float('inf')
         self.cv_results_ = None
         self.scoring_ = kwargs.get('scoring', 'neg_mean_squared_error')
-        self.params_space = params_space
+        self.params_space = params_space if params_space is not None else {}
         self.algo = algo
         self.X = None
         self.y = None
