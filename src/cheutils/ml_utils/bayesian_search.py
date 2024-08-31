@@ -1,7 +1,6 @@
 from functools import partial
 
 import numpy as np
-from numpy.random import RandomState
 from hyperopt import fmin, tpe, hp, mix, anneal, rand, space_eval
 from hyperopt.pyll import scope
 from sklearn.base import BaseEstimator
@@ -108,13 +107,22 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
 
     def __objective(self, params):
         underlying_model = get_regressor(**self.__get_model_params(params))
-        cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
-                                cv=self.cv, n_jobs=self.n_jobs)
-        score = abs(cv_score.mean())
-        if score < self.best_score_:
-            self.best_score_ = score
-            self.cv_results_ = cv_score
-        return score
+        score = None
+        if self.cv is not None:
+            cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
+                                    cv=self.cv, n_jobs=self.n_jobs)
+            min_score = abs(cv_score.mean())
+            if min_score < self.best_score_:
+                self.best_score_ = min_score
+                self.cv_results_ = cv_score
+        else:
+            #no cross-validation
+            underlying_model.fit(self.X, self.y)
+            y_pred = underlying_model.predict(self.X)
+            min_score = mean_squared_error(self.y, y_pred)
+            if min_score < self.best_score_:
+                self.best_score_ = min_score
+        return min_score
 
     def __get_model_params(self, params):
         model_params = params.copy()
