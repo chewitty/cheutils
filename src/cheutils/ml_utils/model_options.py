@@ -74,6 +74,39 @@ def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.'
 def get_params_pounds(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
     return APP_PROPS.get_ranges(prop_key=params_key_stem + model_option)
 
+def parse_grid_types(from_grid: dict, params_key_stem: str='model.param_grids.', model_option: str=None, prefix: str=None):
+    assert from_grid is not None, 'A valid parameter grid must be provided'
+    params_grid = {}
+    params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
+    param_keys = from_grid.keys()
+    for param_key in param_keys:
+        param = params_grid_dict.get(param_key)
+        if param is not None:
+            param_type = param.get('type')
+            if param_type == int:
+                if prefix is None:
+                    params_grid[param_key] = int(from_grid.get(param_key))
+                else:
+                    params_grid[prefix + '__' + param_key] = int(from_grid.get(param_key))
+            elif param_type == float:
+                if prefix is None:
+                    params_grid[param_key] = float(from_grid.get(param_key))
+                else:
+                    params_grid[prefix + '__' + param_key] = float(from_grid.get(param_key))
+            elif param_type == bool:
+                if prefix is None:
+                    params_grid[param_key] = bool(from_grid.get(param_key))
+                else:
+                    params_grid[prefix + '__' + param_key] = bool(from_grid.get(param_key))
+            else:
+                if prefix is None:
+                    params_grid[param_key] = from_grid.get(param_key)
+                else:
+                    params_grid[prefix + '__' + param_key] = from_grid.get(param_key)
+    if params_grid is None:
+        params_grid = {}
+    return params_grid
+
 def __get_regressor_params(model_option, params_key_stem: str='model.param_grids.', prefix: str=None):
     params_grid = {}
     params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)

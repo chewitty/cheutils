@@ -14,7 +14,7 @@ from hyperopt.pyll import scope
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
 from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
-from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params, get_regressor
+from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params, get_regressor, parse_grid_types
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from cheutils.ml_utils.visualize import plot_hyperparameter
 from cheutils.loggers import LoguruWrapper
@@ -274,7 +274,11 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
     # phase 2: finer search
     narrow_param_grid = params_grid if not with_narrower_grid else None
     if with_narrower_grid:
-        best_params = search_cv.best_params_ if search_cv is not None else None
+        best_params = search_cv.best_params_ if search_cv is not None else narrow_param_grid
+        # important otherwise types are not recognized
+        if best_params is not None:
+            best_params = parse_grid_types(best_params, model_option=MODEL_OPTION)
+        # ready to proceed with generating narrow parameter
         narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
                                                   params_bounds=params_bounds)
     LOGGER.debug('Narrower hyperparameters = {}', narrow_param_grid)
@@ -368,7 +372,7 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
                                                                     params_bounds=params_bounds,
                                                                     fine_search='hyperoptcv',
                                                                     random_state=random_state),
-                                          model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                          model_option=MODEL_OPTION, cv=None, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                           max_evals=10, n_jobs=N_JOBS,
                                           trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
             finder.fit(X, y)
@@ -409,7 +413,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
         bounds = params_bounds.get(param.split('__')[-1])
         if bounds is not None:
             min_val, max_val = bounds
-            if isinstance(value, int):
+            if 'int' in str(type(value)): # if isinstance(value, (int, np.integer))
                 min_val = int(min_val) if min_val is not None else value
                 max_val = int(max_val) if max_val is not None else value
                 std_dev = np.std([min_val, max_val])
@@ -420,7 +424,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
                 cur_val = np.where(cur_val < 1, 1, cur_val)
                 cur_val = list(set(np.where(cur_val > max_val, max_val, cur_val)))
                 cur_val.sort()
-                param_grid[param] = cur_val
+                param_grid[param] = np.array(cur_val, dtype=int)
             elif isinstance(value, float):
                 min_val = float(min_val) if min_val is not None else value
                 max_val = float(max_val) if max_val is not None else value
@@ -432,7 +436,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
                 cur_val = np.where(cur_val < 0, 0, cur_val)
                 cur_val = list(set(np.where(cur_val > max_val, max_val, cur_val)))
                 cur_val.sort()
-                param_grid[param] = cur_val
+                param_grid[param] = np.array(cur_val, dtype=float)
         else:
             param_grid[param] = [value]
     NARROW_PARAM_GRIDS[num_params] = param_grid
@@ -443,7 +447,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
     param_grid = {}
     if 'skoptimizer' == fine_search:
         for param, value in default_grid.items():
-            if isinstance(value, list):
+            if isinstance(value, (list, np.ndarray)):
                 if isinstance(value[0], int):
                     min_val, max_val = int(max(1, min(value))), int(max(value))
                     param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
@@ -462,7 +466,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
             bounds = params_bounds.get(key.split('__')[-1])
             if bounds is not None:
                 lbound, ubound = bounds
-                if isinstance(value[0], int):
+                if 'int' in str(type(value[0])):
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = max(int(value[0] * (1 - fudge_factor)), lbound)
                         max_val = min(int(value[0] * (1 + fudge_factor)), ubound)
@@ -491,7 +495,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
                 else:
                     pass
             else:
-                if isinstance(value[0], int):
+                if 'int' in str(type(value[0])):
                     cur_range = value
                     cur_range.sort()
                     param_grid[key] = hp.choice(key, cur_range)
