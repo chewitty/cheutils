@@ -40,6 +40,8 @@ NUM_PARAMS_RANGE = [int(APP_PROPS.get_dict_properties('model.num_params.sample_r
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
 OPTIMAL_PARAMS_CV = APP_PROPS.get_bol('model.num_params.find_optimal.cv')
 OPTIMAL_PARAMS_CV = False if OPTIMAL_PARAMS_CV is None else OPTIMAL_PARAMS_CV
+GRID_RESOLUTIONS = APP_PROPS.get_list('model.num_params.grid_resolutions')
+GRID_RESOLUTIONS = np.array(GRID_RESOLUTIONS, dtype=int) if GRID_RESOLUTIONS is not None else None
 # the cross_validation scoring metric
 SCORING = APP_PROPS.get('model.cross_val.scoring')
 CV = int(APP_PROPS.get('model.cross_val.num_folds'))
@@ -337,7 +339,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
 def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
                            fine_search: str = 'hyperoptcv', random_state: int=100,):
     """
-    Use hyperopt estimator to find optimal number of parameters to specify given hyperparameter space.
+    Find the optimal maximum number of parameters or grid resolution to specify given hyperparameter space.
     :param X:
     :type X:
     :param y:
@@ -400,7 +402,94 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
     LOGGER.debug('Optimal num_params = {}', num_params)
     return num_params
 
+def performance_by_resolution(pipeline: Pipeline, X, y, fine_search: str = 'hyperoptcv',
+                              scaling_factor: float = 1.0, prefix: str=None, random_state: int=100, **kwargs):
+    """
+    Run model for a set number of grid resolutions and save the outputs for analysis.
+    :param pipeline:
+    :type pipeline:
+    :param X:
+    :type X:
+    :param y:
+    :type y:
+    :param fine_search:
+    :type fine_search:
+    :param scaling_factor:
+    :type scaling_factor:
+    :param prefix:
+    :type prefix:
+    :param random_state:
+    :type random_state:
+    :return:
+    :rtype:
+    """
+    name = None
+    if "name" in kwargs:
+        name = kwargs.get("name")
+        del kwargs["name"]
+    perf_by_resolution_df = None
+    optimal_resolution = GRID_RESOLUTIONS[0]
+    params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
+    LOGGER.debug('Configured hyperparameters = {}', params_grid)
+    num_params = CONFIGURED_NUM_PARAMS
+    search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
+                                   scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
+                                   random_state=random_state, verbose=2, error_score="raise", )
+    if name is not None:
+        show_pipeline(search_cv, name=name, save_to_file=True)
+    else:
+        show_pipeline(search_cv)
+    search_cv.fit(X, y)
+    LOGGER.debug('Preliminary best estimator = {}',
+                 (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
+    # get the parameter boundaries from the range specified in properties file
+    params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
 
+    narrow_param_grid = get_narrow_param_grid(search_cv.best_params_, num_params, scaling_factor=scaling_factor,
+                                              params_bounds=params_bounds)
+    LOGGER.debug('Narrower hyperparameters = {}', narrow_param_grid)
+    if GRID_RESOLUTIONS is not None:
+        scores = []
+        for n_params in GRID_RESOLUTIONS:
+            finder = None
+            if 'hyperoptsk' == fine_search:
+                finder = HyperoptSearch(params_space=parse_params(narrow_param_grid,
+                                                                  num_params=n_params,
+                                                                  params_bounds=params_bounds,
+                                                                  fine_search=fine_search,
+                                                                  random_state=random_state),
+                                       model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS, cv=CV,
+                                       trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
+            elif 'hyperoptcv' == fine_search:
+                finder = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
+                                                                    num_params=n_params,
+                                                                    params_bounds=params_bounds,
+                                                                    fine_search=fine_search,
+                                                                    random_state=random_state),
+                                          model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                          max_evals=N_TRIALS, n_jobs=N_JOBS,
+                                          trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
+            elif 'skoptimizer' == fine_search:
+                finder = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
+                                                                                      num_params=n_params,
+                                                                                      params_bounds=params_bounds,
+                                                                                      fine_search=fine_search,
+                                                                                      random_state=random_state),
+                                       scoring=SCORING, cv=CV, n_iter=n_params*10, n_jobs=N_JOBS,
+                                       random_state=random_state, )
+            else:
+                LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
+                raise KeyError('Unspecified or unsupported finer search type')
+            finder.fit(X, y)
+            scores.append(finder.best_score_)
+        optimal_resolution = GRID_RESOLUTIONS[np.argmin(scores)]
+        perf_by_resolution_df = pd.DataFrame({'resolution': GRID_RESOLUTIONS, 'test_mse': scores})
+        filename = 'performance_by_grid_resolution.xlsx'
+        save_excel(perf_by_resolution_df, file_name=filename, tag_label=fine_search)
+    else:
+        LOGGER.warning('Problem encountered: Unspecified or unsupported grid resolution range')
+    LOGGER.debug('Completed performance by resolution run for grid resolutions = {}', GRID_RESOLUTIONS)
+    return perf_by_resolution_df, optimal_resolution
 
 def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= None):
     """
