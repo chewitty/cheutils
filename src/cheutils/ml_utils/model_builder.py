@@ -413,7 +413,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
         bounds = params_bounds.get(param.split('__')[-1])
         if bounds is not None:
             min_val, max_val = bounds
-            if 'int' in str(type(value)): # if isinstance(value, (int, np.integer))
+            if isinstance(value, (int, np.integer)):
                 min_val = int(min_val) if min_val is not None else value
                 max_val = int(max_val) if max_val is not None else value
                 std_dev = np.std([min_val, max_val])
@@ -448,7 +448,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
     if 'skoptimizer' == fine_search:
         for param, value in default_grid.items():
             if isinstance(value, (list, np.ndarray)):
-                if isinstance(value[0], int):
+                if isinstance(value[0], (int, np.integer)):
                     min_val, max_val = int(max(1, min(value))), int(max(value))
                     param_grid[param] = Integer(min_val, max_val, prior='log-uniform')
                 elif isinstance(value[0], float):
@@ -466,7 +466,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
             bounds = params_bounds.get(key.split('__')[-1])
             if bounds is not None:
                 lbound, ubound = bounds
-                if 'int' in str(type(value[0])):
+                if isinstance(value[0], (int, np.integer)):
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = max(int(value[0] * (1 - fudge_factor)), lbound)
                         max_val = min(int(value[0] * (1 + fudge_factor)), ubound)
@@ -495,7 +495,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
                 else:
                     pass
             else:
-                if 'int' in str(type(value[0])):
+                if isinstance(value[0], (int, np.integer)):
                     cur_range = value
                     cur_range.sort()
                     param_grid[key] = hp.choice(key, cur_range)
@@ -523,7 +523,7 @@ def get_seed_params(default_grid: dict, param_bounds=None):
     for param, value in default_grid.items():
         param_bound = param_bounds.get(param.split('_')[-1])
         if isinstance(value, list):
-            if isinstance(value[0], int):
+            if isinstance(value[0], (int, np.integer)):
                 param_grid[param] = int(np.mean(value))
             elif isinstance(value[0], float):
                 param_grid[param] = np.mean(value)

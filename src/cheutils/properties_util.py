@@ -206,10 +206,10 @@ class AppProperties(object):
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
-            dict(str): a dict of string key-value pairs based on the specified key; the default is None.
+            dict(str): a dict of string key-value pairs based on the specified key; the default is all configured properties.
         """
         if prop_key is None:
-            return None
+            return self.app_props__.items()
         prop_value = self.app_props__.get(prop_key)
         if prop_value is None:
             return None
