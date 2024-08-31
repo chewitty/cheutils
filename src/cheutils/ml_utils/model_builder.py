@@ -38,6 +38,8 @@ CONFIGURED_NUM_PARAMS = int(APP_PROPS.get('model.num_params.to_sample'))
 USE_OPTIMAL_NUM_PARAMS = APP_PROPS.get_bol('model.num_params.find_optimal')
 NUM_PARAMS_RANGE = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
+OPTIMAL_PARAMS_CV = APP_PROPS.get_bol('model.num_params.find_optimal.cv')
+OPTIMAL_PARAMS_CV = False if OPTIMAL_PARAMS_CV is None else OPTIMAL_PARAMS_CV
 # the cross_validation scoring metric
 SCORING = APP_PROPS.get('model.cross_val.scoring')
 CV = int(APP_PROPS.get('model.cross_val.num_folds'))
@@ -220,7 +222,7 @@ def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, 
 
 
 @track_duration(name='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False, fine_search: str = 'hyperopt',
+def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False, fine_search: str = 'hyperoptcv',
                      scaling_factor: float = 1.0, prefix: str = None, random_state: int=None,
                      **kwargs):
     """
@@ -286,10 +288,10 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
                                        scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS, verbose=2,
                                        error_score="raise", )
-    elif "grid" == fine_search:
+    elif 'grid' == fine_search:
         search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
                                  scoring=SCORING, cv=CV, n_jobs=N_JOBS, verbose=2, error_score="raise", )
-    elif "hyperopt" == fine_search:
+    elif 'hyperoptsk' == fine_search:
         if USE_OPTIMAL_NUM_PARAMS:
             num_params = get_optimal_num_params(X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                 fine_search=fine_search, random_state=random_state)
@@ -333,7 +335,7 @@ def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False,
     return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
 
 def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
-                           fine_search: str = 'hyperopt', random_state: int=100,):
+                           fine_search: str = 'hyperoptcv', random_state: int=100,):
     """
     Use hyperopt estimator to find optimal number of parameters to specify given hyperparameter space.
     :param X:
@@ -352,29 +354,41 @@ def get_optimal_num_params(X, y, search_space: dict, params_bounds=None, cache_v
     :rtype:
     """
     num_params = OPTIMAL_NUM_PARAMS.get(MODEL_OPTION)
+    with_cv = CV if OPTIMAL_PARAMS_CV else None
     if num_params is None:
         scores = []
         param_ids = range(NUM_PARAMS_RANGE[0], NUM_PARAMS_RANGE[1] + 1)
         for n_params in param_ids:
             finder = None
-            if 'hyperopt' == fine_search:
+            if 'hyperoptsk' == fine_search:
 
                 finder = HyperoptSearch(params_space=parse_params(search_space,
                                                                   num_params=n_params,
                                                                   params_bounds=params_bounds,
-                                                                  fine_search='hyperopt',
+                                                                  fine_search=fine_search,
                                                                   random_state=random_state),
-                                       model_option=MODEL_OPTION, max_evals=10, algo=HYPEROPT_ALGOS, cv=None,
+                                       model_option=MODEL_OPTION, max_evals=10, algo=HYPEROPT_ALGOS, cv=with_cv,
                                        trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
-            else:
+            elif 'hyperoptcv' == fine_search:
                 finder = HyperoptSearchCV(params_space=parse_params(search_space,
                                                                     num_params=n_params,
                                                                     params_bounds=params_bounds,
-                                                                    fine_search='hyperoptcv',
+                                                                    fine_search=fine_search,
                                                                     random_state=random_state),
-                                          model_option=MODEL_OPTION, cv=None, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                          model_option=MODEL_OPTION, cv=with_cv, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                           max_evals=10, n_jobs=N_JOBS,
                                           trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
+            elif 'skoptimizer' == fine_search:
+                finder = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(search_space,
+                                                                                      num_params=n_params,
+                                                                                      params_bounds=params_bounds,
+                                                                                      fine_search=fine_search,
+                                                                                      random_state=random_state),
+                                       scoring=SCORING, cv=with_cv, n_iter=10, n_jobs=N_JOBS,
+                                       random_state=random_state, )
+            else:
+                LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
+                raise KeyError('Unspecified or unsupported finer search type')
             finder.fit(X, y)
             scores.append(finder.best_score_)
         num_params = param_ids[np.argmin(scores)]
@@ -442,7 +456,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
     NARROW_PARAM_GRIDS[num_params] = param_grid
     return param_grid
 
-def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperopt', random_state: int=100) -> dict:
+def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
     params_bounds = {} if params_bounds is None else params_bounds
     param_grid = {}
     if 'skoptimizer' == fine_search:
@@ -459,7 +473,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
             else:
                 param_grid[param] = [value]
         #LOGGER.debug('Scikit-optimize parameter space = {}', param_grid)
-    elif ('hyperopt' == fine_search) | ('hyperoptcv' == fine_search):
+    elif ('hyperoptsk' == fine_search) | ('hyperoptcv' == fine_search):
         # Define the hyperparameter space
         fudge_factor = 0.20  # in cases where the hyperparameter is a single value instead of a list of at least 2
         for key, value in default_grid.items():
