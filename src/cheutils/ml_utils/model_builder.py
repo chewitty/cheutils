@@ -36,7 +36,7 @@ N_ITERS = int(APP_PROPS.get('model.n_iters.to_sample'))
 # number of hyperopt trials to iterate over
 N_TRIALS = int(APP_PROPS.get('model.n_trials.to_sample'))
 # max number of parameters to create for narrower param_grip - which defines how finely discretized the grid is
-CONFIGURED_NUM_PARAMS = int(APP_PROPS.get('model.num_params.to_sample'))
+CONFIGURED_NUM_PARAMS = int(APP_PROPS.get('model.optimal.grid_resolution'))
 # determine optimal number of parameters automatically, using the range specified as the boundary
 USE_OPTIMAL_NUM_PARAMS = APP_PROPS.get_bol('model.num_params.find_optimal')
 NUM_PARAMS_RANGE = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
