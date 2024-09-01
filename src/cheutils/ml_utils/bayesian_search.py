@@ -49,7 +49,7 @@ class HyperoptSearch(CheutilsBase):
         self.best_params_ = self.base_estimator_.get_params()
         self.trials_ = self.best_estimator_.trials
         self.cv_results_ = self.best_estimator_.trials
-        LOGGER.debug('HyperoptSearch: Best hyperparameters  = {}', self.best_params_)
+        LOGGER.debug('HyperoptSearch: Best hyperparameters  = \n{}', self.best_params_)
         return self
 
     def predict(self, X):
@@ -92,7 +92,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         self.best_params_ = space_eval(self.params_space, best_params)
         self.best_estimator_ = get_regressor(**self.__get_model_params(self.best_params_))
         self.best_estimator_.fit(X, y)
-        LOGGER.debug('HyperoptSearchCV: Best hyperparameters  = {}', self.best_params_)
+        LOGGER.debug('HyperoptSearchCV: Best hyperparameters  = \n{}', self.best_params_)
         return self
 
     def predict(self, X):

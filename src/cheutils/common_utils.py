@@ -200,3 +200,16 @@ def get_func_def(func):
     :rtype:
     """
     return inspect.getsource(func)
+
+
+def dump_properties(props: dict):
+    """
+    Dump the properties in the specified dict as a dataframe of key, value columns
+    :param props:
+    :type props:
+    :return:
+    :rtype:
+    """
+    assert props is not None, 'A valid properties dictionary is required'
+    props_df = pd.DataFrame(data={'key': props.keys(), 'value': props.values()}, columns=['key', 'value'])
+    return props_df

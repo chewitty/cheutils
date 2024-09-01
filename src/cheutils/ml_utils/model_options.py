@@ -120,16 +120,16 @@ def __get_regressor_params(model_option, params_key_stem: str='model.param_grids
                 start = int(param.get('start'))
                 end = int(param.get('end'))
                 if prefix is None:
-                    params_grid[param_key] = np.linspace(start, end, numsteps).astype(int).tolist()
+                    params_grid[param_key] = np.linspace(start, end, numsteps, dtype=int).tolist()
                 else:
-                    params_grid[prefix + '__' + param_key] = np.linspace(start, end, numsteps).astype(int).tolist()
+                    params_grid[prefix + '__' + param_key] = np.linspace(start, end, numsteps, dtype=int).tolist()
             elif param_type == float:
                 start = float(param.get('start'))
                 end = float(param.get('end'))
                 if prefix is None:
-                    params_grid[param_key] = np.linspace(start, end, numsteps).tolist()
+                    params_grid[param_key] = np.round(np.linspace(start, end, numsteps), 4).tolist()
                 else:
-                    params_grid[prefix + '__' + param_key] = np.linspace(start, end, numsteps).tolist()
+                    params_grid[prefix + '__' + param_key] = np.round(np.linspace(start, end, numsteps), 4).tolist()
             elif param_type == bool:
                 if prefix is None:
                     params_grid[param_key] = [bool(x) for x in param.get('values') if (param.get('values') is not None)]

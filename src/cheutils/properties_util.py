@@ -1,11 +1,13 @@
 import datetime
 import os
+import pandas as pd
 from jproperties import Properties
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.project_tree import get_data_dir, get_root_dir
 from cheutils.exceptions import PropertiesException
 from cheutils.loggers import LoguruWrapper
+from cheutils.common_utils import dump_properties
 
 # Define project constants.
 APP_CONFIG_FILENAME = 'app-config.properties'
@@ -206,10 +208,11 @@ class AppProperties(object):
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
-            dict(str): a dict of string key-value pairs based on the specified key; the default is all configured properties.
+            dict(str): a dict of string key-value pairs based on the specified key; the default is all
+            configured properties as a dataframe.
         """
         if prop_key is None:
-            return self.app_props__.items()
+            return dump_properties(self.app_props__)
         prop_value = self.app_props__.get(prop_key)
         if prop_value is None:
             return None
@@ -316,6 +319,17 @@ class AppProperties(object):
             else:
                 properties[val_pair[0].strip()] = str
         return properties
+
+    def dump(self, props: dict):
+        """
+        Dump the properties in the specified dict as a dataframe of key, value columns
+        :param props:
+        :type props:
+        :return:
+        :rtype:
+        """
+        assert props is not None, 'A valid properties dictionary is required'
+        return dump_properties(props)
 
     def __load(self)->None:
         """
