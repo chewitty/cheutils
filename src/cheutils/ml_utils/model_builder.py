@@ -517,7 +517,8 @@ def performance_by_resolution(pipeline: Pipeline, X, y, fine_search: str = 'hype
                                               'test_mse': scores,
                                               'opt_resolution': [optimal_resolution]*len(GRID_RESOLUTIONS),
                                               'duration': durations, }, )
-        filename = label('performance_by_grid_size_and_resolution.xlsx', label=str(scaling_factor).replace('.', '_'))
+        filename = label('performance_by_grid_size_and_resolution.xlsx',
+                         label=str(round(scaling_factor, 2)).replace('.', '_'))
         save_excel(perf_by_resolution_df, file_name=filename, tag_label=fine_search)
     else:
         LOGGER.warning('Problem encountered: Unspecified or unsupported grid resolution range')
