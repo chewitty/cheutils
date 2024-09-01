@@ -212,7 +212,7 @@ class AppProperties(object):
             configured properties as a dataframe.
         """
         if prop_key is None:
-            return dump_properties(self.app_props__)
+            return dump_properties(self.app_props__.properties)
         prop_value = self.app_props__.get(prop_key)
         if prop_value is None:
             return None
