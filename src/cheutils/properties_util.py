@@ -14,7 +14,10 @@ APP_CONFIG_FILENAME = 'app-config.properties'
 LOGGER = LoguruWrapper().get_logger()
 
 """
-Utilities for reading properties files
+Utilities for reading project properties or configuration files. When instantiated, it loads the first 
+app-config.properties found anywhere in the project root folder or subfolders. Usually, it is 
+recommended that the app-config.properties is stored in the data subfolder of the project root. It also supports
+a reload method, which allows a reload of the properties file anytime subsequently as desired.
 """
 @singleton
 class AppProperties(object):
@@ -39,7 +42,9 @@ class AppProperties(object):
     @debug_func(enable_debug=True, prefix='app_config')
     def __init__(self, *args, **kwargs):
         """
-        Initializes the properties utility.
+        Initializes the properties utility and loads the first app-config.properties found anywhere in
+        the project root folder or subfolders. Usually, it is recommended that the app-config.properties is stored
+        in the data subfolder of the project root.
         """
         # Load the properties file
         self.__load()
