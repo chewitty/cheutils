@@ -338,7 +338,7 @@ class AppProperties(object):
 
     def __load(self)->None:
         """
-        Load the underlying properties file.
+        Load the underlying properties file from the project data folder or any project subfolder.
         :return:
         :rtype:
         """
@@ -348,12 +348,11 @@ class AppProperties(object):
         # walk through the directory tree and try to locate correct resource suggest
         found_resource = False
         for dirpath, dirnames, files in os.walk('.', topdown=False):
-            if dirpath.endswith('data'):
-                if APP_CONFIG_FILENAME in files:
-                    path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
-                    found_resource = True
-                    LOGGER.info('Using project-specific application config = {}', path_to_app_config)
-                    break
+            if APP_CONFIG_FILENAME in files:
+                path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
+                found_resource = True
+                LOGGER.info('Using project-specific application config = {}', path_to_app_config)
+                break
         if not found_resource:
             LOGGER.warning('Using global application config = {}', path_to_app_config)
             path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG_FILENAME)

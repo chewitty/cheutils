@@ -16,7 +16,7 @@ LOGGER = LoguruWrapper().get_logger()
 class HyperoptSearch(CheutilsBase):
     def __init__(self, model_option:str=None, max_evals: int=100, params_space: dict= None, loss_fn=mean_squared_error,
                  preprocessing: list=None, n_jobs: int=-1, algo=None, cv=None,
-                 random_state: int=100, trial_timeout: int=60, **kwargs):
+                 random_state: int=100, trial_timeout: int=None, **kwargs):
         super().__init__()
         self.model_option = model_option
         self.max_evals = max_evals
