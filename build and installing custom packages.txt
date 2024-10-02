@@ -14,3 +14,13 @@ pip install -i https://test.pypi.org/simple/ cheutils==2.1.6
 
 # to install on pyprod
 twine upload dist/*
+
+# build custom image using docker compose
+docker compose build
+
+# deploy containers using docker compose in the background or detached mode
+docker compose up -d
+
+# undeploy container using docker compose
+docker compose down
+

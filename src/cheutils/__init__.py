@@ -15,7 +15,7 @@ from .ml_utils import (fit, predict, score, cross_val_model, get_regressor, coar
                        plot_reg_residuals_dist, plot_reg_predictions_dist, plot_reg_residuals, plot_hyperparameter,
                        get_optimal_num_params, get_params_grid, get_params_pounds, get_default_grid, get_params,
                        get_narrow_param_grid, get_seed_params, eval_metric_by_params, performance_by_resolution,
-                       HyperoptSearch, HyperoptSearchCV, promising_params_grid, fine_search)
+                       HyperoptSearch, HyperoptSearchCV, promising_params_grid, params_optimization)
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 

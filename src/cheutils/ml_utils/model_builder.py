@@ -389,12 +389,14 @@ def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
         BEST_PARAM_GRIDS[num_params] = best_params
     return best_params
 
-@track_duration(name='fine_search')
-def fine_search(pipeline: Pipeline, X, y, promising_params_grid: dict, fine_search: str = 'hyperoptcv',
-                scaling_factor: float = 1.0, prefix: str = None, random_state: int=None, **kwargs):
+@track_duration(name='params_optimization')
+def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
+                fine_search: str = 'hyperoptcv', scaling_factor: float = 1.0, prefix: str = None,
+                random_state: int=None, **kwargs):
     """
-    Perform a fine hyperparameter tuning consisting of a fine search using bayesian optimization for a more
-    detailed search within the narrower hyperparameter space to fine the best possible hyperparameter combination
+    Perform a fine hyperparameter optimization or tuning consisting of a fine search using bayesian optimization
+    for a more detailed search within the narrower hyperparameter space to fine the best possible
+    hyperparameter combination
     :param pipeline: estimator or pipeline instance with estimator
     :type pipeline:
     :param X: pandas DataFrame or numpy array
@@ -402,6 +404,7 @@ def fine_search(pipeline: Pipeline, X, y, promising_params_grid: dict, fine_sear
     :param y: pandas Series or numpy array
     :type y:
     :param promising_params_grid: a previously generated promising parameter grid or configured default grid
+    :param with_narrower_grid: run the step 1 random search if True and not otherwise
     :param fine_search: the default is "hyperopt" but other options include "random", "grid" and "skoptimize", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
@@ -427,22 +430,15 @@ def fine_search(pipeline: Pipeline, X, y, promising_params_grid: dict, fine_sear
     best_params = BEST_PARAM_GRIDS.get(num_params) if promising_params_grid is None else promising_params_grid
     # fetch narrow params grid from cache if possible
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-    narrow_param_grid = NARROW_PARAM_GRIDS.get(params_cache_key)
+    narrow_param_grid = NARROW_PARAM_GRIDS.get(params_cache_key) if with_narrower_grid else get_params_grid(MODEL_OPTION, prefix=prefix)
     # phase 2: perform finer search
     # generate narrow grid as required
-    if narrow_param_grid is None:
+    if with_narrower_grid & (narrow_param_grid is None):
         narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
                                                   params_bounds=params_bounds)
     LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
     search_cv = None
-    if 'random' == fine_search:
-        search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
-                                       scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS, verbose=2,
-                                       error_score="raise", )
-    elif 'grid' == fine_search:
-        search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
-                                 scoring=SCORING, cv=CV, n_jobs=N_JOBS, verbose=2, error_score="raise", )
-    elif 'hyperoptsk' == fine_search:
+    if 'hyperoptsk' == fine_search:
         if USE_OPTIMAL_NUM_PARAMS:
             num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                 fine_search=fine_search, random_state=random_state)
