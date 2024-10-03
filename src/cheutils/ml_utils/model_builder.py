@@ -43,8 +43,6 @@ NUM_PARAMS_RANGE = [int(APP_PROPS.get_dict_properties('model.num_params.sample_r
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
 OPTIMAL_PARAMS_CV = APP_PROPS.get_bol('model.num_params.find_optimal.cv')
 OPTIMAL_PARAMS_CV = False if OPTIMAL_PARAMS_CV is None else OPTIMAL_PARAMS_CV
-GRID_RESOLUTIONS = APP_PROPS.get_list('model.num_params.grid_resolutions')
-GRID_RESOLUTIONS = np.array(GRID_RESOLUTIONS, dtype=int) if GRID_RESOLUTIONS is not None else None
 # the cross_validation scoring metric
 SCORING = APP_PROPS.get('model.cross_val.scoring')
 CV = int(APP_PROPS.get('model.cross_val.num_folds'))
@@ -155,194 +153,6 @@ def score(y_true, y_pred, kind: str = "mse"):
     else:
         raise ValueError("Score not yet implemented")
 
-
-def eval_metric_by_params(model_option, X, y, prefix: str = None, metric: str = 'mean_test_score',
-                          svg_file: bool = False):
-    """
-    Evaluate the performance metric vs configured hyperparameters for the current model option
-    using RandomizedSearchCV to identify optimal tuning ranges. This is a kind of coarse-to-fine search to
-    identify a narrower hyperparameter space for a possible subsequent GridSearch.
-    :param model_option:
-    :type model_option:
-    :param X:
-    :type X:
-    :param y:
-    :type y:
-    :param prefix:
-    :type prefix:
-    :param metric:
-    :type metric:
-    :param svg_file:
-    :type svg_file:
-    :return:
-    :rtype:
-    """
-    model = get_regressor(model_option=MODEL_OPTION)
-    model_params = get_params(model_option=MODEL_OPTION, prefix=prefix)
-    for param in model_params:
-        param_name = param.split(prefix)[-1]
-        cv_results = tune_model(model, X, y, model_option=MODEL_OPTION)
-        cur_results = pd.DataFrame(cv_results[3])[list(cv_results[3].keys())]
-        param_scores = cur_results[['param_' + param, metric]]
-        param_scores.rename(columns={'param_' + param: param_name, }, inplace=True)
-        param_scores[metric] = np.abs(param_scores[metric])
-        save_file = MODEL_OPTION + '_' + param_name + '_range.svg'
-        plot_hyperparameter(param_scores, metric_label='mean_test_score', param_label=param_name,
-                            save_to_file=save_file if svg_file else None)
-
-
-@track_duration(name='tune_model')
-def tune_model(pipeline: Pipeline, X, y, model_option: str, prefix: str = None, debug: bool = False,
-               random_state: int=None, **kwargs):
-    assert pipeline is not None, "A valid pipeline instance expected"
-    if random_state is None:
-        random_state = RANDOM_SEED
-    params_grid = get_params_grid(model_option, prefix=prefix)
-    LOGGER.debug('Hyperparameters = \n{}', params_grid)
-    search_cv = None
-    if GRID_SEARCH_ON:
-        if debug:
-            search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
-                                     scoring=SCORING, cv=CV, n_jobs=N_JOBS, verbose=2, error_score="raise", )
-        else:
-            search_cv = GridSearchCV(estimator=pipeline, param_grid=params_grid,
-                                     scoring=SCORING, cv=CV, n_jobs=N_JOBS, )
-    else:
-        if debug:
-            search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                           scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
-                                           random_state=random_state, verbose=2, error_score="raise", )
-        else:
-            search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                           scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
-                                           random_state=random_state, )
-    name = None
-    if "name" in kwargs:
-        name = kwargs.get("name")
-        del kwargs["name"]
-    if name is not None:
-        show_pipeline(search_cv, name=name, save_to_file=True)
-    else:
-        show_pipeline(search_cv)
-    search_cv.fit(X, y)
-    return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
-
-
-@track_duration(name='coarse_fine_tune')
-def coarse_fine_tune(pipeline: Pipeline, X, y, with_narrower_grid: bool = False, fine_search: str = 'hyperoptcv',
-                     scaling_factor: float = 1.0, prefix: str = None, random_state: int=None,
-                     **kwargs):
-    """
-    Perform a coarse-to-fine hyperparameter tuning consisting of two phases: a coarse search using RandomizedCV
-    to identify a promising in the hyperparameter space where the optimal values are likely to be found; then,
-    a fine search using another RandomizedSearchCV for a more detailed search within the narrower hyperparameter space
-    to fine the best possible hyperparameter combination
-    :param pipeline: estimator or pipeline instance with estimator
-    :type pipeline:
-    :param X: pandas DataFrame or numpy array
-    :type X:
-    :param y: pandas Series or numpy array
-    :type y:
-    :param with_narrower_grid: run the step 1 random search if True and not otherwise
-    :param fine_search: the default is "hyperopt" but other options include "random", "grid" and "skoptimize", for the second phase
-    :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
-    :type scaling_factor:
-    :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
-    :param random_state: random seed for reproducibility
-    :param kwargs:
-    :type kwargs:
-    :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_)
-    :rtype:
-    """
-    assert pipeline is not None, "A valid pipeline instance expected"
-    if random_state is None:
-        random_state = RANDOM_SEED
-    name = None
-    if "name" in kwargs:
-        name = kwargs.get("name")
-        del kwargs["name"]
-    # phase 1: Coarse search
-    params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
-    LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
-    # get the parameter boundaries from the range specified in properties file
-    params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
-    num_params = CONFIGURED_NUM_PARAMS
-    params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-    narrow_param_grid = NARROW_PARAM_GRIDS.get(params_cache_key)
-    best_params = BEST_PARAM_GRIDS.get(num_params)
-    search_cv = None
-    if with_narrower_grid & ((best_params is None) or (narrow_param_grid is None)):
-        if best_params is None:
-            search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                           scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
-                                           random_state=random_state, verbose=2, error_score="raise", )
-            if name is not None:
-                show_pipeline(search_cv, name=name, save_to_file=True)
-            else:
-                show_pipeline(search_cv)
-            search_cv.fit(X, y)
-            LOGGER.debug('Preliminary best estimator = \n{}',
-                          (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
-            best_params = search_cv.best_params_
-            BEST_PARAM_GRIDS[num_params] = best_params
-    # phase 2: finer search
-    narrow_param_grid = params_grid if not with_narrower_grid else narrow_param_grid
-    if with_narrower_grid & (narrow_param_grid is None):
-        # ready to proceed with generating narrow parameter
-        if narrow_param_grid is None:
-            narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
-                                                      params_bounds=params_bounds)
-    LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
-    if 'random' == fine_search:
-        search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=narrow_param_grid,
-                                       scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS, verbose=2,
-                                       error_score="raise", )
-    elif 'grid' == fine_search:
-        search_cv = GridSearchCV(estimator=pipeline, param_grid=narrow_param_grid,
-                                 scoring=SCORING, cv=CV, n_jobs=N_JOBS, verbose=2, error_score="raise", )
-    elif 'hyperoptsk' == fine_search:
-        if USE_OPTIMAL_NUM_PARAMS:
-            num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                                fine_search=fine_search, random_state=random_state)
-        search_cv = HyperoptSearch(params_space=parse_params(narrow_param_grid,
-                                                              num_params=num_params,
-                                                              params_bounds=params_bounds,
-                                                              fine_search=fine_search,
-                                                              random_state=random_state),
-                                   model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS, cv=CV,
-                                   trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
-    elif "hyperoptcv" == fine_search:
-        if USE_OPTIMAL_NUM_PARAMS:
-            num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                                fine_search=fine_search, random_state=random_state)
-        search_cv = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
-                                                              num_params=num_params,
-                                                              params_bounds=params_bounds,
-                                                              fine_search=fine_search,
-                                                              random_state=random_state),
-                                     model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
-                                     max_evals=N_TRIALS, n_jobs=N_JOBS,
-                                     trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
-    elif 'skoptimize' == fine_search:
-        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
-                                                                                 num_params=num_params,
-                                                                                 params_bounds=params_bounds,
-                                                                                 fine_search=fine_search,
-                                                                                 random_state=random_state),
-                                  scoring=SCORING, cv=CV, n_iter=5, n_jobs=N_JOBS,
-                                  random_state=random_state, verbose=10, )
-    else:
-        LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
-        raise KeyError('Unspecified or unsupported finer search type')
-
-    if name is not None:
-        show_pipeline(search_cv, name=name, save_to_file=True)
-    else:
-        show_pipeline(search_cv)
-    search_cv.fit(X, y)
-    # return the results accordingly
-    return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
-
 @track_duration(name='promising_params_grid')
 def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
                        random_state: int=None, **kwargs):
@@ -391,7 +201,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
 
 @track_duration(name='params_optimization')
 def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
-                fine_search: str = 'hyperoptcv', scaling_factor: float = 1.0, prefix: str = None,
+                fine_search: str = 'hyperoptcv', scaling_factor: float = 1.0, grid_resolution: int=3, prefix: str = None,
                 random_state: int=None, **kwargs):
     """
     Perform a fine hyperparameter optimization or tuning consisting of a fine search using bayesian optimization
@@ -408,6 +218,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :param fine_search: the default is "hyperopt" but other options include "random", "grid" and "skoptimize", for the second phase
     :param scaling_factor: the scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
+    :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
     :param random_state: random seed for reproducibility
     :param kwargs:
@@ -438,10 +249,12 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                   params_bounds=params_bounds)
     LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
     search_cv = None
+    if USE_OPTIMAL_NUM_PARAMS:
+        num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
+                                            fine_search=fine_search, random_state=random_state)
+    else:
+        num_params = grid_resolution
     if 'hyperoptsk' == fine_search:
-        if USE_OPTIMAL_NUM_PARAMS:
-            num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                                fine_search=fine_search, random_state=random_state)
         search_cv = HyperoptSearch(params_space=parse_params(narrow_param_grid,
                                                               num_params=num_params,
                                                               params_bounds=params_bounds,
@@ -450,9 +263,6 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                    model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS, cv=CV,
                                    trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif "hyperoptcv" == fine_search:
-        if USE_OPTIMAL_NUM_PARAMS:
-            num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                                fine_search=fine_search, random_state=random_state)
         search_cv = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
                                                               num_params=num_params,
                                                               params_bounds=params_bounds,
@@ -550,118 +360,6 @@ def get_optimal_num_params(pipeline: Pipeline, X, y, search_space: dict, params_
             OPTIMAL_NUM_PARAMS[MODEL_OPTION] = num_params
     LOGGER.debug('Optimal grid resolution = {}', num_params)
     return num_params
-
-@track_duration(name='by_resolution', summary_stats=True)
-def performance_by_resolution(pipeline: Pipeline, X, y, fine_search: str = 'hyperoptcv',
-                              scaling_factor: float = 1.0, prefix: str=None, random_state: int=100, **kwargs):
-    """
-    Run model for a set number of grid resolutions and save the outputs for analysis.
-    :param pipeline:
-    :type pipeline:
-    :param X:
-    :type X:
-    :param y:
-    :type y:
-    :param fine_search:
-    :type fine_search:
-    :param scaling_factor:
-    :type scaling_factor:
-    :param prefix:
-    :type prefix:
-    :param random_state:
-    :type random_state:
-    :return:
-    :rtype:
-    """
-    assert pipeline is not None, "A valid pipeline instance expected"
-    if random_state is None:
-        random_state = RANDOM_SEED
-    name = None
-    perf_by_resolution_df = None
-    optimal_resolution = GRID_RESOLUTIONS[0]
-    params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
-    LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
-    # get the parameter boundaries from the range specified in properties file
-    params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
-    # run the experiment over configured grid resolutions
-    if GRID_RESOLUTIONS is not None:
-        scores = []
-        durations = []
-        for n_params in GRID_RESOLUTIONS:
-            start_time = time.perf_counter()
-            try:
-                params_cache_key = str(n_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-                narrow_param_grid = NARROW_PARAM_GRIDS.get(params_cache_key)
-                best_params = BEST_PARAM_GRIDS.get(n_params)
-                if narrow_param_grid is None:
-                    if best_params is None:
-                        search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                                       scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
-                                                       random_state=random_state, verbose=2, error_score="raise", )
-                        show_pipeline(search_cv)
-                        search_cv.fit(X, y)
-                        best_params = search_cv.best_params_
-                        LOGGER.debug('Preliminary best estimator = \n{}',
-                                     (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
-                        BEST_PARAM_GRIDS[n_params] = best_params
-                    narrow_param_grid = get_narrow_param_grid(best_params, n_params, scaling_factor=scaling_factor,
-                                                              params_bounds=params_bounds)
-                    LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
-                else:
-                    LOGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
-                finder = None
-                start_time = time.perf_counter() # reset counter as to be more accurate
-                if 'hyperoptsk' == fine_search:
-                    finder = HyperoptSearch(params_space=parse_params(narrow_param_grid,
-                                                                      num_params=n_params,
-                                                                      params_bounds=params_bounds,
-                                                                      fine_search=fine_search,
-                                                                      random_state=random_state),
-                                           model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS, cv=CV,
-                                           trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
-                elif 'hyperoptcv' == fine_search:
-                    finder = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
-                                                                        num_params=n_params,
-                                                                        params_bounds=params_bounds,
-                                                                        fine_search=fine_search,
-                                                                        random_state=random_state),
-                                              model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
-                                              max_evals=N_TRIALS, n_jobs=N_JOBS,
-                                              trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
-                elif 'skoptimize' == fine_search:
-                    finder = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
-                                                                                 num_params=n_params,
-                                                                                 params_bounds=params_bounds,
-                                                                                 fine_search=fine_search,
-                                                                                 random_state=random_state),
-                                           scoring=SCORING, cv=CV, n_iter=5, n_jobs=N_JOBS,
-                                           random_state=random_state, verbose=10, )
-                else:
-                    LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
-                    raise KeyError('Unspecified or unsupported finer search type')
-                show_pipeline(finder)
-                finder.fit(X, y)
-                scores.append(abs(finder.best_score_))
-            except Exception as err:
-                LOGGER.error('Failure in performance_by_resolution: {}', err)
-                raise err
-            finally:
-                time_taken = time.perf_counter() - start_time
-                durations.append(round(time_taken, 6))
-        optimal_resolution = GRID_RESOLUTIONS[np.argmin(scores)]
-        perf_by_resolution_df = pd.DataFrame({'search': [fine_search]*len(GRID_RESOLUTIONS),
-                                              'grid_resolution': GRID_RESOLUTIONS,
-                                              'grid_size': [scaling_factor]*len(GRID_RESOLUTIONS),
-                                              'test_mse': scores,
-                                              'opt_resolution': [optimal_resolution]*len(GRID_RESOLUTIONS),
-                                              'duration': durations, }, )
-        filename = label('performance_by_grid_size_and_resolution.xlsx',
-                         label=str(round(scaling_factor, 2)).replace('.', '_'))
-        save_excel(perf_by_resolution_df, file_name=filename, tag_label=fine_search)
-    else:
-        LOGGER.warning('Problem encountered: Unspecified or unsupported grid resolution range')
-    LOGGER.debug('Completed performance by resolution run for grid resolutions = {}', GRID_RESOLUTIONS)
-    return perf_by_resolution_df
 
 def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= None):
     """
