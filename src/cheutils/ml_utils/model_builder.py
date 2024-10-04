@@ -154,7 +154,7 @@ def score(y_true, y_pred, kind: str = "mse"):
         raise ValueError("Score not yet implemented")
 
 @track_duration(name='promising_params_grid')
-def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
+def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, prefix: str = None, 
                        random_state: int=None, **kwargs):
     """
     Perform phase 1 of the coarse-to-fine hyperparameter tuning consisting of a coarse search using RandomizedCV
@@ -165,6 +165,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
     :type X:
     :param y: pandas Series or numpy array
     :type y:
+    :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
     :param random_state: random seed for reproducibility
     :param kwargs:
@@ -182,7 +183,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
     # phase 1: Coarse search
     params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
     LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
-    num_params = CONFIGURED_NUM_PARAMS
+    num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
     best_params = BEST_PARAM_GRIDS.get(num_params)
     if best_params is None:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
@@ -252,8 +253,6 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     if USE_OPTIMAL_NUM_PARAMS:
         num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                             fine_search=fine_search, random_state=random_state)
-    else:
-        num_params = grid_resolution
     if 'hyperoptsk' == fine_search:
         search_cv = HyperoptSearch(params_space=parse_params(narrow_param_grid,
                                                               num_params=num_params,
