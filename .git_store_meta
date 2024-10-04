@@ -2,21 +2,6 @@
 <file>	<type>	<mtime>
 README.md	f	2024-10-03T13:52:08Z
 build and installing custom packages.txt	f	2024-10-01T19:43:04Z
-dist	d	2024-10-03T13:54:01Z
-dist/cheutils-2.1.10-py3-none-any.whl	f	2024-10-03T13:30:40Z
-dist/cheutils-2.1.10.tar.gz	f	2024-10-03T13:30:14Z
-dist/cheutils-2.1.11-py3-none-any.whl	f	2024-10-03T13:48:24Z
-dist/cheutils-2.1.11.tar.gz	f	2024-10-03T13:47:56Z
-dist/cheutils-2.1.12-py3-none-any.whl	f	2024-10-03T13:50:16Z
-dist/cheutils-2.1.12.tar.gz	f	2024-10-03T13:49:48Z
-dist/cheutils-2.1.6-py3-none-any.whl	f	2024-10-01T13:34:22Z
-dist/cheutils-2.1.6.tar.gz	f	2024-10-01T13:33:52Z
-dist/cheutils-2.1.7-py3-none-any.whl	f	2024-10-01T14:55:52Z
-dist/cheutils-2.1.7.tar.gz	f	2024-10-01T14:55:10Z
-dist/cheutils-2.1.8-py3-none-any.whl	f	2024-10-01T19:05:36Z
-dist/cheutils-2.1.8.tar.gz	f	2024-10-01T19:05:03Z
-dist/cheutils-2.1.9-py3-none-any.whl	f	2024-10-02T09:42:36Z
-dist/cheutils-2.1.9.tar.gz	f	2024-10-02T09:41:50Z
 pyproject.toml	f	2024-10-03T13:49:17Z
 src/cheutils.egg-info/PKG-INFO	f	2024-10-03T13:49:48Z
 src/cheutils/__init__.py	f	2024-10-03T12:46:23Z
