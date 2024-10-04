@@ -201,7 +201,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, prefix: str = None,
 
 @track_duration(name='params_optimization')
 def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
-                fine_search: str = 'hyperoptcv', scaling_factor: float = 1.0, grid_resolution: int=3, prefix: str = None,
+                fine_search: str = 'hyperoptcv', scaling_factor: float = 1.0, grid_resolution: int=None, prefix: str = None,
                 random_state: int=None, **kwargs):
     """
     Perform a fine hyperparameter optimization or tuning consisting of a fine search using bayesian optimization
@@ -237,7 +237,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     # get the parameter boundaries from the range specified in properties file
     params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
     # fetch promising params grdi from cache if possible
-    num_params = CONFIGURED_NUM_PARAMS
+    num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
     best_params = BEST_PARAM_GRIDS.get(num_params) if promising_params_grid is None else promising_params_grid
     # fetch narrow params grid from cache if possible
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
