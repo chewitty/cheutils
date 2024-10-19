@@ -25,7 +25,7 @@ from cheutils.properties_util import AppProperties
 LOGGER = LoguruWrapper().get_logger()
 APP_PROPS = AppProperties()
 prop_key = 'project.models.supported'
-MODELS_SUPPORTED = APP_PROPS.get_list(prop_key)
+MODELS_SUPPORTED = APP_PROPS.get_dict_properties(prop_key)
 assert (MODELS_SUPPORTED is not None), 'Models supported must be specified'
 LOGGER.info('Models supported = {}', MODELS_SUPPORTED)
 N_JOBS = -1

@@ -3,8 +3,13 @@ from hyperopt.pyll.stochastic import sample
 from hyperopt import hp
 from hyperopt.pyll import scope
 from cheutils.loggers import LoguruWrapper
+from cheutils.properties_util import AppProperties
+from cheutils.ml_utils.model_options import get_regressor, get_params_grid
 
 LOGGER = LoguruWrapper().get_logger()
+APP_PROPS = AppProperties()
+MODEL_OPTION = APP_PROPS.get('model.active.model_option')
+MODEL_PARAMS = APP_PROPS.get_dict_properties
 
 def check_logger():
     """
@@ -19,6 +24,10 @@ def check_logger():
     LOGGER.success('This is a SUCCESS message')
     LOGGER.error('This is an ERROR message')
     LOGGER.critical('This is a CRITICAL message')
+
+def check_models():
+    model = get_regressor(model_option=MODEL_OPTION, **get_params_grid(model_option=MODEL_OPTION))
+    LOGGER.debug('Model instance = \n{}', model)
 
 def check_exception():
     try:
@@ -45,4 +54,5 @@ def sample_hyperopt_space():
 if __name__ == "__main__":
     check_logger()
     sample_hyperopt_space()
+    check_models()
     check_exception()

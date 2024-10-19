@@ -1,3 +1,4 @@
 /.idea
 /src/cheutils/__pycache__
 /src/cheutils/ml_utils/__pycache__
+/src/cheutils/output/app-log.log

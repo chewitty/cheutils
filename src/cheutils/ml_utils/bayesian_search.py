@@ -13,6 +13,11 @@ from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()
 
+HYPEROPT_ESTIMATORS = {'xgb_boost': 'xgboost_regression', 'lightgbm': 'lightgbm_regression',
+                       'decision_tree': 'decision_tree_regressor', 'random_forest': 'random_forest_regressor',
+                       'lasso': 'lasso', 'linear_regression': 'linear_regression', 'ridge': 'ridge',
+                       'gradient_boosting': 'gradient_boosting_regressor'}
+
 class HyperoptSearch(CheutilsBase):
     def __init__(self, model_option:str=None, max_evals: int=100, params_space: dict= None, loss_fn=mean_squared_error,
                  preprocessing: list=None, n_jobs: int=-1, algo=None, cv=None,
@@ -38,7 +43,8 @@ class HyperoptSearch(CheutilsBase):
     def fit(self, X, y=None, **kwargs):
         LOGGER.debug('HyperoptSearch: Fitting dataset, shape {}, {}', X.shape, y.shape if y is not None else None)
         # Perform the optimization
-        self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(self.model_option, **self.params_space),
+        model_option = HYPEROPT_ESTIMATORS.get(self.model_option)
+        self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_regressor(model_option, **self.params_space),
                                                  preprocessing=self.preprocessing, loss_fn=self.loss_fn,
                                                  algo=self.algo, max_evals=self.max_evals,
                                                  trial_timeout=self.trial_timeout, refit=True, n_jobs=self.n_jobs,

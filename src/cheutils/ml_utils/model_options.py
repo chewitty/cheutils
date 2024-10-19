@@ -1,17 +1,13 @@
 import numpy as np
-from lightgbm import LGBMRegressor
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
-from sklearn.linear_model import Lasso, LinearRegression, Ridge
-from sklearn.tree import DecisionTreeRegressor
-from xgboost import XGBRegressor
-from hpsklearn import lasso, linear_regression, ridge, gradient_boosting_regressor
-from hpsklearn import xgboost_regression, lightgbm_regression, decision_tree_regressor, random_forest_regressor
+import importlib
 from cheutils.loggers import LoguruWrapper
+from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()
-
-from cheutils.properties_util import AppProperties
 APP_PROPS = AppProperties()
+prop_key = 'project.models.supported'
+MODELS_SUPPORTED = APP_PROPS.get_dict_properties(prop_key)
+assert MODELS_SUPPORTED is not None, 'Models supported must be specified'
 
 def get_regressor(**model_params):
     """
@@ -25,47 +21,25 @@ def get_regressor(**model_params):
     if 'params_grid_key' in cur_model_params:
         params_grid_key = cur_model_params.get('params_grid_key')
         del cur_model_params['params_grid_key']
-    if 'lasso' == model_option:
-        model = Lasso(**cur_model_params)
-    elif 'linear' == model_option:
-        model = LinearRegression(**cur_model_params)
-    elif 'ridge' == model_option:
-        model = Ridge(**cur_model_params)
-    elif 'gradient_boosting' == model_option:
-        model = GradientBoostingRegressor(**cur_model_params)
-    elif 'xgb_boost' == model_option:
-        model = XGBRegressor(**cur_model_params)
-    elif 'light_gbm' == model_option:
-        model = LGBMRegressor(**cur_model_params)
-    elif 'decision_tree' == model_option:
-        model = DecisionTreeRegressor(**cur_model_params)
-    elif 'random_forest' == model_option:
-        model = RandomForestRegressor(**cur_model_params)
-    else:
+    model_info = MODELS_SUPPORTED.get(model_option)
+    assert model_info is not None, 'Model info must be specified'
+    model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
+    try:
+        model = model_class(**cur_model_params)
+    except TypeError as err:
         LOGGER.debug('Failure encountered: Unspecified or unsupported regressor')
         raise KeyError('Unspecified or unsupported regressor')
     return model
 
 def get_hyperopt_regressor(model_option, **model_params):
-    if 'lasso' == model_option:
-        model = lasso(model_option, **model_params)
-    elif 'linear' == model_option:
-        model = linear_regression(model_option, **model_params)
-    elif 'ridge' == model_option:
-        model = ridge(model_option, **model_params)
-    elif 'gradient_boosting' == model_option:
-        model = gradient_boosting_regressor(model_option, **model_params)
-    elif 'xgb_boost' == model_option:
-        model = xgboost_regression(model_option, **model_params)
-    elif 'light_gbm' == model_option:
-        model = lightgbm_regression(model_option, **model_params)
-    elif 'decision_tree' == model_option:
-        model = decision_tree_regressor(model_option, **model_params)
-    elif 'random_forest' == model_option:
-        model = random_forest_regressor(model_option, **model_params)
-    else:
-        LOGGER.debug('Failure encountered: Unspecified or unsupported hyperopt wrapper')
-        raise KeyError('Unspecified or unsupported hyperopt wrapper')
+    model_info = MODELS_SUPPORTED.get(model_option)
+    assert model_info is not None, 'Model info must be specified'
+    model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
+    try:
+        model = model_class(model_option, **model_params)
+    except TypeError as err:
+        LOGGER.debug('Failure encountered: Unspecified or unsupported regressor')
+        raise KeyError('Unspecified or unsupported regressor')
     return model
 
 def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
