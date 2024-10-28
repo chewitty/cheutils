@@ -133,9 +133,10 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         return self.best_estimator_.predict_proba(X)
 
     def __objective(self, params):
+        LOGGER.debug('\nRunning trial ID = {}', self.trial_run)
         underlying_model = clone(self.estimator)
         underlying_model.set_params(**params)
-        def evaluate_obj():
+        def evaluate_obj(cur_tag: str=None):
             min_score = self.best_score_
             if self.cv is not None:
                 cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
@@ -145,6 +146,11 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                 if min_score < self.best_score_:
                     self.best_score_ = min_score
                     self.cv_results_ = cv_score
+                if self.mlflow_log:
+                    underlying_model.fit(self.X, self.y)
+                    signature = infer_signature(self.X, self.y)
+                    mlflow.sklearn.log_model(sk_model=underlying_model, artifact_path=cur_tag,
+                                             signature=signature, registered_model_name=cur_tag)
             else:
                 #no cross-validation
                 underlying_model.fit(self.X, self.y)
@@ -156,14 +162,14 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
             return min_score
         if self.mlflow_log:
             cur_tag = self.model_option + '_' + str(self.trial_run)
-            mlflow.set_tag('model', cur_tag)
+            min_score = evaluate_obj(cur_tag=cur_tag)
+            mlflow.set_tag('Trial model', cur_tag)
             mlflow.log_params(params)
-            min_score = evaluate_obj()
             mlflow.log_metric('eval_mse', min_score)
-            self.trial_run = self.trial_run + 1
         else:
             min_score = evaluate_obj()
-        return {'loss': min_score, 'status': STATUS_OK}
+        self.trial_run = self.trial_run + 1
+        return {'loss': min_score, 'status': STATUS_OK, 'model': underlying_model}
 
     def __get_model_params(self, params):
         model_params = params.copy()
