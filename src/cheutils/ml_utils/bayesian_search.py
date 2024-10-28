@@ -107,7 +107,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         if self.mlflow_log:
             trials = Trials()
             mlflow.config.enable_async_logging(enable=True)
-            with mlflow.start_run() as active_run:
+            with mlflow.start_run(nested=True) as active_run:
                 model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
                 LOGGER.debug('Mlflow model URI = {}', model_uri)
                 optimize_and_fit(trials=trials)
