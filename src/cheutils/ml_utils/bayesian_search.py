@@ -111,7 +111,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                 model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
                 LOGGER.debug('Mlflow model URI = {}', model_uri)
                 optimize_and_fit(trials=trials)
-                signature = infer_signature(self.X, self.best_estimator_.predict(self.X))
+                signature = infer_signature(self.X.head(), self.y.head())
                 mlflow.sklearn.log_model(sk_model=self.best_estimator_, artifact_path='best_model',
                                          signature=signature, registered_model_name='best_model')
                 best_run = sorted(trials.results, key=lambda x: x['loss'])[0]
@@ -148,7 +148,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                     self.cv_results_ = cv_score
                 if self.mlflow_log:
                     underlying_model.fit(self.X, self.y)
-                    signature = infer_signature(self.X, self.y)
+                    signature = infer_signature(self.X.head(), self.y.head())
                     mlflow.sklearn.log_model(sk_model=underlying_model, artifact_path=cur_tag,
                                              signature=signature, registered_model_name=cur_tag)
             else:
