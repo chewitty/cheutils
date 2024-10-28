@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 2.2.13
+Version: 2.2.14
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Project-URL: Homepage, https://github.com/chewitty/cheutils
@@ -81,3 +81,12 @@ Thereafter, you can simply fit the model as follows:
 ```
 cheutils.fit(regressor, X_train, y_train)
 ```
+Given a default model parameter configuration (usually in the properties file), you can generate a promising parameter grid using RandomSearchCV as follows - i.e., the pipeline can either be an sklearn pipeline or an estimator:
+```
+cheutils.promising_params_grid(pipeline, X_train, y_train, grid_resolution=3, prefix='model_prefix')
+```
+You can run hyperparameter optimization or tuningas follows, if using hyperopt and Mlflow logging:
+```
+cheutils.params_optimization(pipeline, X_train, y_train, promising_params_grid=params_grid, with_narrower_grid=True, fine_search='hyperoptcv', prefix='model_prefix', mlflow_log=True)
+```
+
