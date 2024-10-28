@@ -202,8 +202,8 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
 
 @track_duration(name='params_optimization')
 def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
-                fine_search: str = 'hyperoptcv', scaling_factor: float = 1.0, grid_resolution: int=None, prefix: str = None,
-                random_state: int=None, **kwargs):
+                fine_search: str = 'hyperoptcv', scaling_factor: float = 0.20, grid_resolution: int=None, prefix: str = None,
+                random_state: int=None, mlflow_log: bool=False, **kwargs):
     """
     Perform a fine hyperparameter optimization or tuning consisting of a fine search using bayesian optimization
     for a more detailed search within the narrower hyperparameter space to fine the best possible
@@ -222,6 +222,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
     :param random_state: random seed for reproducibility
+    :param mlflow_log: if mlflow logging should be enabled - only valid for "hyperoptcv"
     :param kwargs:
     :type kwargs:
     :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_)
@@ -262,13 +263,13 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                    model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS, cv=CV,
                                    trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif "hyperoptcv" == fine_search:
-        search_cv = HyperoptSearchCV(params_space=parse_params(narrow_param_grid,
+        search_cv = HyperoptSearchCV(estimator=pipeline, params_space=parse_params(narrow_param_grid,
                                                               num_params=num_params,
                                                               params_bounds=params_bounds,
                                                               fine_search=fine_search,
                                                               random_state=random_state),
                                      model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
-                                     max_evals=N_TRIALS, n_jobs=N_JOBS,
+                                     max_evals=N_TRIALS, n_jobs=N_JOBS, mlflow_log=mlflow_log,
                                      trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimize' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
@@ -329,7 +330,7 @@ def get_optimal_num_params(pipeline: Pipeline, X, y, search_space: dict, params_
                                        model_option=MODEL_OPTION, max_evals=10, algo=HYPEROPT_ALGOS, cv=with_cv,
                                        trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
             elif 'hyperoptcv' == fine_search:
-                finder = HyperoptSearchCV(params_space=parse_params(search_space,
+                finder = HyperoptSearchCV(estimator=pipeline, params_space=parse_params(search_space,
                                                                     num_params=n_params,
                                                                     params_bounds=params_bounds,
                                                                     fine_search=fine_search,
@@ -477,7 +478,6 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
                     param_grid[key] = hp.choice(key, cur_range)
                 else:
                     param_grid[key] = hp.choice(key, value)
-        param_grid['random_state'] = random_state
         #LOGGER.debug('Sample in hyperopt parameter space = \n{}', sample(param_grid))
     else:
         LOGGER.error('Parsed search space = \n{}', param_grid)

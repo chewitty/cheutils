@@ -22,6 +22,6 @@ setup(
                       'pytz', 'pyodbc', 'pymysql', 'mysqlclient', 'pymssql',
                       'mysql.connector', 'sqlalchemy', 'typing', 'icecream', 'regex',
                       'inspect-it', 'jproperties', 'matplotlib', 'scikit-learn', 'loguru',
-                      'scikit-optimize', 'hyperopt', 'fast_ml', ],
+                      'scikit-optimize', 'hyperopt', 'fast_ml', 'mlflow', ],
     python_requires='>=3.9',
 )
