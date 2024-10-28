@@ -289,7 +289,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
         show_pipeline(search_cv)
     search_cv.fit(X, y)
     # return the results accordingly
-    return search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_, search_cv.cv_results_
+    return search_cv.best_estimator_, abs(search_cv.best_score_), search_cv.best_params_, search_cv.cv_results_
 
 def get_optimal_num_params(pipeline: Pipeline, X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
                            fine_search: str = 'hyperoptcv', random_state: int=100, **kwargs):
