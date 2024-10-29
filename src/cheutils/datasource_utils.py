@@ -1130,11 +1130,11 @@ class DSWrapper(object):
             timeout = '0' if (timeout is None) or ('' == timeout) else str(timeout)
             db_config = {'drivername': db_info.get('drivername'), 'host': db_info.get('db_server'), 'port': db_info.get('db_port'),
                          'username'  : db_info.get('username'), 'password': db_info.get('password'),
-                         'database'  : db_info.get('db_name'), 'query': {'charset': 'utf8-sig'}}
+                         'database'  : db_info.get('db_name'), 'query': {'charset': 'utf8'}}
             if key.startswith('POSTGRES'):
                 db_config['query'] = {'client_encoding': 'utf8', }
             else:
-                db_config['query'] = {'charset': 'utf8-sig', 'driver': db_info['db_driver'],
+                db_config['query'] = {'charset': 'utf8', 'driver': db_info['db_driver'],
                                       'timeout': timeout, 'direct_conn': str(direct_conn), 'verbose': str(verbose), }
             db_configs[key] = db_config
         self.dbtool_factory__ = DBToolFactory.get_instance(db_configs)
