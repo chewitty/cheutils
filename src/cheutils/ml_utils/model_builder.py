@@ -14,6 +14,7 @@ from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
+
 LOGGER = LoguruWrapper().get_logger()
 APP_PROPS = AppProperties()
 prop_key = 'project.models.supported'

@@ -10,7 +10,7 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import dump_properties
 
 # Define project constants.
-APP_CONFIG_FILENAME = 'app-config.properties'
+APP_CONFIG = 'app-config.properties'
 LOGGER = LoguruWrapper().get_logger()
 
 """
@@ -23,9 +23,9 @@ a reload method, which allows a reload of the properties file anytime subsequent
 class AppProperties(object):
     instance__ = None
     app_props__ = None
-    '''
+    """
     A static method responsible for creating and returning a new instance (called before __init__)
-    '''
+    """
     def __new__(cls, *args, **kwargs):
         """
         Creates a singleton instance if it is not yet created, 
@@ -35,10 +35,9 @@ class AppProperties(object):
             AppProperties.instance__ = super().__new__(cls)
         return AppProperties.instance__
 
-    '''
+    """
     An instance method, the class constructor, responsible for initializing the attributes of the newly created
-    '''
-
+    """
     @debug_func(enable_debug=True, prefix='app_config')
     def __init__(self, *args, **kwargs):
         """
@@ -58,15 +57,15 @@ class AppProperties(object):
         cur_props = self.app_props__
         try:
             self.__load()
-            LOGGER.success('Successfully reloaded = {}', APP_CONFIG_FILENAME)
+            LOGGER.success('Successfully reloaded = {}', APP_CONFIG)
         except Exception as ex:
             # revert to previous version
             self.app_props__ = cur_props
-            LOGGER.warning('Could not reload = {}', APP_CONFIG_FILENAME)
+            LOGGER.warning('Could not reload = {}', APP_CONFIG)
             raise ex
 
     def __str__(self):
-        path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
+        path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG)
         info = 'AppProperties created, using properties file = ' + path_to_app_config
         LOGGER.info(info)
         return info
@@ -336,6 +335,40 @@ class AppProperties(object):
         assert props is not None, 'A valid properties dictionary is required'
         return dump_properties(props)
 
+    def load_custom_properties(self, prop_file_name: str)->Properties:
+        """
+        Loads any custom properties file, other than the default app-config.properties
+        that is loaded automatically, from the project folder or any project subfolder.
+        :param prop_file_name: the custom properties file name, not including any folder paths (e.g., ds-config.properties)
+        :type prop_file_name: str
+        :return: properties object that can be used as needed
+        :rtype: Properties
+        """
+        LOGGER.info('Searching for custom config = {}', prop_file_name)
+        # walk through the directory tree and try to locate correct resource suggest
+        path_to_app_config = None
+        found_resource = False
+        for dirpath, dirnames, files in os.walk('.', topdown=False):
+            if prop_file_name in files:
+                path_to_app_config = os.path.join(dirpath, prop_file_name)
+                found_resource = True
+                LOGGER.info('Using custom config = {}', path_to_app_config)
+                break
+        if not found_resource:
+            path_to_app_config = os.path.join(get_root_dir(), prop_file_name)
+            LOGGER.warning('Will attempt to load custom config = {}', path_to_app_config)
+        try:
+            custom_props = Properties()
+            LOGGER.info('Loading {}', path_to_app_config)
+            with open(path_to_app_config, 'rb') as prop_file:
+                custom_props.load(prop_file)
+        except Exception as ex:
+            LOGGER.exception(ex)
+            raise PropertiesException(ex)
+        # log message on completion
+        LOGGER.info('Custom properties loaded = {}', path_to_app_config)
+        return custom_props
+
     def __load(self)->None:
         """
         Load the underlying properties file from the project data folder or any project subfolder.
@@ -343,19 +376,19 @@ class AppProperties(object):
         :rtype:
         """
         # prepare to load app-config.properties
-        path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG_FILENAME)
-        LOGGER.info('Desired application config = {}', path_to_app_config)
+        LOGGER.info('Searching for application config = {}', APP_CONFIG)
         # walk through the directory tree and try to locate correct resource suggest
         found_resource = False
+        path_to_app_config = None
         for dirpath, dirnames, files in os.walk('.', topdown=False):
-            if APP_CONFIG_FILENAME in files:
-                path_to_app_config = os.path.join(dirpath, APP_CONFIG_FILENAME)
+            if APP_CONFIG in files:
+                path_to_app_config = os.path.join(dirpath, APP_CONFIG)
                 found_resource = True
                 LOGGER.info('Using project-specific application config = {}', path_to_app_config)
                 break
         if not found_resource:
-            LOGGER.warning('Using global application config = {}', path_to_app_config)
-            path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG_FILENAME)
+            path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG)
+            LOGGER.warning('Attempting to use global application config = {}', path_to_app_config)
         try:
             self.app_props__ = Properties()
             LOGGER.info('Loading {}', path_to_app_config)

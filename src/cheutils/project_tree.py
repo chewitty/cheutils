@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.utils import estimator_html_repr
 from cheutils.loggers import LoguruWrapper
-from cheutils.common_utils import label, datestamped
+from cheutils.common_utils import label, datestamp
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -77,7 +77,7 @@ def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label:
     target_file = os.path.join(get_output_dir(), file_name) if tag_label is None else os.path.join(get_output_dir(),
                                                                                                    label(file_name,
                                                                                                          label=tag_label))
-    target_file = datestamped(target_file) if date_stamped else target_file
+    target_file = datestamp(target_file) if date_stamped else target_file
 
     df.to_excel(target_file, index=index)
 
@@ -97,7 +97,7 @@ def save_csv(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: s
     target_file = os.path.join(get_output_dir(), file_name) if tag_label is None else os.path.join(get_output_dir(),
                                                                                                    label(file_name,
                                                                                                          label=tag_label))
-    target_file = datestamped(target_file) if date_stamped else target_file
+    target_file = datestamp(target_file) if date_stamped else target_file
     df.to_csv(target_file, index=index)
 
 

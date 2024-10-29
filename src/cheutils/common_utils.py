@@ -134,7 +134,7 @@ def get_date(data_row, date_cols: list=None):
     return date_val
 
 
-def datestamped(fname, fmt='%Y-%m-%d') -> str:
+def datestamp(fname, fmt='%Y-%m-%d') -> str:
     """
     Append the date to the filename.
     Parameters

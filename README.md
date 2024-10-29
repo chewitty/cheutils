@@ -5,9 +5,9 @@ A set of basic reusable utilities and tools to facilitate quickly getting up and
 ### Features
 
 - model_options: methods such as get_estimator to get a handle on a configured estimator with a specified parameter dictionary or get_default_grid to get the configured hyperparameter grid
-- model_builder: methods for building and executing ML pipeline steps e.g., fit, predict, score, params_optimization etc.
+- model_builder: methods for building and executing ML pipeline steps e.g., params_optimization etc.
 - project_tree: methods for accessing the project tree - e.g., get_data_dir() for accessing the configured data and get_output_dir() for the output folders, loading and savings Excel and CSV.
-- common_utils: methods to support common programming tasks, such as labeling or tagging and date-stamping files
+- common_utils: methods to support common programming tasks, such as labeling (e.g., `label(file_name, label='some_label')`) or tagging and date-stamping files (e.g., `datestamp(file_name, fmt='%Y-%m-%d')`).
 - propertiesutil: utility for managing properties files or project configuration, based on jproperties. The application configuration is expected to be available in a file named app-config.properties, which can be placed anywhere in the project root or any subfolder thereafter.
 - decorator_debug, decorator_timer, and decorator_singleton: decorators for enabling logging and method timers; as well as a singleton decorator
 
@@ -40,7 +40,7 @@ which can be helpful when reviewing the generated log file (`app-log.log`) - the
 
 You can get a handle to an application logger as follows:
 ```
-LOGGER = cheutils.LoguruWrapper().get_logger()
+LOGGER = cheutils.LOGGER.get_logger()
 ```
 You can set the logger prefix as follows:
 ```
@@ -63,16 +63,19 @@ Thereafter, you can do the following:
 ```
 estimator = cheutils.get_estimator(**get_params(model_option='xgb_boost'))
 ```
-Thereafter, you can simply fit the model as follows:
+Thereafter, you can simply fit the model as follows per usual:
 ```
-cheutils.fit(estimator, X_train, y_train)
+estimator.fit(X_train, y_train)
 ```
-Given a default model parameter configuration (usually in the properties file), you can generate a promising parameter grid using RandomSearchCV as follows - i.e., the pipeline can either be an sklearn pipeline or an estimator:
+Given a default model parameter configuration (usually in the properties file), you can generate a promising parameter grid using RandomSearchCV as in the following line. Note that, the pipeline can either be an sklearn pipeline or an estimator. 
+The general idea is that, to avoid worrying about trying to figure out the optimal set of hyperparameter values for a given estimator, you can do that automatically, by 
+adopting a two-step coarse-to-fine search, where you configure a broad hyperparameter space or grid based on the estimator's most important or impactful hyperparameters, and the use a random search to find a set of promising hyperparameters that 
+you can use to conduct a finer hyperparameter space search using other algorithms such as bayesean optimization (e.g., hyperopt or Scikit-Optimize, etc.)
 ```
-cheutils.promising_params_grid(pipeline, X_train, y_train, grid_resolution=3, prefix='model_prefix')
+promising_grid = cheutils.promising_params_grid(pipeline, X_train, y_train, grid_resolution=3, prefix='model_prefix')
 ```
-You can run hyperparameter optimization or tuningas follows, if using hyperopt and Mlflow logging:
+You can run hyperparameter optimization or tuning as follows (assuming you enabled cross-validation in your configuration or app-conf.properties - e.g., with an entry such as `model.cross_val.num_folds=3`), if using hyperopt; and if you are running Mlflow experiments and logging, you could also pass an optional mlflow_log=True in the optimization call:
 ```
-cheutils.params_optimization(pipeline, X_train, y_train, promising_params_grid=params_grid, with_narrower_grid=True, fine_search='hyperoptcv', prefix='model_prefix', mlflow_log=True)
+best_estimator, best_score, best_params, cv_results = cheutils.params_optimization(pipeline, X_train, y_train, promising_params_grid=promising_grid, with_narrower_grid=True, fine_search='hyperoptcv', prefix='model_prefix')
 ```
 

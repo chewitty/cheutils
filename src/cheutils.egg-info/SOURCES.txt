@@ -5,6 +5,7 @@ src/cheutils/__init__.py
 src/cheutils/check.py
 src/cheutils/common_base.py
 src/cheutils/common_utils.py
+src/cheutils/datasource_utils.py
 src/cheutils/decorator_debug.py
 src/cheutils/decorator_singleton.py
 src/cheutils/decorator_timer.py

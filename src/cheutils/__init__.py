@@ -1,11 +1,11 @@
 import os
 from .properties_util import AppProperties
-from .exceptions import PropertiesException
+from .exceptions import PropertiesException, DBToolException, DSWrapperException
 from .decorator_singleton import singleton
 from .project_tree import (get_data_dir, get_root_dir, get_output_dir, load_dataset, save_to_html,
                            save_csv, save_excel, save_current_fig, estimator_html_repr)
 from .common_utils import (validate_data, apply_annova, cat_to_numeric, calc_prop_missing, find_numeric,
-                           quantilefy, get_date, get_func_def, label, datestamped, dump_properties)
+                           quantilefy, get_date, get_func_def, label, datestamp, dump_properties)
 from .common_base import CheutilsBase
 from .progress_tracking import create_timer, timer_stats, progress
 from .decorator_timer import track_duration
@@ -16,6 +16,7 @@ from .ml_utils import (fit, get_estimator, exclude_nulls,
                        get_optimal_grid_resolution, get_params_grid, get_params_pounds, get_default_grid, get_params,
                        get_narrow_param_grid, HyperoptSearch, HyperoptSearchCV,
                        promising_params_grid, params_optimization)
+from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 
