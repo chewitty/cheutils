@@ -1119,7 +1119,7 @@ class DSWrapper(object):
         LOGGER.debug('Found config details for the following DBs = {}', loaded_configs.keys())
         db_configs = {}
         for key in loaded_configs.keys():
-            db_info = db_configs.get(key)
+            db_info = loaded_configs.get(key)
             assert db_info is not None, 'There may be an issue with the datasource configuration or properties file'
             # setup the DB parameters
             # see: https://stackoverflow.com/questions/15784357/sqlalchemy-setting-mysql-charset-as-create-engine-argument
