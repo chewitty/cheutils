@@ -1124,8 +1124,8 @@ class DSWrapper(object):
             # setup the DB parameters
             # see: https://stackoverflow.com/questions/15784357/sqlalchemy-setting-mysql-charset-as-create-engine-argument
             # see: https://dev.mysql.com/doc/connector-python/en/connector-python-connectargs.html
-            direct_conn: bool = bool(eval(db_info.get('direct_conn')))
-            verbose: bool = bool(eval(db_info.get('verbose')))
+            direct_conn: bool = bool(eval(str(db_info.get('direct_conn'))))
+            verbose: bool = bool(eval(str(db_info.get('verbose'))))
             timeout = db_info.get('timeout')
             timeout = '0' if (timeout is None) or ('' == timeout) else str(timeout)
             db_config = {'drivername': db_info.get('drivername'), 'host': db_info.get('db_server'), 'port': db_info.get('db_port'),
