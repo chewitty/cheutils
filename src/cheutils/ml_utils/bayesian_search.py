@@ -107,13 +107,16 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         if self.mlflow_log:
             trials = Trials()
             mlflow.config.enable_async_logging(enable=True)
-            with mlflow.start_run(nested=True) as active_run:
+            with mlflow.start_run(nested=True, log_system_metrics=True, description='Hyperopt optimization') as active_run:
                 model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
                 LOGGER.debug('Mlflow model URI = {}', model_uri)
                 optimize_and_fit(trials=trials)
-                signature = infer_signature(self.X.head(), self.y.head())
+                mlflow.set_tag('Best model info', 'Best model by evaluation metric')
+                input_example = self.X.head()
+                signature = infer_signature(input_example, self.y.head())
                 mlflow.sklearn.log_model(sk_model=self.best_estimator_, artifact_path='best_model',
-                                         signature=signature, registered_model_name='best_model')
+                                         input_example=input_example, signature=signature,
+                                         registered_model_name='best_model')
                 best_run = sorted(trials.results, key=lambda x: x['loss'])[0]
                 mlflow.log_params(self.best_params_)
                 mlflow.log_metric('min_eval_mse', best_run['loss'])
@@ -148,9 +151,11 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                     self.cv_results_ = cv_score
                 if self.mlflow_log:
                     underlying_model.fit(self.X, self.y)
-                    signature = infer_signature(self.X.head(), self.y.head())
+                    input_example = self.X.head()
+                    signature = infer_signature(input_example, self.y.head())
                     mlflow.sklearn.log_model(sk_model=underlying_model, artifact_path=cur_tag,
-                                             signature=signature, registered_model_name=cur_tag)
+                                             input_example=input_example, signature=signature,
+                                             registered_model_name=cur_tag)
             else:
                 #no cross-validation
                 underlying_model.fit(self.X, self.y)

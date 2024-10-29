@@ -10,11 +10,11 @@ from .common_base import CheutilsBase
 from .progress_tracking import create_timer, timer_stats, progress
 from .decorator_timer import track_duration
 from .decorator_debug import debug_func
-from .ml_utils import (fit, predict, score, cross_val_model, get_regressor, exclude_nulls,
-                       get_hyperopt_regressor, show_pipeline, save_to_html, plot_pie, plot_reg_predictions,
+from .ml_utils import (fit, get_estimator, exclude_nulls,
+                       get_hyperopt_estimator, show_pipeline, plot_pie, plot_reg_predictions,
                        plot_reg_residuals_dist, plot_reg_predictions_dist, plot_reg_residuals, plot_hyperparameter,
-                       get_optimal_num_params, get_params_grid, get_params_pounds, get_default_grid, get_params,
-                       get_narrow_param_grid, get_seed_params, HyperoptSearch, HyperoptSearchCV,
+                       get_optimal_grid_resolution, get_params_grid, get_params_pounds, get_default_grid, get_params,
+                       get_narrow_param_grid, HyperoptSearch, HyperoptSearchCV,
                        promising_params_grid, params_optimization)
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space

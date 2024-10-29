@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 2.2.24
+Version: 2.2.25
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Project-URL: Homepage, https://github.com/chewitty/cheutils
@@ -18,7 +18,7 @@ A set of basic reusable utilities and tools to facilitate quickly getting up and
 
 ### Features
 
-- model_options: methods such as get_regressor to get a handle on a configured estimator with a specified parameter dictionary or get_default_grid to get the configured hyperparameter grid
+- model_options: methods such as get_estimator to get a handle on a configured estimator with a specified parameter dictionary or get_default_grid to get the configured hyperparameter grid
 - model_builder: methods for building and executing ML pipeline steps e.g., fit, predict, score, params_optimization etc.
 - project_tree: methods for accessing the project tree - e.g., get_data_dir() for accessing the configured data and get_output_dir() for the output folders, loading and savings Excel and CSV.
 - common_utils: methods to support common programming tasks, such as labeling or tagging and date-stamping files
@@ -60,14 +60,14 @@ You can set the logger prefix as follows:
 ```
 LOGGER.set_prefix(prefix='my_project')
 ```
-The `model_options` currently supports the following regressors: Lasso, LinearRegression, Ridge, GradientBoostingRegressor, XGBRegressor, LGBMRegressor, DecisionTreeRegressor, RandomForestRegressor
+The `model_options` currently supports the following estimators: Lasso, LinearRegression, Ridge, GradientBoostingRegressor, XGBRegressor, LGBMRegressor, DecisionTreeRegressor, RandomForestRegressor
 You can configure any of the models for your project with an entry in the app-config.properties as follows:
 ```
 model.active.model_option=xgb_boost # with default parameters
 ```
-You can get a handle to the corresponding regressor as follows:
+You can get a handle to the corresponding estimator as follows:
 ```
-regressor = cheutils.get_regressor(model_option='xgb_boost')
+estimator = cheutils.get_estimator(model_option='xgb_boost')
 ```
 You can also configure the following property for example:
 ```
@@ -75,11 +75,11 @@ model.param_grids.xgb_boost={'learning_rate': {'type': float, 'start': 0.0, 'end
 ```
 Thereafter, you can do the following:
 ```
-regressor = cheutils.get_regressor(**get_params(model_option='xgb_boost'))
+estimator = cheutils.get_estimator(**get_params(model_option='xgb_boost'))
 ```
 Thereafter, you can simply fit the model as follows:
 ```
-cheutils.fit(regressor, X_train, y_train)
+cheutils.fit(estimator, X_train, y_train)
 ```
 Given a default model parameter configuration (usually in the properties file), you can generate a promising parameter grid using RandomSearchCV as follows - i.e., the pipeline can either be an sklearn pipeline or an estimator:
 ```

@@ -1,25 +1,17 @@
 import numpy as np
 import pandas as pd
-import time
 from functools import partial
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
-from sklearn.model_selection import cross_val_score
 from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
 from hyperopt import tpe, hp, mix, anneal, rand
-from hyperopt.pyll.stochastic import sample
 from hyperopt.pyll import scope
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
 from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
-from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, get_params, get_regressor, parse_grid_types
+from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds
 from cheutils.ml_utils.pipeline_details import show_pipeline
-from cheutils.ml_utils.visualize import plot_hyperparameter
-from cheutils.common_utils import label
-from cheutils.progress_tracking import timer_stats, create_timer
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
 LOGGER = LoguruWrapper().get_logger()
@@ -28,7 +20,7 @@ prop_key = 'project.models.supported'
 MODELS_SUPPORTED = APP_PROPS.get_dict_properties(prop_key)
 assert (MODELS_SUPPORTED is not None), 'Models supported must be specified'
 LOGGER.info('Models supported = {}', MODELS_SUPPORTED)
-N_JOBS = -1
+N_JOBS = int(APP_PROPS.get('model.active.n_jobs'))
 # the model option selected as default
 MODEL_OPTION = APP_PROPS.get('model.active.model_option')
 # number of iterations or parameters to sample
@@ -37,8 +29,8 @@ N_ITERS = int(APP_PROPS.get('model.n_iters.to_sample'))
 N_TRIALS = int(APP_PROPS.get('model.n_trials.to_sample'))
 # max number of parameters to create for narrower param_grip - which defines how finely discretized the grid is
 CONFIGURED_NUM_PARAMS = int(APP_PROPS.get('model.optimal.grid_resolution'))
-# determine optimal number of parameters automatically, using the range specified as the boundary
-USE_OPTIMAL_NUM_PARAMS = APP_PROPS.get_bol('model.num_params.find_optimal')
+# determine optimal number of parameters automatically, using the range specified or configured grid as the boundary
+USE_OPTIMAL_GRID_RESOL = APP_PROPS.get_bol('model.grid_resolution.find_optimal')
 NUM_PARAMS_RANGE = [int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('start')),
                        int(APP_PROPS.get_dict_properties('model.num_params.sample_range').get('end'))]
 OPTIMAL_PARAMS_CV = APP_PROPS.get_bol('model.num_params.find_optimal.cv')
@@ -90,35 +82,6 @@ def fit(pipeline: Pipeline, X, y, **kwargs):
         show_pipeline(pipeline)
     pipeline.fit(X, y, **kwargs)
 
-
-@track_duration(name='predict')
-def predict(pipeline: Pipeline, X):
-    """
-    Do prediction based on the pipeline and the X.
-    :param pipeline: estimator or pipeline instance with estimator
-    :type pipeline:
-    :param X: pandas.DataFrame or numpy.ndarray
-    :type X:
-    :return: pandas.Series or numpy.ndarray
-    :rtype:
-    """
-    assert pipeline is not None, "A valid pipeline instance expected"
-    assert X is not None, "A valid X expected"
-    return np.round(pipeline.predict(X), 0).astype(int)
-
-
-def predict_proba(pipeline: Pipeline, X):
-    assert pipeline is not None, "A valid pipeline instance expected"
-    assert X is not None, "A valid X expected"
-    return pipeline.predict_proba(X)
-
-
-def direct_predict(estimator, X):
-    assert estimator is not None, "A valid estimator instance expected"
-    assert X is not None, "A valid X expected"
-    return estimator.predict(X)
-
-
 def exclude_nulls(X, y):
     """
     Return dataset ready for predictions, scoring, and reporting - i.e., the prediction step does not need null values.
@@ -138,20 +101,6 @@ def exclude_nulls(X, y):
     y_pred = y_pred[~null_rows]
     LOGGER.debug('Shape of dataset available for predictions {}, {}', X_pred.shape, y_pred.shape)
     return X_pred, y_pred
-
-
-@track_duration(name='score')
-def score(y_true, y_pred, kind: str = "mse"):
-    assert y_true is not None, "A valid y_true expected"
-    assert y_pred is not None, "A valid y_pred expected"
-    if kind == "mse":
-        mse_score = mean_squared_error(y_true, y_pred)
-        return mse_score
-    elif kind == "r2":
-        r2score = r2_score(y_true, y_pred)
-        return r2score
-    else:
-        raise ValueError("Score not yet implemented")
 
 @track_duration(name='promising_params_grid')
 def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, prefix: str = None, 
@@ -251,32 +200,32 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                   params_bounds=params_bounds)
     LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
     search_cv = None
-    if USE_OPTIMAL_NUM_PARAMS:
-        num_params = get_optimal_num_params(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                            fine_search=fine_search, random_state=random_state)
+    if USE_OPTIMAL_GRID_RESOL:
+        num_params = get_optimal_grid_resolution(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
+                                                 fine_search=fine_search, random_state=random_state)
     if 'hyperoptsk' == fine_search:
-        search_cv = HyperoptSearch(params_space=parse_params(narrow_param_grid,
-                                                              num_params=num_params,
-                                                              params_bounds=params_bounds,
-                                                              fine_search=fine_search,
-                                                              random_state=random_state),
+        search_cv = HyperoptSearch(params_space=__parse_params(narrow_param_grid,
+                                                               num_params=num_params,
+                                                               params_bounds=params_bounds,
+                                                               fine_search=fine_search,
+                                                               random_state=random_state),
                                    model_option=MODEL_OPTION, max_evals=N_TRIALS, algo=HYPEROPT_ALGOS, cv=CV,
                                    trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif "hyperoptcv" == fine_search:
-        search_cv = HyperoptSearchCV(estimator=pipeline, params_space=parse_params(narrow_param_grid,
-                                                              num_params=num_params,
-                                                              params_bounds=params_bounds,
-                                                              fine_search=fine_search,
-                                                              random_state=random_state),
+        search_cv = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(narrow_param_grid,
+                                                                                     num_params=num_params,
+                                                                                     params_bounds=params_bounds,
+                                                                                     fine_search=fine_search,
+                                                                                     random_state=random_state),
                                      model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                      max_evals=N_TRIALS, n_jobs=N_JOBS, mlflow_log=mlflow_log,
                                      trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimize' == fine_search:
-        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(narrow_param_grid,
-                                                                                 num_params=num_params,
-                                                                                 params_bounds=params_bounds,
-                                                                                 fine_search=fine_search,
-                                                                                 random_state=random_state),
+        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(narrow_param_grid,
+                                                                                   num_params=num_params,
+                                                                                   params_bounds=params_bounds,
+                                                                                   fine_search=fine_search,
+                                                                                   random_state=random_state),
                                   scoring=SCORING, cv=CV, n_iter=5, n_jobs=N_JOBS,
                                   random_state=random_state, verbose=10, )
     else:
@@ -291,21 +240,21 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     # return the results accordingly
     return search_cv.best_estimator_, abs(search_cv.best_score_), search_cv.best_params_, search_cv.cv_results_
 
-def get_optimal_num_params(pipeline: Pipeline, X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
-                           fine_search: str = 'hyperoptcv', random_state: int=100, **kwargs):
+def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
+                                fine_search: str = 'hyperoptcv', random_state: int=100, **kwargs):
     """
-    Find the optimal maximum number of parameters or grid resolution to specify given hyperparameter space.
+    Find the optimal grid resolution or maximum number of parameters needed to specify the given hyperparameter search space.
     :param pipeline:
     :param X:
     :type X:
     :param y:
     :type y:
-    :param search_space:
+    :param search_space: prevailing hyperparameter search space
     :type search_space:
-    :param params_bounds:
+    :param params_bounds: usually the configured parameters grid, which provides the widest bounds of the hyperparameter search space
     :type params_bounds:
-    :param cache_value: cache the value to be reused subsequently
-    :param fine_search:
+    :param cache_value: cache the value so it may be reused subsequently
+    :param fine_search: can either be 'skoptimize' or 'hyperoptcv'
     :param random_state:
     :type random_state:
     :return:
@@ -322,28 +271,28 @@ def get_optimal_num_params(pipeline: Pipeline, X, y, search_space: dict, params_
             finder = None
             if 'hyperoptsk' == fine_search:
 
-                finder = HyperoptSearch(params_space=parse_params(search_space,
-                                                                  num_params=n_params,
-                                                                  params_bounds=params_bounds,
-                                                                  fine_search=fine_search,
-                                                                  random_state=random_state),
-                                       model_option=MODEL_OPTION, max_evals=10, algo=HYPEROPT_ALGOS, cv=with_cv,
-                                       trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
-            elif 'hyperoptcv' == fine_search:
-                finder = HyperoptSearchCV(estimator=pipeline, params_space=parse_params(search_space,
+                finder = HyperoptSearch(params_space=__parse_params(search_space,
                                                                     num_params=n_params,
                                                                     params_bounds=params_bounds,
                                                                     fine_search=fine_search,
                                                                     random_state=random_state),
+                                       model_option=MODEL_OPTION, max_evals=10, algo=HYPEROPT_ALGOS, cv=with_cv,
+                                       trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
+            elif 'hyperoptcv' == fine_search:
+                finder = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(search_space,
+                                                                                          num_params=n_params,
+                                                                                          params_bounds=params_bounds,
+                                                                                          fine_search=fine_search,
+                                                                                          random_state=random_state),
                                           model_option=MODEL_OPTION, cv=with_cv, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                           max_evals=10, n_jobs=N_JOBS,
                                           trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
             elif 'skoptimize' == fine_search:
-                finder = BayesSearchCV(estimator=pipeline, search_spaces=parse_params(search_space,
-                                                                                      num_params=n_params,
-                                                                                      params_bounds=params_bounds,
-                                                                                      fine_search=fine_search,
-                                                                                      random_state=random_state),
+                finder = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(search_space,
+                                                                                        num_params=n_params,
+                                                                                        params_bounds=params_bounds,
+                                                                                        fine_search=fine_search,
+                                                                                        random_state=random_state),
                                        scoring=SCORING, cv=with_cv, n_iter=5, n_jobs=N_JOBS,
                                        random_state=random_state, verbose=10, )
             else:
@@ -361,15 +310,15 @@ def get_optimal_num_params(pipeline: Pipeline, X, y, search_space: dict, params_
     LOGGER.debug('Optimal grid resolution = {}', num_params)
     return num_params
 
-def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= None):
+def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= None):
     """
-    Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
-    :param best_params: the best combination of hyperparameters obtained from the coarse search phase
-    :type best_params:
+    Returns a narrower hyperparameter space based on the best parameters from the coarse or random search and a scaling factor
+    :param promising_params: the best or promising combination of hyperparameters obtained from a coarse or random search
+    :type promising_params: dict
     :param num_params: the number that defines the granularity of the narrower hyperparameter space
     :param scaling_factor: scaling factor used to control how much the hyperparameter search space from the coarse search is narrowed
     :type scaling_factor:
-    :param params_bounds:
+    :param params_bounds: usually the configured parameters grid, which provides the widest bounds of the hyperparameter search space
     :return:
     :rtype:
     """
@@ -383,7 +332,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
     if params_bounds is None:
         param_bounds = {}
     param_grid = {}
-    for param, value in best_params.items():
+    for param, value in promising_params.items():
         bounds = params_bounds.get(param.split('__')[-1])
         if bounds is not None:
             min_val, max_val = bounds
@@ -416,7 +365,7 @@ def get_narrow_param_grid(best_params: dict, num_params:int, scaling_factor: flo
     NARROW_PARAM_GRIDS[params_cache_key] = param_grid
     return param_grid
 
-def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
+def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
     params_bounds = {} if params_bounds is None else params_bounds
     param_grid = {}
     if 'skoptimize' == fine_search:
@@ -484,7 +433,7 @@ def parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3
         raise ValueError(f'Missing implementation for search type = {fine_search}')
     return param_grid
 
-def get_seed_params(default_grid: dict, param_bounds=None):
+def __get_seed_params(default_grid: dict, param_bounds=None):
     """
     Returns a narrower hyperparameter space based on the best parameters from the coarse search phase and a scaling factor
     :param default_grid: the default parameters grid
@@ -508,11 +457,3 @@ def get_seed_params(default_grid: dict, param_bounds=None):
         else:
             param_grid[param] = [value]
     return param_grid
-
-
-@track_duration(name='cv')
-def cross_val_model(pipeline: Pipeline, X, y, scoring, cv=5, **fit_params):
-    assert pipeline is not None, "A valid pipeline instance expected"
-    assert (cv is not None), "A valid cv, either the number of folds or an instance of something like StratifiedKFold"
-    cv_scores = cross_val_score(pipeline, X, y, scoring=scoring, cv=cv, **fit_params)
-    return cv_scores

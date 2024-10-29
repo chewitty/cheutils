@@ -9,9 +9,9 @@ prop_key = 'project.models.supported'
 MODELS_SUPPORTED = APP_PROPS.get_dict_properties(prop_key)
 assert MODELS_SUPPORTED is not None, 'Models supported must be specified'
 
-def get_regressor(**model_params):
+def get_estimator(**model_params):
     """
-    Gets a specified regressor configured with key 'model_option'.
+    Gets a specified estimator configured with key 'model_option'.
     """
     cur_model_params = model_params.copy()
     model_option = None
@@ -27,23 +27,23 @@ def get_regressor(**model_params):
     try:
         model = model_class(**cur_model_params)
     except TypeError as err:
-        LOGGER.debug('Failure encountered: Unspecified or unsupported regressor')
-        raise KeyError('Unspecified or unsupported regressor')
+        LOGGER.debug('Failure encountered: Unspecified or unsupported estimator')
+        raise KeyError('Unspecified or unsupported estimator')
     return model
 
-def get_hyperopt_regressor(model_option, **model_params):
+def get_hyperopt_estimator(model_option, **model_params):
     model_info = MODELS_SUPPORTED.get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
     try:
         model = model_class(model_option, **model_params)
     except TypeError as err:
-        LOGGER.debug('Failure encountered: Unspecified or unsupported regressor')
-        raise KeyError('Unspecified or unsupported regressor')
+        LOGGER.debug('Failure encountered: Unspecified or unsupported estimator')
+        raise KeyError('Unspecified or unsupported estimator')
     return model
 
 def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
-    return __get_regressor_params(model_option, params_key_stem=params_key_stem, prefix=prefix)
+    return __get_estimator_params(model_option, params_key_stem=params_key_stem, prefix=prefix)
 
 def get_params_pounds(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
     return APP_PROPS.get_ranges(prop_key=params_key_stem + model_option)
@@ -81,7 +81,7 @@ def parse_grid_types(from_grid: dict, params_key_stem: str='model.param_grids.',
         params_grid = {}
     return params_grid
 
-def __get_regressor_params(model_option, params_key_stem: str='model.param_grids.', prefix: str=None):
+def __get_estimator_params(model_option, params_key_stem: str='model.param_grids.', prefix: str=None):
     params_grid = {}
     params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
     param_keys = params_grid_dict.keys()
