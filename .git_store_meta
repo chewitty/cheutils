@@ -3,21 +3,13 @@
 .gitignore	f	2024-10-19T21:29:20Z
 README.md	f	2024-10-30T12:25:49Z
 build and installing custom packages.txt	f	2024-10-19T18:58:20Z
-dist	d	2024-10-30T23:22:52Z
-dist/cheutils-2.3.12-py3-none-any.whl	f	2024-10-30T22:51:04Z
-dist/cheutils-2.3.12.tar.gz	f	2024-10-30T22:50:36Z
-dist/cheutils-2.3.13-py3-none-any.whl	f	2024-10-30T22:56:43Z
-dist/cheutils-2.3.13.tar.gz	f	2024-10-30T22:56:17Z
-dist/cheutils-2.3.14-py3-none-any.whl	f	2024-10-30T23:05:40Z
-dist/cheutils-2.3.14.tar.gz	f	2024-10-30T23:05:11Z
-dist/cheutils-2.3.15-py3-none-any.whl	f	2024-10-30T23:16:21Z
-dist/cheutils-2.3.15.tar.gz	f	2024-10-30T23:15:51Z
-dist/cheutils-2.3.16-py3-none-any.whl	f	2024-10-30T23:22:52Z
-dist/cheutils-2.3.16.tar.gz	f	2024-10-30T23:26:43Z
-pyproject.toml	f	2024-10-30T23:21:52Z
+dist	d	2024-10-30T23:31:58Z
+dist/cheutils-2.3.17-py3-none-any.whl	f	2024-10-30T23:31:09Z
+dist/cheutils-2.3.17.tar.gz	f	2024-10-30T23:30:47Z
+pyproject.toml	f	2024-10-30T23:30:18Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2024-10-29T19:33:40Z
-src/cheutils.egg-info/PKG-INFO	f	2024-10-30T23:22:24Z
+src/cheutils.egg-info/PKG-INFO	f	2024-10-30T23:30:47Z
 src/cheutils.egg-info/SOURCES.txt	f	2024-10-29T19:34:27Z
 src/cheutils/__init__.py	f	2024-10-29T19:18:47Z
 src/cheutils/app-config.properties	f	2024-10-29T11:34:53Z
