@@ -136,8 +136,8 @@ class DBTool(object):
             self.cursor_ = ""
             self.con_status_ = False
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex.with_traceback(ex.__traceback__))
-            raise DBToolException(ex).with_traceback(ex.__traceback__)
+            LOGGER.debug('FAILURE: {}', ex)
+            raise DBToolException(ex)
         finally:
             LOGGER.debug('Completed attempt at creating an appropriate DBTool for the db = {}',
                          self.ds_config_['database'])
@@ -382,10 +382,12 @@ class DBTool(object):
                         connection.execute(text(query))
                     except pyodbc.Error as err:
                         LOGGER.debug(f"DB Error: '{err}'")
-                        raise DBToolException(err).with_traceback(err.__traceback__)
+                        raise DBToolException(err)
+        except DBToolException as outEx:
+            raise outEx
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex.with_traceback(ex.__traceback__))
-            raise DBToolException(ex).with_traceback(ex.__traceback__)
+            LOGGER.debug('FAILURE: {}', ex)
+            raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to executing a query on db')
 
@@ -414,7 +416,7 @@ class DBTool(object):
                     df_in.to_sql(name=db_table, con=connection, if_exists=if_exists, index=index_as_col,
                                  method=method, chunksize=chunksize)
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex.with_traceback(ex.__traceback__))
+            LOGGER.debug('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to persist to db')
@@ -438,8 +440,8 @@ class DBTool(object):
                 connection.close()
                 return df
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex.with_traceback(ex.__traceback__))
-            raise DBToolException(ex).with_traceback(ex.__traceback__)
+            LOGGER.debug('FAILURE: {}', ex)
+            raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db')
 
@@ -529,9 +531,11 @@ class DBTool(object):
                         LOGGER.debug('Optimazed read failure = {}', normEx)
                         raise DBToolException(normEx).with_traceback(normEx.__traceback__)
             LOGGER.debug('Number of dataframe chunks = {}', len(db_data_chks))
+        except DBToolException as outEx:
+            raise outEx
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex.with_traceback(ex.__traceback__))
-            raise DBToolException(ex).with_traceback(ex.__traceback__)
+            LOGGER.debug('FAILURE: {}', ex)
+            raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db = {}', db_table)
         return db_data_chks
@@ -582,8 +586,8 @@ class DBTool(object):
             LOGGER.debug('Shape of dataframe = {}', db_data_df.shape)
             return db_data_df
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex.with_traceback(ex.__traceback__))
-            raise DBToolException(ex).with_traceback(ex.__traceback__)
+            LOGGER.debug('FAILURE: {}', ex)
+            raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db = {}', db_table)
 
@@ -807,7 +811,7 @@ class DBTool(object):
                 except IntegrityError as err:
                     msg = LOGGER.debug("DB error: {0}".format(err), err.with_traceback(err.__traceback__))
                 except Exception as ex:
-                    raise DBToolException(ex).with_traceback(ex.__traceback__)
+                    raise DBToolException(ex)
 
     def truncate(self, db_table=None):
         underlying_table = db_table
@@ -826,14 +830,16 @@ class DBTool(object):
                     cursor.execute(stmt)
                     LOGGER.debug('Underlying table truncated = {}', db_table)
                 except Exception as ex:
-                    LOGGER.debug('Failure: {}', ex.with_traceback(ex.__traceback__))
-                    raise DBToolException(ex).with_traceback(ex.__traceback__)
+                    LOGGER.debug('Failure: {}', ex)
+                    raise DBToolException(ex)
                 finally:
                     cursor.close()
                     connection.close()
+        except DBToolException as outEx:
+            raise outEx
         except Exception as outEx:
             LOGGER.debug('Failed: executing truncate on table = {}', underlying_table)
-            raise DBToolException(outEx).with_traceback(outEx.__traceback__)
+            raise DBToolException(outEx)
 
     def delete(self, db_table=None, filter_by=None):
         """
@@ -858,7 +864,7 @@ class DBTool(object):
                 except IntegrityError as err:
                     msg = LOGGER.debug("DB error: {0}".format(err), err.with_traceback(err.__traceback__))
                 except Exception as ex:
-                    raise DBToolException(ex).with_traceback(ex.__traceback__)
+                    raise DBToolException(ex)
 
     def insert_ignore_duplicates(self, data_df, db_table=''):
         """
@@ -879,7 +885,7 @@ class DBTool(object):
                     except IntegrityError as err:
                         LOGGER.debug("DB error: {0}".format(err), err.with_traceback(err.__traceback__))
                     except Exception as ex:
-                        raise DBToolException(ex).with_traceback(ex.__traceback__)
+                        raise DBToolException(ex)
 
     def get_table_columns(self, db_table):
         """
@@ -907,12 +913,11 @@ class DBTool(object):
             primary_keys(list): use the list of columns specified as the primary key columns to identify and ignore duplicates
             truncate(bool): true indicates that the underlying table's contents will be replaced or appended otherwise
         """
-        LOGGER.debug('Executing bulk insert query against {}, {}', db_table, '...')
-        underlying_table = db_table
-        temp_table = True  # The temporary table is always used for efficiency and to account for duplicates.
-        ignore_duplicates = True  # assumes that primary key columns are specified
+        LOGGER.debug('Executing bulk insert query against: {} {}', db_table, '...')
+        temp_table=True # The temporary table is always used for efficiency and to account for duplicates.
+        ignore_duplicates=True # assumes that primary key columns are specified
         if primary_keys is None:
-            ignore_duplicates = False  # exceptions will be raised if data already exist in underlying data table
+            ignore_duplicates = False # exceptions will be raised if data already exist in underlying data table
         else:
             assert primary_keys is not None
             assert len(primary_keys) > 0
@@ -926,105 +931,104 @@ class DBTool(object):
                     cursor = connection.connection.cursor()
                 except:
                     cursor = connection.cursor()
-                # cursor.fast_executemany = True
+                #cursor.fast_executemany = True
                 tt = False
-                qm = '?'
+                qm = '%s'
                 original_columns = data_df.columns
-
                 val_lst = data_df.values.tolist()
-
                 if isinstance(val_lst[0], list):
                     rows = len(val_lst)
-                    # params = qm * len(val_lst[0])
                 else:
                     rows = 1
-                    # params = qm * len(val_lst)
-                    val_lst = [
-                            val_lst, ]  # the last comma is necessary for MySQL Dialect--> @see https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html#:~:text=executemany()%20Method,-Syntax%3A%20cursor.&text=This%20method%20prepares%20a%20database,found%20in%20the%20sequence%20seq_of_params%20.&text=In%20Python%2C%20a%20tuple%20containing,value%20must%20include%20a%20comma.
-
-                params = [f"{qm}" for _ in original_columns]
-                params = ','.join(params)
-
-                # params = params[:-1]
+                    val_lst = [val_lst,] # the last comma is necessary for MySQL Dialect--> @see https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html#:~:text=executemany()%20Method,-Syntax%3A%20cursor.&text=This%20method%20prepares%20a%20database,found%20in%20the%20sequence%20seq_of_params%20.&text=In%20Python%2C%20a%20tuple%20containing,value%20must%20include%20a%20comma.
+                val_holders = [f"{qm}" for _ in original_columns]
+                val_holders = ','.join(val_holders)
+                inert_cols = ', '.join(original_columns)
+                # if truncating just do it here
+                if truncate:
+                    stmt = f"TRUNCATE TABLE {db_table}"
+                    cursor.execute(stmt)
                 is_mysql_db = False
                 try:
-                    if truncate:
-                        stmt = f"TRUNCATE TABLE {underlying_table}"
-                        cursor.execute(stmt)
                     if temp_table:
+                        # assume NOT mysql as default
                         # clear any such temporary table that may have been left behind
                         try:
-                            stmt = f"DROP TABLE IF EXISTS ##{underlying_table}"
+                            underlying_table = f"##{db_table}"
+                            stmt = f"DROP TABLE IF EXISTS {underlying_table}"
                             cursor.execute(stmt)
                         except Exception as err:
-                            LOGGER.debug('There is possibly no dangling temporary table: {}', err)
+                            LOGGER.debug('No non-mysql dangling temporary table: {} {}', underlying_table, 'to clear')
                             try:
-                                stmt = f"DROP TABLE IF EXISTS tmp_{underlying_table}"
+                                underlying_table = f"tmp_{db_table}"
+                                stmt = f"DROP TABLE IF EXISTS {underlying_table}"
                                 cursor.execute(stmt)
                             except Exception as mysqlerr:
-                                LOGGER.debug('There is possibly no dangling temporary table: {}', mysqlerr)
+                                LOGGER.debug('No mysql dangling temporary table: {} {}', underlying_table, 'to clear')
+                        finally:
+                            # reset temp table name
+                            underlying_table = f"##{db_table}"
                         # create a temp table with same schema
                         start_time = time.time()
-                        stmt = f"SELECT * INTO ##{underlying_table} FROM {underlying_table} WHERE 1=0"
+                        stmt = f"SELECT * INTO {underlying_table} FROM {db_table} WHERE 1=0"
                         LOGGER.debug('Attempting to creating temporary table: {}', stmt)
                         try:
                             cursor.execute(stmt)
-                            underlying_table = f"##{underlying_table}"
                         except Exception as mysqlDbErr:
-                            stmt = f"CREATE TEMPORARY TABLE tmp_{underlying_table} SELECT * FROM {underlying_table} LIMIT 0"
+                            LOGGER.debug('Failed to create temporary table: {}', underlying_table)
+                            # rename as mysql temp table variant
+                            underlying_table = f"tmp_{db_table}"
+                            stmt = f"CREATE TEMPORARY TABLE {underlying_table} SELECT * FROM {db_table} LIMIT 0"
                             LOGGER.debug('Attempting to creating mysql temporary table: {}', stmt)
                             cursor.execute(stmt)
-                            underlying_table = f"tmp_{underlying_table}"
                             is_mysql_db = True
                         # set flag to indicate temp table was used
                         tt = True
                     else:
                         start_time = time.time()
                     # insert into either existing table or newly created temp table
-                    stmt = f"INSERT INTO {underlying_table} VALUES ({params})"
+                    val_lst = [tuple(val) for val in val_lst]
+                    stmt = f"INSERT INTO {underlying_table} ({inert_cols}) VALUES ({val_holders})"
+                    LOGGER.debug('Statement: {}', stmt)
+                    LOGGER.debug('Values:{}', val_lst[:5])
                     cursor.executemany(stmt, val_lst)
                     if tt:
                         # remove temp moniker and insert from temp table
-                        dest_table = underlying_table[4:] if is_mysql_db else underlying_table[2:]
+                        dest_table = db_table
                         if not ignore_duplicates:
                             stmt = f"INSERT INTO {dest_table} SELECT * FROM {underlying_table}"
                             cursor.execute(stmt)
+                            connection.commit()
                         else:
-                            duplicate_conditions = [f"{dest_table}.{column_name} = {underlying_table}.{column_name}" for
-                                                    column_name in primary_keys]
+                            duplicate_conditions = [f"{dest_table}.{column_name} = {underlying_table}.{column_name}" for column_name in primary_keys]
                             duplicate_conditions = ' AND '.join(duplicate_conditions)
                             LOGGER.debug('Key constraint: {}', duplicate_conditions)
                             stmt = f"INSERT INTO {dest_table} SELECT * FROM {underlying_table} WHERE NOT EXISTS (SELECT * FROM {dest_table} WHERE {duplicate_conditions})"
                             LOGGER.debug('Statement: {}', stmt)
                             cursor.execute(stmt)
+                            connection.commit()
                         LOGGER.debug('Temp table used!')
-                        LOGGER.debug(
-                            f"{rows} rows inserted into the {dest_table} table in {time.time() - start_time} seconds")
+                        LOGGER.debug(f"{rows} rows inserted into the {dest_table} table in {time.time() - start_time} seconds")
                     else:
                         LOGGER.debug('No temp table used!')
                         LOGGER.debug(
-                                f"{rows} rows inserted into the {underlying_table} table in {time.time() - start_time} seconds")
+                            f"{rows} rows inserted into the {underlying_table} table in {time.time() - start_time} seconds")
                 except Exception as ex:
                     LOGGER.debug('Failure: {}', ex)
                     raise DBToolException(ex)
                 finally:
                     try:
-                        cursor.commit()
-                    except Exception as posMySQLEx:
-                        LOGGER.warning('Warning: {}', posMySQLEx)  # this issue may only happen for MySQL, so ignore
-                        try:
-                            connection.commit()
-                        except:
-                            pass
-                    cursor.close()
-                    connection.close()
+                        cursor.close()
+                        connection.close()
+                    except:
+                        pass
+        except DBToolException as err:
+            raise err
         except Exception as outEx:
-            LOGGER.debug('Failed: executing bulk_insert to table: {}, {}', underlying_table,
-                                 outEx.with_traceback(outEx.__traceback__))
-            raise DBToolException(outEx).with_traceback(outEx.__traceback__)
+            LOGGER.debug('Failed: executing bulk_insert to table: {} - {}', db_table, outEx)
+            raise DBToolException(outEx)
         finally:
-            LOGGER.debug('Completed attempt of execute bulk_insert to table: {}', underlying_table)
-
+            LOGGER.debug('Completed attempt of execute bulk_insert to table: {}', db_table)
 
 class DBToolFactory(object):
     instance__ = None
@@ -1091,10 +1095,12 @@ class DBToolFactory(object):
             if db_key not in self.db_tools__.keys():
                 self.db_tools__[db_key] = DBTool(rel_ds_config, verbose=verbose)
             return self.db_tools__.get(db_key)
+        except DBToolException as outEx:
+            raise outEx
         except Exception as exInst:
             LOGGER.debug('DBToolFactory encountered a problem configuring DB with key = {}, {}', db_key,
-                                 exInst.with_traceback(exInst.__traceback__))
-            raise DBToolException(exInst).with_traceback(exInst.__traceback__)
+                                 exInst)
+            raise DBToolException(exInst)
 
 
 @singleton
@@ -1230,15 +1236,15 @@ class DSWrapper(object):
             try:
                 db_tool.delete(db_table=db_table, filter_by=filter_by)
             except Exception as ex:
-                LOGGER.debug('Failure: {}', ex.with_traceback(ex.__traceback__))
-                raise DSWrapperException(ex).with_traceback(ex.__traceback__)
+                LOGGER.debug('Failure: {}', ex)
+                raise DSWrapperException(ex)
         elif replace:
             LOGGER.debug('Truncating underlying db = {}, table {}', db_key, db_table)
             try:
                 db_tool.truncate(db_table=db_table)
             except Exception as ex:
-                LOGGER.debug('Failure: {}', ex.with_traceback(ex.__traceback__))
-                raise DSWrapperException(ex).with_traceback(ex.__traceback__)
+                LOGGER.debug('Failure: {}', ex)
+                raise DSWrapperException(ex)
 
     '''
     Reads the underlying DB table.
@@ -1284,9 +1290,11 @@ class DSWrapper(object):
                     data_df = db_tool.read_chunked_table(query_string=query_string, index_col=index_col,
                                                          chunksize=chunksize,
                                                          force_parallelize=force_parallelize)
+        except DBToolException as outEx:
+            raise outEx
         except Exception as ex:
-            LOGGER.debug('Failure: {}', ex.with_traceback(ex.__traceback__))
-            raise DSWrapperException(ex).with_traceback(ex.__traceback__)
+            LOGGER.debug('Failure: {}', ex)
+            raise DSWrapperException(ex)
         return data_df
 
     '''
@@ -1465,9 +1473,11 @@ class DSWrapper(object):
                 LOGGER.debug('Shape: {}', data_df.shape)
                 data_df = data_df[rel_cols]
             db_tool.bulk_insert(data_df, db_table=db_table, primary_keys=unique_key)
+        except DBToolException as outEx:
+            raise outEx
         except Exception as ex:
             LOGGER.debug('Failure: {}', ex.__cause__)
-            raise DSWrapperException(ex).with_traceback(ex.__traceback__)
+            raise DSWrapperException(ex)
 
     '''
     Reads an Excel-based (i.e., excel or csv file) in chunks.
@@ -1661,11 +1671,11 @@ class DSWrapper(object):
                 LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as ex:
                 LOGGER.debug('FAILED attempt to save data to csvfile: {}, {}', path_to_data_file, ex)
-                raise DSWrapperException(ex).with_traceback(ex.__traceback__)
+                raise DSWrapperException(ex)
         else:
             try:
                 data_df.to_excel(path_to_data_file, index=False)
                 LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as ex:
                 LOGGER.debug('FAILED attempt to save data to excelfile: {}', path_to_data_file, ex)
-                raise DSWrapperException(ex).with_traceback(ex.__traceback__)
+                raise DSWrapperException(ex)
