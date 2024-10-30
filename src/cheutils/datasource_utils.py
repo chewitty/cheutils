@@ -8,6 +8,8 @@ import pyodbc
 import pymysql
 import MySQLdb
 import pymssql
+import psycopg2
+from urllib.parse import quote_plus, unquote_plus
 import mysql.connector
 import sqlalchemy as sa
 from typing import Union
@@ -103,15 +105,20 @@ class DBTool(object):
                     def do_mysql_connect(*args, **kwargs):
                         LOGGER.debug(kwargs)
                         return self.pyodbc_creator(*args, **kwargs)
-            elif (self.ds_config_.get('drivername') is None) or ('pymssql' in self.ds_config_.get('drivername')):
+            elif (self.ds_config_.get('drivername') is None) or ('pymssql' in self.ds_config_.get('drivername')) or ('psycopg2' in self.ds_config_.get('drivername')):
                 self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
                                                  pool_recycle=900,
                                                  echo=verbose)
-
-                @listens_for(self.sql_engine_, 'do_connect')
-                def do_pymssql_connect(*args, **kwargs):
-                    LOGGER.debug(kwargs)
-                    return self.pymssql_creator(*args, **kwargs)
+                if 'psycopg2' in self.ds_config_.get('drivername'):
+                    @listens_for(self.sql_engine_, 'do_connect')
+                    def do_psycopg2_connect(*args, **kwargs):
+                        # LOGGER.debug(args, kwargs)
+                        return self.psycopg2_creator(*args, **kwargs)
+                else:
+                    @listens_for(self.sql_engine_, 'do_connect')
+                    def do_pymssql_connect(*args, **kwargs):
+                        LOGGER.debug(kwargs)
+                        return self.pymssql_creator(*args, **kwargs)
             else:
                 self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
                                                  fast_executemany=True, use_setinputsizes=False, pool_recycle=900,
@@ -161,6 +168,15 @@ class DBTool(object):
     def pymssql_creator(self, *args, **kwargs):
         try:
             return self.create_pymssql_connection()
+        except pymssql.Error as ex:
+            try:
+                return self.create_pyodbc_connection()
+            except Exception as donotignore:
+                raise donotignore
+
+    def psycopg2_creator(self, *args, **kwargs):
+        try:
+            return self.create_psycopg2_connection()
         except pymssql.Error as ex:
             try:
                 return self.create_pyodbc_connection()
@@ -228,7 +244,7 @@ class DBTool(object):
                                   server=self.ds_config_.get('host') + ',' + str(self.ds_config_.get('port')),
                                   database=self.ds_config_.get('database'),
                                   user=self.ds_config_.get('username'),
-                                  password=self.ds_config_.get('password'),
+                                  password=unquote_plus(self.ds_config_.get('password')),
                                   MULTI_HOST=self.ds_config_.get('query').get('MULTI_HOST'),
                                   charset=self.ds_config_.get('query').get('charset'),
                                   autocommit=autocommit)
@@ -247,12 +263,29 @@ class DBTool(object):
             conn = pymssql.connect(server=self.ds_config_.get('host') + ':' + str(self.ds_config_.get('port')),
                                    database=self.ds_config_.get('database'),
                                    user=self.ds_config_.get('username'),
-                                   password=self.ds_config_.get('password'),
+                                   password=unquote_plus(self.ds_config_.get('password')),
                                    charset=self.ds_config_.get('query').get('charset'),
                                    autocommit=autocommit)
             return conn
         except Exception as ex:
             LOGGER.debug('Failure to establish pymssql connection = {}', ex)
+            raise ex
+
+    def create_psycopg2_connection(self, autocommit=True):
+        """
+        Creates a direct connection to the DB using the psycopg2
+        :return: Connection to the underlying DB
+        """
+        LOGGER.debug('Obtaining connection to DB using psycopg2... autocommit = {}', autocommit)
+        try:
+            conn = psycopg2.connect(host=self.ds_config_.get('host'),
+                                    port=self.ds_config_.get('port'),
+                                    database=self.ds_config_.get('database'),
+                                    user=self.ds_config_.get('username'),
+                                    password=unquote_plus(self.ds_config_.get('password')),)
+            return conn
+        except Exception as ex:
+            LOGGER.debug('Failure to establish psycopg2 connection = {}', ex)
             raise ex
 
     def create_pymysql_connection(self, autocommit=True):
@@ -266,7 +299,7 @@ class DBTool(object):
                                    port=int(self.ds_config_.get('port')),
                                    database=self.ds_config_.get('database'),
                                    user=self.ds_config_.get('username'),
-                                   password=self.ds_config_.get('password'),
+                                   password=unquote_plus(self.ds_config_.get('password')),
                                    charset=self.ds_config_.get('query').get('charset'),
                                    use_unicode=True)
             return conn
@@ -285,7 +318,7 @@ class DBTool(object):
                                    port=int(self.ds_config_.get('port')),
                                    database=self.ds_config_.get('database'),
                                    user=self.ds_config_.get('username'),
-                                   password=self.ds_config_.get('password'),
+                                   password=unquote_plus(self.ds_config_.get('password')),
                                    charset=self.ds_config_.get('query').get('charset'),
                                    use_unicode=True)
             return conn
@@ -304,7 +337,7 @@ class DBTool(object):
                                  port=int(self.ds_config_.get('port')),
                                  database=self.ds_config_.get('database'),
                                  user=self.ds_config_.get('username'),
-                                 password=self.ds_config_.get('password'),
+                                 password=unquote_plus(self.ds_config_.get('password')),
                                  charset=self.ds_config_.get('query').get('charset'),
                                  use_unicode=True)
             return conn
@@ -1129,7 +1162,7 @@ class DSWrapper(object):
             timeout = db_info.get('timeout')
             timeout = '0' if (timeout is None) or ('' == timeout) else str(timeout)
             db_config = {'drivername': db_info.get('drivername'), 'host': db_info.get('db_server'), 'port': db_info.get('db_port'),
-                         'username'  : db_info.get('username'), 'password': db_info.get('password'),
+                         'username'  : db_info.get('username'), 'password': quote_plus(db_info.get('password')),
                          'database'  : db_info.get('db_name'), 'query': {'charset': 'utf8'}}
             if key.startswith('POSTGRES'):
                 db_config['query'] = {'client_encoding': 'utf8', }

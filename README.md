@@ -10,7 +10,7 @@ A set of basic reusable utilities and tools to facilitate quickly getting up and
 - common_utils: methods to support common programming tasks, such as labeling (e.g., `label(file_name, label='some_label')`) or tagging and date-stamping files (e.g., `datestamp(file_name, fmt='%Y-%m-%d')`).
 - propertiesutil: utility for managing properties files or project configuration, based on jproperties. The application configuration is expected to be available in a file named app-config.properties, which can be placed anywhere in the project root or any subfolder thereafter.
 - decorator_debug, decorator_timer, and decorator_singleton: decorators for enabling logging and method timers; as well as a singleton decorator
-
+- datasource_utils: utility for managing datasource configuration or properties file (ds-config.properties) and offers a set of generic datasource access methods.
 ### Usage
 You import the `cheutils` module as per usual:
 ```
@@ -78,4 +78,21 @@ You can run hyperparameter optimization or tuning as follows (assuming you enabl
 ```
 best_estimator, best_score, best_params, cv_results = cheutils.params_optimization(pipeline, X_train, y_train, promising_params_grid=promising_grid, with_narrower_grid=True, fine_search='hyperoptcv', prefix='model_prefix')
 ```
+You can get a handle to the datasource wrapper as follows:
+```
+ds = DSWrapper() # it is a singleton
+```
+You can then read a large CSV file, leveraging `dask` as follows:
+```
+data_df = ds.read_large_csv(path_to_data_file=os.path.join(get_data_dir(), 'some_file.csv'))
+```
+Assuming you previously defined a datasource configuration in ds-config.properties, containing:
+`project.ds.supported={'mysql_local': {'db_driver': 'MySQL ODBC 8.1 ANSI Driver', 'drivername': 'mysql+pyodbc', 'db_server': 'localhost', 'db_port': 3306, 'db_name': 'test_db', 'username': 'test_user', 'password': 'test_password', 'direct_conn': 0, 'timeout': 0, 'verbose': True}, }`
+You could read from a configured datasource as follows:
+```
+ds_config = {'db_key': 'mysql_local', 'ds_namespace': 'test', 'db_table': 'some_table', 'data_file': None}
+data_df = ds.read_from_datasource(ds_config=ds_config, chunksize=5000)
+```
+Note that, if you call `read_from_datasource()` with `data_file` set in the `ds_config` as either an Excel or CSV then it is equivalent to calling a read CSV or Excel.
+
 

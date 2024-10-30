@@ -18,7 +18,7 @@ setup(
     version='1.0.2',
     url='https://github.com/chewitty/cheutils/cheutils',
     packages=find_packages(include=['cheutils', 'cheutils.*']),
-    install_requires=['numpy>=1.10', 'pandas', 'codetiming', 'tdqm', 'dask',
+    install_requires=['numpy>=1.10', 'pandas', 'codetiming', 'tdqm', 'dask[dataframe]', 'psycopg2',
                       'pytz', 'pyodbc', 'pymysql', 'mysqlclient', 'pymssql',
                       'mysql.connector', 'sqlalchemy', 'typing', 'regex',
                       'inspect-it', 'jproperties', 'matplotlib', 'scikit-learn', 'loguru',
