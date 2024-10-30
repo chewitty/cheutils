@@ -942,7 +942,7 @@ class DBTool(object):
                     rows = 1
                     val_lst = [val_lst,] # the last comma is necessary for MySQL Dialect--> @see https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html#:~:text=executemany()%20Method,-Syntax%3A%20cursor.&text=This%20method%20prepares%20a%20database,found%20in%20the%20sequence%20seq_of_params%20.&text=In%20Python%2C%20a%20tuple%20containing,value%20must%20include%20a%20comma.
                 val_holders = [f"{qm}" for _ in original_columns]
-                val_holders = ','.join(val_holders)
+                val_holders = ', '.join(val_holders)
                 inert_cols = ', '.join(original_columns)
                 # if truncating just do it here
                 if truncate:
@@ -996,14 +996,14 @@ class DBTool(object):
                         # remove temp moniker and insert from temp table
                         dest_table = db_table
                         if not ignore_duplicates:
-                            stmt = f"INSERT INTO {dest_table} SELECT * FROM {underlying_table}"
+                            stmt = f"INSERT INTO {dest_table} ({inert_cols}) VALUES (SELECT * FROM {underlying_table})"
                             cursor.execute(stmt)
                             connection.commit()
                         else:
                             duplicate_conditions = [f"{dest_table}.{column_name} = {underlying_table}.{column_name}" for column_name in primary_keys]
                             duplicate_conditions = ' AND '.join(duplicate_conditions)
                             LOGGER.debug('Key constraint: {}', duplicate_conditions)
-                            stmt = f"INSERT INTO {dest_table} SELECT * FROM {underlying_table} WHERE NOT EXISTS (SELECT * FROM {dest_table} WHERE {duplicate_conditions})"
+                            stmt = f"INSERT INTO {dest_table} ({inert_cols}) SELECT * FROM {underlying_table} WHERE NOT EXISTS (SELECT * FROM {dest_table} WHERE {duplicate_conditions})"
                             LOGGER.debug('Statement: {}', stmt)
                             cursor.execute(stmt)
                             connection.commit()
@@ -1015,6 +1015,7 @@ class DBTool(object):
                             f"{rows} rows inserted into the {underlying_table} table in {time.time() - start_time} seconds")
                 except Exception as ex:
                     LOGGER.debug('Failure: {}', ex)
+                    connection.rollback()
                     raise DBToolException(ex)
                 finally:
                     try:
