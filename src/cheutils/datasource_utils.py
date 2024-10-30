@@ -88,22 +88,22 @@ class DBTool(object):
                 if 'pymysql' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_pymysql_connect(*args, **kwargs):
-                        # LOGGER.debug(args, kwargs)
+                        # LOGGER.debug('Arguments: {}, {}', args, kwargs)
                         return self.pymysql_creator(*args, **kwargs)
                 elif 'mysqldb' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_mysqlclient_connect(*args, **kwargs):
-                        LOGGER.debug(kwargs)
+                        LOGGER.debug('Arguments: {}', kwargs)
                         return self.mysqlclient_creator(*args, **kwargs)
                 elif 'mysqlconnector' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_mysqlconnector_connect(*args, **kwargs):
-                        LOGGER.debug(kwargs)
+                        LOGGER.debug('Arguments: {}', kwargs)
                         return self.mysqlconnector_creator(*args, **kwargs)
                 else:
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_mysql_connect(*args, **kwargs):
-                        LOGGER.debug(kwargs)
+                        LOGGER.debug('Arguments: {}', kwargs)
                         return self.pyodbc_creator(*args, **kwargs)
             elif (self.ds_config_.get('drivername') is None) or ('pymssql' in self.ds_config_.get('drivername')) or ('psycopg2' in self.ds_config_.get('drivername')):
                 self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
@@ -112,12 +112,12 @@ class DBTool(object):
                 if 'psycopg2' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_psycopg2_connect(*args, **kwargs):
-                        # LOGGER.debug(args, kwargs)
+                        # LOGGER.debug('Arguments: {}, {}', args, kwargs)
                         return self.psycopg2_creator(*args, **kwargs)
                 else:
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_pymssql_connect(*args, **kwargs):
-                        LOGGER.debug(kwargs)
+                        LOGGER.debug('Arguments: {}', kwargs)
                         return self.pymssql_creator(*args, **kwargs)
             else:
                 self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
@@ -126,7 +126,7 @@ class DBTool(object):
 
                 @listens_for(self.sql_engine_, 'do_connect')
                 def do_mssql_connect(*args, **kwargs):
-                    LOGGER.debug(kwargs)
+                    LOGGER.debug('Arguments: {}', kwargs)
                     return self.mssql_pyodbc_creator(*args, **kwargs)
             # continue along
             LOGGER.debug('Using datasource engine = {}', self.sql_engine_)
@@ -378,9 +378,8 @@ class DBTool(object):
             with self.get_connection() as connection:
                 with connection.begin():
                     try:
-                        LOGGER.debug(query)
+                        LOGGER.debug('Query: {}', query)
                         connection.execute(text(query))
-                        # LOGGER.debug('Query Executed')
                     except pyodbc.Error as err:
                         LOGGER.debug(f"DB Error: '{err}'")
                         raise DBToolException(err).with_traceback(err.__traceback__)
@@ -402,7 +401,7 @@ class DBTool(object):
         index_as_col(bool): persist the dataframe index as a column, with the index label as the column name, default False
         chunksize(int): the desired or pragmatic chunksize; default is 50
         """
-        LOGGER.debug('Persisting dataframe to {}', self.ds_config_['database'], 'DB')
+        LOGGER.debug('Persisting dataframe to {}, {}', self.ds_config_['database'], 'DB')
         if 'replace' == if_exists:
             # check to make absolutely sure because the 'replace' option is dangerous and NOT RECOMMENDED
             if_table_exists = 'replace' if force_create else 'fail'
@@ -697,7 +696,6 @@ class DBTool(object):
 
             # Update Query
             UPDATE_QUERY = f"""UPDATE {db_table} SET {set_claus_value} WHERE {where_claus_value}"""
-            # LOGGER.debug(UPDATE_QUERY)
 
             # Execute Update Query
             self.execute_query(text(UPDATE_QUERY))
@@ -710,18 +708,15 @@ class DBTool(object):
                     "'" + row[column_name] + "'" if (isinstance(row[column_name], str)) else str(row[column_name])) for
                                            column_name in where_cols]
                 where_claus_value: str = LOGICAL_OPERATOR.join(where_claus_value_parts)
-                # LOGGER.debug(where_claus_value)
 
                 # Set Claus
                 set_claus_value_parts = [column_name + '=' + str(
                     "'" + row[column_name] + "'" if (isinstance(row[column_name], str)) else str(row[column_name])) for
                                          column_name in set_cols]
                 set_claus_value: str = SET_SEPARATOR.join(set_claus_value_parts)
-                # LOGGER.debug(set_claus_value)
 
                 # Update Query
                 UPDATE_QUERY = f"""UPDATE {db_table} SET {set_claus_value} WHERE {where_claus_value}"""
-                # LOGGER.debug(UPDATE_QUERY)
 
                 # Execute Update Query
                 self.execute_query(text(UPDATE_QUERY))
@@ -733,17 +728,14 @@ class DBTool(object):
             data_df(DataFrame): the dataframe with the data potentially to persist
             db_table(str): the underlying DB table name holding the data; the default is empty string
         """
-        LOGGER.debug('Executing insert query against {}', db_table, '...')
+        LOGGER.debug('Executing insert query against {}, {}', db_table, '...')
         myTable = sa.Table(db_table, sa.MetaData(), quote=False, autoload_with=self.sql_engine_)
         with self.get_connection() as connection:
             with connection.begin():
                 for count, (index, row) in zip(range(data_df.shape[0]),
                                                data_df.iterrows()):
-                    # LOGGER.debug(row)
                     values = tuple([value for value in row])
-                    # LOGGER.debug(values)
                     insert = myTable.insert().values(values)
-                    # LOGGER.debug(insert)
                     result = connection.execute(insert)
 
     @track_duration(name='save_to_db')
@@ -773,7 +765,6 @@ class DBTool(object):
             return
 
         LOGGER.debug('Saving to DB', entities_df.shape)
-        # LOGGER.debug(entities_df.dtypes)
         num_rows = entities_df.shape[0]
         data_chunks = math.ceil(num_rows / chunksize)
         chunk_start = math.ceil(start_at / chunksize)
@@ -802,7 +793,7 @@ class DBTool(object):
         Parameters:
             db_table(str): the underlying DB table name holding the data.
         """
-        msg = LOGGER.debug('Executing delete query against {}', db_table, '...')
+        msg = LOGGER.debug('Executing delete query against {}, {}', db_table, '...')
         if db_table is None:
             LOGGER.debug('DB table name required and must be specified')
             raise DBToolException('DB table name required and must be specified')
@@ -851,7 +842,7 @@ class DBTool(object):
             db_table(str): the underlying DB table name holding the data.
             filter_by(str): a str expression of a where clause
         """
-        msg = LOGGER.debug('Executing delete query against {}', db_table, '...')
+        msg = LOGGER.debug('Executing delete query against {}, {}', db_table, '...')
         if db_table is None:
             LOGGER.debug('DB table name required and must be specified')
             raise DBToolException('DB table name required and must be specified')
@@ -877,14 +868,11 @@ class DBTool(object):
             db_table(str): the underlying DB table name holding the data; the default is empty string
         """
         myTable = sa.Table(db_table, sa.MetaData(), quote=False, autoload_with=self.sql_engine_)
-        # LOGGER.debug(myTable)
-        LOGGER.debug('Executing insert query against {}', db_table, '...')
+        LOGGER.debug('Executing insert query against {}, {}', db_table, '...')
         with self.get_connection() as connection:
             with connection.begin():
                 for count, (index, row) in zip(range(data_df.shape[0]), data_df.iterrows()):
-                    # LOGGER.debug(row)
                     values = tuple([value for value in row])
-                    # LOGGER.debug(values)
                     try:
                         insert = myTable.insert().values(values)
                         result = connection.execute(insert)
@@ -919,7 +907,7 @@ class DBTool(object):
             primary_keys(list): use the list of columns specified as the primary key columns to identify and ignore duplicates
             truncate(bool): true indicates that the underlying table's contents will be replaced or appended otherwise
         """
-        LOGGER.debug('Executing bulk insert query against {}', db_table, '...')
+        LOGGER.debug('Executing bulk insert query against {}, {}', db_table, '...')
         underlying_table = db_table
         temp_table = True  # The temporary table is always used for efficiency and to account for duplicates.
         ignore_duplicates = True  # assumes that primary key columns are specified
@@ -994,7 +982,6 @@ class DBTool(object):
                         start_time = time.time()
                     # insert into either existing table or newly created temp table
                     stmt = f"INSERT INTO {underlying_table} VALUES ({params})"
-                    # LOGGER.debug(val_lst)
                     cursor.executemany(stmt, val_lst)
                     if tt:
                         # remove temp moniker and insert from temp table
@@ -1018,13 +1005,13 @@ class DBTool(object):
                         LOGGER.debug(
                                 f"{rows} rows inserted into the {underlying_table} table in {time.time() - start_time} seconds")
                 except Exception as ex:
-                    LOGGER.debug(ex)
+                    LOGGER.debug('Failure: {}', ex)
                     raise DBToolException(ex)
                 finally:
                     try:
                         cursor.commit()
                     except Exception as posMySQLEx:
-                        LOGGER.debug(posMySQLEx)  # this issue may only happen for MySQL, so ignore
+                        LOGGER.warning('Warning: {}', posMySQLEx)  # this issue may only happen for MySQL, so ignore
                         try:
                             connection.commit()
                         except:
@@ -1032,7 +1019,7 @@ class DBTool(object):
                     cursor.close()
                     connection.close()
         except Exception as outEx:
-            LOGGER.debug('Failed: executing bulk_insert to table: {}', underlying_table,
+            LOGGER.debug('Failed: executing bulk_insert to table: {}, {}', underlying_table,
                                  outEx.with_traceback(outEx.__traceback__))
             raise DBToolException(outEx).with_traceback(outEx.__traceback__)
         finally:
@@ -1067,7 +1054,6 @@ class DBToolFactory(object):
                 LOGGER.debug('No prepared ds_config entry found for {}', key)
             else:
                 DBToolFactory.ds_configs__[key] = cur_config.get(key)
-        LOGGER.debug(self)
 
     def __str__(self):
         info = 'DBToolFactory'
@@ -1244,10 +1230,10 @@ class DSWrapper(object):
             try:
                 db_tool.delete(db_table=db_table, filter_by=filter_by)
             except Exception as ex:
-                LOGGER.debug(ex, ex.with_traceback(ex.__traceback__))
+                LOGGER.debug('Failure: {}', ex.with_traceback(ex.__traceback__))
                 raise DSWrapperException(ex).with_traceback(ex.__traceback__)
         elif replace:
-            LOGGER.debug('Truncating underlying table = {}', db_key, db_table)
+            LOGGER.debug('Truncating underlying db = {}, table {}', db_key, db_table)
             try:
                 db_tool.truncate(db_table=db_table)
             except Exception as ex:
@@ -1272,14 +1258,14 @@ class DSWrapper(object):
             raise DSWrapperException(msg)
         db_table = ds_config.get('db_table')
         query_string = ds_config.get('query_string')
-        LOGGER.debug(query_string)
+        LOGGER.debug('Qurey string: {}', query_string)
         if db_table is None:
             if query_string is None:
                 msg = 'An appropriate DB table name or query string must be specified'
                 LOGGER.debug(msg)
                 raise DSWrapperException(msg)
         db_tool = self.get_db_tool(db_key=db_key)
-        LOGGER.debug('Reading from', db_table)
+        LOGGER.debug('Reading from table: {}', db_table)
         try:
             if chunksize is None:
                 if query_string is None:
@@ -1299,7 +1285,7 @@ class DSWrapper(object):
                                                          chunksize=chunksize,
                                                          force_parallelize=force_parallelize)
         except Exception as ex:
-            LOGGER.debug(ex, ex.with_traceback(ex.__traceback__))
+            LOGGER.debug('Failure: {}', ex.with_traceback(ex.__traceback__))
             raise DSWrapperException(ex).with_traceback(ex.__traceback__)
         return data_df
 
@@ -1343,7 +1329,7 @@ class DSWrapper(object):
                     msg = 'A unique subset of columns or keys must be specified for the datasource'
                     LOGGER.debug(msg)
                     raise DSWrapperException(msg)
-            LOGGER.debug('Path to prepared dataset', path_to_data_file)
+            LOGGER.debug('Path to prepared dataset: {}', path_to_data_file)
             cur_date = dt.date.today()
             if chunksize is None:
                 if is_csv:
@@ -1365,7 +1351,7 @@ class DSWrapper(object):
                     for date_col in parse_date_cols:
                         data_df[date_col] = pd.to_datetime(data_df[date_col]).dt.date
                 if rename_cols is not None:
-                    LOGGER.debug('Renaming columns', rename_cols)
+                    LOGGER.debug('Renaming columns: {}', rename_cols)
                     data_df.rename(columns=rename_cols, inplace=True)
                 # add the obligatory modified date, that may or may not be used
                 data_df['modified_date'] = dt.date.today()
@@ -1405,7 +1391,7 @@ class DSWrapper(object):
                         for date_col in parse_date_cols:
                             data_df[date_col] = pd.to_datetime(data_df[date_col]).dt.date
                     if rename_cols is not None:
-                        LOGGER.debug('Renaming columns', rename_cols)
+                        LOGGER.debug('Renaming columns: {}', rename_cols)
                         data_df.rename(columns=rename_cols, inplace=True)
                     # add the obligatory modified date, that may or may not be used
                     data_df['modified_date'] = cur_date
@@ -1449,7 +1435,7 @@ class DSWrapper(object):
             try:
                 self.__save_to_datafile(data_df, ds_config=ds_config)
             except Exception as ignore:
-                LOGGER.debug(ignore)
+                LOGGER.warning('Warning: {}', ignore)
         db_key = ds_config.get('db_key')
         if db_key is None:
             if data_file_specified is None:
@@ -1475,12 +1461,12 @@ class DSWrapper(object):
             # then apply the new data to the underlying table
             rel_cols = ds_config.get('rel_cols')
             if rel_cols is not None:
-                LOGGER.debug('Required columns', rel_cols)
-                LOGGER.debug('Shape', data_df.shape)
+                LOGGER.debug('Required columns: {}', rel_cols)
+                LOGGER.debug('Shape: {}', data_df.shape)
                 data_df = data_df[rel_cols]
             db_tool.bulk_insert(data_df, db_table=db_table, primary_keys=unique_key)
         except Exception as ex:
-            LOGGER.debug(ex, ex.__cause__)
+            LOGGER.debug('Failure: {}', ex.__cause__)
             raise DSWrapperException(ex).with_traceback(ex.__traceback__)
 
     '''
@@ -1509,13 +1495,13 @@ class DSWrapper(object):
         if chunksize is None:
             LOGGER.debug('A valid chunkcise must be provided')
             raise DSWrapperException('A valid chunkcise must be provided')
-        LOGGER.debug(input_types)
+        LOGGER.debug('Input types: {}', input_types)
         if is_csv:
             dd_df = self.read_large_csv(path_to_data_file, input_types=input_types)
             # break the dataframe into appropriate chunks
             # see also: https://stackoverflow.com/questions/17315737/split-a-large-pandas-dataframe
             chunks = [dd_df[i:i + chunksize].copy() for i in range(0, dd_df.shape[0], chunksize)]
-            LOGGER.debug('No. of chunks', len(chunks))
+            LOGGER.debug('No. of chunks: {}', len(chunks))
             return chunks
         else:
             # then it is Excel
@@ -1564,7 +1550,7 @@ class DSWrapper(object):
                         df_chunk[col] = df_chunk[col].astype(input_types.get(col))
                 chunks.append(df_chunk)
             i_chunk += 1
-        LOGGER.debug('Number of chunks', len(chunks))
+        LOGGER.debug('Number of chunks: {}', len(chunks))
         return chunks
 
     '''
@@ -1619,7 +1605,6 @@ class DSWrapper(object):
         parts = [delayed(DSWrapper.__delayed_read_excel)(path_to_data_file, input_types=input_types, rel_cols=rel_cols,
                                                          sheet_name=sheet_name)]
         meta_info = parts[0].compute()
-        # LOGGER.debug('meta info', meta_info)
         data_df = dd.from_delayed(parts, meta=meta_info).compute()
         return [data_df]
 
@@ -1634,13 +1619,12 @@ class DSWrapper(object):
         :return:
         """
         LOGGER.debug('Doing parallelized excel read ...')
-        LOGGER.debug(path_to_data_file)
-        LOGGER.debug(input_types)
-        LOGGER.debug(rel_cols)
+        LOGGER.debug('Path to file: {}', path_to_data_file)
+        LOGGER.debug('Input types: {}', input_types)
+        LOGGER.debug('Relevant columns: {}', rel_cols)
         # do the read
         data_read = pd.read_excel(path_to_data_file, dtype=input_types, sheet_name=sheet_name)
         data_read['modified_date'] = dt.date.today()
-        # LOGGER.debug('delayed object', type(data_read))
         if rel_cols is not None:
             data_read = data_read[rel_cols]
         return data_read
@@ -1666,7 +1650,7 @@ class DSWrapper(object):
         try:
             os.makedirs(sub_path, exist_ok=True)
         except Exception as ignoreex:
-            LOGGER.debug('WARNING: Failed attempt to recursively create folders', sub_path, ignoreex)
+            LOGGER.debug('WARNING: Failed attempt to recursively create folders: {}, {}', sub_path, ignoreex)
         # date stamp the file
         path_to_data_file = datestamp(path_to_data_file)
         parallelize = ds_config.get('force_parallelize')
@@ -1674,14 +1658,14 @@ class DSWrapper(object):
         if is_csv:
             try:
                 data_df.to_csv(path_to_data_file, index=False)
-                LOGGER.debug('Saved data to', path_to_data_file)
+                LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as ex:
-                LOGGER.debug('FAILED attempt to save data to csvfile', path_to_data_file, ex)
+                LOGGER.debug('FAILED attempt to save data to csvfile: {}, {}', path_to_data_file, ex)
                 raise DSWrapperException(ex).with_traceback(ex.__traceback__)
         else:
             try:
                 data_df.to_excel(path_to_data_file, index=False)
-                LOGGER.debug('Saved data to', path_to_data_file)
+                LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as ex:
-                LOGGER.debug('FAILED attempt to save data to excelfile', path_to_data_file, ex)
+                LOGGER.debug('FAILED attempt to save data to excelfile: {}', path_to_data_file, ex)
                 raise DSWrapperException(ex).with_traceback(ex.__traceback__)
