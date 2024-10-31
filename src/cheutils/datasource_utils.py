@@ -933,7 +933,7 @@ class DBTool(object):
                     cursor = connection.cursor()
                 #cursor.fast_executemany = True
                 tt = False
-                qm = '%s'
+                qm = ':'
                 original_columns = data_df.columns
                 val_lst = data_df.values.tolist()
                 if isinstance(val_lst[0], list):
@@ -941,15 +941,15 @@ class DBTool(object):
                 else:
                     rows = 1
                     val_lst = [val_lst,] # the last comma is necessary for MySQL Dialect--> @see https://dev.mysql.com/doc/connector-python/en/connector-python-api-mysqlcursor-executemany.html#:~:text=executemany()%20Method,-Syntax%3A%20cursor.&text=This%20method%20prepares%20a%20database,found%20in%20the%20sequence%20seq_of_params%20.&text=In%20Python%2C%20a%20tuple%20containing,value%20must%20include%20a%20comma.
-                val_holders = [f"{qm}" for _ in original_columns]
+                val_holders = tuple([f"{qm}{col}" for col in original_columns])
                 val_holders = ', '.join(val_holders)
                 inert_cols = ', '.join(original_columns)
-                # if truncating just do it here
-                if truncate:
-                    stmt = f"TRUNCATE TABLE {db_table}"
-                    cursor.execute(stmt)
                 is_mysql_db = False
                 try:
+                    # if truncating just do it here
+                    if truncate:
+                        stmt = f"TRUNCATE TABLE {db_table}"
+                        cursor.execute(stmt)
                     if temp_table:
                         # assume NOT mysql as default
                         # clear any such temporary table that may have been left behind
@@ -987,11 +987,11 @@ class DBTool(object):
                     else:
                         start_time = time.time()
                     # insert into either existing table or newly created temp table
-                    val_lst = [tuple(val) for val in val_lst]
+                    val_lst = [{col: row_val for col, row_val in zip(original_columns, val)} for val in val_lst]
                     stmt = f"INSERT INTO {underlying_table} ({inert_cols}) VALUES ({val_holders})"
                     LOGGER.debug('Statement: {}', stmt)
-                    LOGGER.debug('Values:{}', val_lst[:5])
-                    cursor.executemany(stmt, val_lst)
+                    #LOGGER.debug('Values:{}', val_lst[:5])
+                    connection.execute(text(stmt), val_lst)
                     if tt:
                         # remove temp moniker and insert from temp table
                         dest_table = db_table
@@ -1169,19 +1169,6 @@ class DSWrapper(object):
         info = 'DSWrapper'
         LOGGER.debug(info)
         return info
-
-    @staticmethod
-    def get_instance():
-        """
-        Returns the singleton instance of the class.
-        Parameters:
-            enable_debug(bool): True to turn debugging on or False otherwise.
-        Returns:
-            DSWrapper: singleton instance of class
-        """
-        if DSWrapper.instance__ is None:
-            DSWrapper()
-        return DSWrapper.instance__
 
     def get_db_tool(self, db_key='mysql_local', verbose: bool=False):
         """
