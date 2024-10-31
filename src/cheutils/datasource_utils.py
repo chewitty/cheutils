@@ -1159,7 +1159,7 @@ class DSWrapper(object):
             if 'postgres' in db_info.get('drivername'):
                 db_config['query'] = {'client_encoding': 'utf8', }
             elif 'pyodbc' in db_info.get('drivername'):
-                db_config['query'] = {'encoding': 'utf8', 'convert_unicode': True, }
+                db_config['query'] = {'encoding': 'utf8', 'convert_unicode': 'True', }
             else:
                 db_config['query'] = {'charset': 'utf8', 'driver': db_info['db_driver'],
                                       'timeout': timeout, 'direct_conn': str(direct_conn), 'verbose': str(verbose), }
