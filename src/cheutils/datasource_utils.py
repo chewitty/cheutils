@@ -33,7 +33,6 @@ APP_PROPS = AppProperties()
 DEFAULT_DS_CONFIG = 'ds-config.properties'
 LOGGER = LoguruWrapper().get_logger()
 
-@singleton
 class DBTool(object):
     instance__ = None
     ds_config_ = None
