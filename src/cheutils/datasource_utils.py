@@ -82,7 +82,7 @@ class DBTool(object):
             if (self.ds_config_.get('drivername') is None) or ('mysql' in self.ds_config_.get('drivername')):
                 # LOGGER.debug('Connection properties', self.ds_config_)
                 self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
-                                                 pool_recycle=900,
+                                                 pool_recycle=900, future=True,
                                                  echo=verbose)
                 if 'pymysql' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
@@ -106,7 +106,7 @@ class DBTool(object):
                         return self.pyodbc_creator(*args, **kwargs)
             elif (self.ds_config_.get('drivername') is None) or ('pymssql' in self.ds_config_.get('drivername')) or ('psycopg2' in self.ds_config_.get('drivername')):
                 self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
-                                                 pool_recycle=900,
+                                                 pool_recycle=900, future=True,
                                                  echo=verbose)
                 if 'psycopg2' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
@@ -119,7 +119,7 @@ class DBTool(object):
                         LOGGER.debug('Arguments: {}', kwargs)
                         return self.pymssql_creator(*args, **kwargs)
             else:
-                self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
+                self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args, future=True,
                                                  fast_executemany=True, use_setinputsizes=False, pool_recycle=900,
                                                  echo=verbose)
 
@@ -1155,9 +1155,11 @@ class DSWrapper(object):
             timeout = '0' if (timeout is None) or ('' == timeout) else str(timeout)
             db_config = {'drivername': db_info.get('drivername'), 'host': db_info.get('db_server'), 'port': db_info.get('db_port'),
                          'username'  : db_info.get('username'), 'password': quote_plus(db_info.get('password')),
-                         'database'  : db_info.get('db_name'), 'query': {'charset': 'utf8'}}
-            if key.startswith('POSTGRES'):
+                         'database'  : db_info.get('db_name'), }
+            if 'postgres' in db_info.get('drivername'):
                 db_config['query'] = {'client_encoding': 'utf8', }
+            elif 'pyodbc' in db_info.get('drivername'):
+                db_config['query'] = {'encoding': 'utf8', 'convert_unicode': True, }
             else:
                 db_config['query'] = {'charset': 'utf8', 'driver': db_info['db_driver'],
                                       'timeout': timeout, 'direct_conn': str(direct_conn), 'verbose': str(verbose), }
