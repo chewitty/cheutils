@@ -2,6 +2,8 @@ import math
 import time
 import datetime as dt
 import sys, os
+from idlelib.iomenu import encoding
+
 import dask.dataframe as dd
 import pandas as pd
 import pyodbc
@@ -13,6 +15,8 @@ from urllib.parse import quote_plus, unquote_plus
 import mysql.connector
 import sqlalchemy as sa
 from typing import Union
+
+from analytics import timeout
 from dask.delayed import delayed
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -67,23 +71,23 @@ class DBTool(object):
         # setup the engine
         try:
             query = self.ds_config_.get('query')
-            connect_args = None
-            any_timeout = None
+            connect_args = self.ds_config_.get('connect_args')
             if query is not None:
-                attempt_direct_conn = bool(eval(query.get('direct_conn')))
-                any_timeout = query.get('timeout')
-                make_verbose = bool(eval(query.get('verbose')))
+                attempt_direct_conn = bool(eval(str(query.get('direct_conn'))))
+                make_verbose = bool(eval(str(query.get('verbose'))))
                 LOGGER.debug('Interactions with underlying connection are verbose = {}', make_verbose)
                 verbose = True if make_verbose else verbose
-                connect_args = {"timeout": 10}
-            if any_timeout is not None:
-                connect_args = {"timeout": int(any_timeout)}
             # sqlalchemy.engine.Engine, is what delivers a DB Connection
             if (self.ds_config_.get('drivername') is None) or ('mysql' in self.ds_config_.get('drivername')):
                 # LOGGER.debug('Connection properties', self.ds_config_)
-                self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
-                                                 pool_recycle=900, future=True,
-                                                 echo=verbose)
+                timeout = int(query.get('timeout'))
+                connect_args = {'timeout': timeout} if connect_args is None else connect_args
+                try:
+                    self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
+                                                     pool_recycle=900, future=True, echo=verbose)
+                except Exception as err:
+                    LOGGER.error('An error occured while connecting to the database: {}'.format(err))
+                    raise DBToolException(err)
                 if 'pymysql' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_pymysql_connect(*args, **kwargs):
@@ -105,9 +109,12 @@ class DBTool(object):
                         LOGGER.debug('Arguments: {}', kwargs)
                         return self.pyodbc_creator(*args, **kwargs)
             elif (self.ds_config_.get('drivername') is None) or ('pymssql' in self.ds_config_.get('drivername')) or ('psycopg2' in self.ds_config_.get('drivername')):
-                self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
-                                                 pool_recycle=900, future=True,
-                                                 echo=verbose)
+                try:
+                    self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args,
+                                                     pool_recycle=900, future=True, echo=verbose)
+                except Exception as err:
+                    LOGGER.error('An error occured while connecting to the database: {}'.format(err))
+                    raise DBToolException(err)
                 if 'psycopg2' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_psycopg2_connect(*args, **kwargs):
@@ -119,9 +126,13 @@ class DBTool(object):
                         LOGGER.debug('Arguments: {}', kwargs)
                         return self.pymssql_creator(*args, **kwargs)
             else:
-                self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args, future=True,
-                                                 fast_executemany=True, use_setinputsizes=False, pool_recycle=900,
-                                                 echo=verbose)
+                try:
+                    self.sql_engine_ = create_engine(URL(**self.ds_config_), connect_args=connect_args, future=True,
+                                                     fast_executemany=True, use_setinputsizes=False, pool_recycle=900,
+                                                     echo=verbose)
+                except Exception as err:
+                    LOGGER.error('An error occured while connecting to the database: {}'.format(err))
+                    raise DBToolException(err)
 
                 @listens_for(self.sql_engine_, 'do_connect')
                 def do_mssql_connect(*args, **kwargs):
@@ -134,12 +145,13 @@ class DBTool(object):
             self.connnexion_ = ""
             self.cursor_ = ""
             self.con_status_ = False
+        except DBToolException as ex:
+            raise ex
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
-            LOGGER.debug('Completed attempt at creating an appropriate DBTool for the db = {}',
-                         self.ds_config_['database'])
+            LOGGER.debug('Completed attempt at creating an appropriate DBTool for the db = {}', self.ds_config_['database'])
 
     def __str__(self):
         info = f"DBTool for {self.ds_config_.get('host')}, {self.ds_config_.get('database')}"
@@ -217,20 +229,11 @@ class DBTool(object):
         try:
             return self.sql_engine_.connect().execution_options(stream_results=True)
         except Exception as ex:
-            LOGGER.debug('Failure to establish default connection = {}', ex)
+            LOGGER.error('Failure to establish default connection = {}', ex)
             raise ex
 
     def create_mssql_pyodbc_connection(self, autocommit=True):
-        dbdriver = self.ds_config_.get('driver')
-        dbserver = self.ds_config_.get('host') + ',' + str(self.ds_config_.get('port')),
-        dbname = self.ds_config_.get('database')
-        conn_str = f'driver={dbdriver};Server={dbserver};Database={dbname};DSN={dbname};'
-        try:
-            LOGGER.debug('Obtaining connection to DB using mssql... autocommit = {}', autocommit)
-            return pyodbc.connect(conn_str)
-        except Exception as ex:
-            LOGGER.debug('Failure to establish mssql connection = {}', ex)
-            raise ex
+        return self.create_pyodbc_connection(autocommit=autocommit)
 
     def create_pyodbc_connection(self, autocommit=True):
         """
@@ -239,17 +242,23 @@ class DBTool(object):
         """
         LOGGER.debug('Obtaining connection to DB using PyODBC... autocommit = {}', autocommit)
         try:
-            conn = pyodbc.connect(driver=self.ds_config_.get('query').get('driver'),
-                                  server=self.ds_config_.get('host') + ',' + str(self.ds_config_.get('port')),
-                                  database=self.ds_config_.get('database'),
-                                  user=self.ds_config_.get('username'),
-                                  password=unquote_plus(self.ds_config_.get('password')),
-                                  MULTI_HOST=self.ds_config_.get('query').get('MULTI_HOST'),
-                                  charset=self.ds_config_.get('query').get('charset'),
-                                  autocommit=autocommit)
+            dbdriver = self.ds_config_.get('query').get('driver')
+            sep = ':' if 'mysql' in dbdriver.lower() else ','
+            dbserver = self.ds_config_.get('host') + sep + str(self.ds_config_.get('port'))
+            dbname = self.ds_config_.get('database')
+            username = self.ds_config_.get('username')
+            password = unquote_plus(self.ds_config_.get('password'))
+            conn_str = f'driver={dbdriver};Server={dbserver};Database={dbname};DSN={dbname};MULTI_HOST=1;UID={username}'
+            LOGGER.debug('Pyodbc connection string: {}'.format(conn_str))
+            conn_str = conn_str + f';PWD={password}'
+            encoding = self.ds_config_.get('query').get('encoding')
+            if encoding is not None:
+                conn = pyodbc.connect(conn_str, encoding=encoding, autocommit=autocommit)
+            else:
+                conn = pyodbc.connect(conn_str, autocommit=autocommit)
             return conn
         except Exception as ex:
-            LOGGER.debug('Failure to establish pyodbc connection = {}', ex)
+            LOGGER.error('Failure to establish pyodbc connection = {}', ex)
             raise ex
 
     def create_pymssql_connection(self, autocommit=True):
@@ -263,11 +272,11 @@ class DBTool(object):
                                    database=self.ds_config_.get('database'),
                                    user=self.ds_config_.get('username'),
                                    password=unquote_plus(self.ds_config_.get('password')),
-                                   charset=self.ds_config_.get('query').get('charset'),
+                                   charset=self.ds_config_.get('query').get('encoding'),
                                    autocommit=autocommit)
             return conn
         except Exception as ex:
-            LOGGER.debug('Failure to establish pymssql connection = {}', ex)
+            LOGGER.error('Failure to establish pymssql connection = {}', ex)
             raise ex
 
     def create_psycopg2_connection(self, autocommit=True):
@@ -284,7 +293,7 @@ class DBTool(object):
                                     password=unquote_plus(self.ds_config_.get('password')),)
             return conn
         except Exception as ex:
-            LOGGER.debug('Failure to establish psycopg2 connection = {}', ex)
+            LOGGER.error('Failure to establish psycopg2 connection = {}', ex)
             raise ex
 
     def create_pymysql_connection(self, autocommit=True):
@@ -299,11 +308,11 @@ class DBTool(object):
                                    database=self.ds_config_.get('database'),
                                    user=self.ds_config_.get('username'),
                                    password=unquote_plus(self.ds_config_.get('password')),
-                                   charset=self.ds_config_.get('query').get('charset'),
+                                   charset=self.ds_config_.get('query').get('encoding'),
                                    use_unicode=True)
             return conn
         except Exception as ex:
-            LOGGER.debug('Failure to establish pymysql connection = {}', ex)
+            LOGGER.error('Failure to establish pymysql connection = {}', ex)
             raise ex
 
     def create_mysqlclient_connection(self, autocommit=True):
@@ -318,11 +327,11 @@ class DBTool(object):
                                    database=self.ds_config_.get('database'),
                                    user=self.ds_config_.get('username'),
                                    password=unquote_plus(self.ds_config_.get('password')),
-                                   charset=self.ds_config_.get('query').get('charset'),
+                                   charset=self.ds_config_.get('query').get('encoding'),
                                    use_unicode=True)
             return conn
         except Exception as ex:
-            LOGGER.debug('Failure to establish mysqldb connection {}', ex)
+            LOGGER.error('Failure to establish mysqldb connection {}', ex)
             raise ex
 
     def create_mysqlconnector_connection(self, autocommit=True):
@@ -337,11 +346,11 @@ class DBTool(object):
                                  database=self.ds_config_.get('database'),
                                  user=self.ds_config_.get('username'),
                                  password=unquote_plus(self.ds_config_.get('password')),
-                                 charset=self.ds_config_.get('query').get('charset'),
+                                 charset=self.ds_config_.get('query').get('encoding'),
                                  use_unicode=True)
             return conn
         except Exception as ex:
-            LOGGER.debug('Failure to establish mysqlconnector connection = {}', ex)
+            LOGGER.error('Failure to establish mysqlconnector connection = {}', ex)
             raise ex
 
     def execute_query(self, query: str) -> None:
@@ -385,7 +394,7 @@ class DBTool(object):
         except DBToolException as outEx:
             raise outEx
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to executing a query on db')
@@ -415,7 +424,7 @@ class DBTool(object):
                     df_in.to_sql(name=db_table, con=connection, if_exists=if_exists, index=index_as_col,
                                  method=method, chunksize=chunksize)
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to persist to db')
@@ -439,7 +448,7 @@ class DBTool(object):
                 connection.close()
                 return df
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db')
@@ -479,7 +488,7 @@ class DBTool(object):
             LOGGER.debug('Shape of dataframe = {}', db_data_df.shape)
             return db_data_df
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db = {}', db_table)
@@ -517,8 +526,8 @@ class DBTool(object):
                                                       parse_dates=parse_dates, columns=columns, chunksize=chunksize):
                             db_data_chks.append(data_chunk)
                     except Exception as normEx:
-                        LOGGER.debug('Optimized read failure = {}', normEx)
-                        raise DBToolException(normEx).with_traceback(normEx.__traceback__)
+                        LOGGER.error('Optimized read failure = {}', normEx)
+                        raise DBToolException(normEx)
                 else:
                     LOGGER.debug('Optimized read ...')
                     try:
@@ -527,13 +536,13 @@ class DBTool(object):
                                                       parse_dates=parse_dates, columns=columns, chunksize=chunksize):
                             db_data_chks.append(data_chunk)
                     except Exception as normEx:
-                        LOGGER.debug('Optimazed read failure = {}', normEx)
-                        raise DBToolException(normEx).with_traceback(normEx.__traceback__)
+                        LOGGER.error('Optimazed read failure = {}', normEx)
+                        raise DBToolException(normEx)
             LOGGER.debug('Number of dataframe chunks = {}', len(db_data_chks))
         except DBToolException as outEx:
             raise outEx
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db = {}', db_table)
@@ -585,7 +594,7 @@ class DBTool(object):
             LOGGER.debug('Shape of dataframe = {}', db_data_df.shape)
             return db_data_df
         except Exception as ex:
-            LOGGER.debug('FAILURE: {}', ex)
+            LOGGER.error('FAILURE: {}', ex)
             raise DBToolException(ex)
         finally:
             LOGGER.debug('Finished attempt to read from db = {}', db_table)
@@ -808,7 +817,7 @@ class DBTool(object):
                     result = connection.execute(text(stmt))
                     msg = LOGGER.debug('Deletion completed')
                 except IntegrityError as err:
-                    msg = LOGGER.debug("DB error: {0}".format(err), err.with_traceback(err.__traceback__))
+                    msg = LOGGER.error("DB error: {0}".format(err))
                 except Exception as ex:
                     raise DBToolException(ex)
 
@@ -829,7 +838,7 @@ class DBTool(object):
                     cursor.execute(stmt)
                     LOGGER.debug('Underlying table truncated = {}', db_table)
                 except Exception as ex:
-                    LOGGER.debug('Failure: {}', ex)
+                    LOGGER.error('Failure: {}', ex)
                     raise DBToolException(ex)
                 finally:
                     cursor.close()
@@ -837,7 +846,7 @@ class DBTool(object):
         except DBToolException as outEx:
             raise outEx
         except Exception as outEx:
-            LOGGER.debug('Failed: executing truncate on table = {}', underlying_table)
+            LOGGER.error('Failed: executing truncate on table = {}', underlying_table)
             raise DBToolException(outEx)
 
     def delete(self, db_table=None, filter_by=None):
@@ -861,7 +870,7 @@ class DBTool(object):
                     result = connection.execute(text(stmt))
                     msg = LOGGER.debug('Deletion completed')
                 except IntegrityError as err:
-                    msg = LOGGER.debug("DB error: {0}".format(err), err.with_traceback(err.__traceback__))
+                    msg = LOGGER.error("DB error: {0}".format(err))
                 except Exception as ex:
                     raise DBToolException(ex)
 
@@ -882,7 +891,7 @@ class DBTool(object):
                         insert = myTable.insert().values(values)
                         result = connection.execute(insert)
                     except IntegrityError as err:
-                        LOGGER.debug("DB error: {0}".format(err), err.with_traceback(err.__traceback__))
+                        LOGGER.error("DB error: {0}".format(err))
                     except Exception as ex:
                         raise DBToolException(ex)
 
@@ -957,13 +966,13 @@ class DBTool(object):
                             stmt = f"DROP TABLE IF EXISTS {underlying_table}"
                             cursor.execute(stmt)
                         except Exception as err:
-                            LOGGER.debug('No non-mysql dangling temporary table: {} {}', underlying_table, 'to clear')
+                            LOGGER.warning('No non-mysql dangling temporary table: {} {}', underlying_table, 'to clear')
                             try:
                                 underlying_table = f"tmp_{db_table}"
                                 stmt = f"DROP TABLE IF EXISTS {underlying_table}"
                                 cursor.execute(stmt)
                             except Exception as mysqlerr:
-                                LOGGER.debug('No mysql dangling temporary table: {} {}', underlying_table, 'to clear')
+                                LOGGER.warning('No mysql dangling temporary table: {} {}', underlying_table, 'to clear')
                         finally:
                             # reset temp table name
                             underlying_table = f"##{db_table}"
@@ -974,7 +983,7 @@ class DBTool(object):
                         try:
                             cursor.execute(stmt)
                         except Exception as mysqlDbErr:
-                            LOGGER.debug('Failed to create temporary table: {}', underlying_table)
+                            LOGGER.error('Failed to create temporary table: {}', underlying_table)
                             # rename as mysql temp table variant
                             underlying_table = f"tmp_{db_table}"
                             stmt = f"CREATE TEMPORARY TABLE {underlying_table} SELECT * FROM {db_table} LIMIT 0"
@@ -1013,7 +1022,7 @@ class DBTool(object):
                         LOGGER.debug(
                             f"{rows} rows inserted into the {underlying_table} table in {time.time() - start_time} seconds")
                 except Exception as ex:
-                    LOGGER.debug('Failure: {}', ex)
+                    LOGGER.error('Failure: {}', ex)
                     connection.rollback()
                     raise DBToolException(ex)
                 finally:
@@ -1025,7 +1034,7 @@ class DBTool(object):
         except DBToolException as err:
             raise err
         except Exception as outEx:
-            LOGGER.debug('Failed: executing bulk_insert to table: {} - {}', db_table, outEx)
+            LOGGER.error('Failed: executing bulk_insert to table: {} - {}', db_table, outEx)
             raise DBToolException(outEx)
         finally:
             LOGGER.debug('Completed attempt of execute bulk_insert to table: {}', db_table)
@@ -1098,8 +1107,7 @@ class DBToolFactory(object):
         except DBToolException as outEx:
             raise outEx
         except Exception as exInst:
-            LOGGER.debug('DBToolFactory encountered a problem configuring DB with key = {}, {}', db_key,
-                                 exInst)
+            LOGGER.error('DBToolFactory encountered a problem configuring DB with key = {}, {}', db_key, exInst)
             raise DBToolException(exInst)
 
 
@@ -1157,12 +1165,27 @@ class DSWrapper(object):
                          'username'  : db_info.get('username'), 'password': quote_plus(db_info.get('password')),
                          'database'  : db_info.get('db_name'), }
             if 'postgres' in db_info.get('drivername'):
-                db_config['query'] = {'client_encoding': 'utf8', }
+                if db_info.get('encoding') is not None:
+                    db_config['query'] = {'client_encoding': db_info.get('encoding'), 'verbose': str(verbose), 'timeout': timeout, }
+                else:
+                    db_config['query'] = {'verbose': str(verbose), 'timeout': timeout, }
             elif 'pyodbc' in db_info.get('drivername'):
-                db_config['query'] = {'encoding': 'utf8', 'convert_unicode': 'True', }
+                if db_info.get('encoding') is not None:
+                    db_config['query'] = {'encoding': db_info.get('encoding'), 'driver': db_info.get('db_driver'), 'verbose': str(verbose), 'timeout': timeout, }
+                else:
+                    db_config['query'] = {'driver': db_info.get('db_driver'),
+                                          'verbose' : str(verbose), 'timeout': timeout, }
+                if db_info.get('MULTI_HOST') is not None:
+                    db_config['connect_args'] = {'MULTI_HOST': db_info.get('MULTI_HOST'), }
             else:
-                db_config['query'] = {'charset': 'utf8', 'driver': db_info['db_driver'],
-                                      'timeout': timeout, 'direct_conn': str(direct_conn), 'verbose': str(verbose), }
+                if db_info.get('encoding') is not None:
+                    db_config['query'] = {'encoding': db_info.get('encoding'), 'driver': db_info.get('db_driver'),
+                                          'timeout' : timeout, 'direct_conn': str(direct_conn),
+                                          'verbose' : str(verbose), }
+                else:
+                    db_config['query'] = {'driver': db_info.get('db_driver'),
+                                          'timeout' : timeout, 'direct_conn': str(direct_conn),
+                                          'verbose' : str(verbose), }
             db_configs[key] = db_config
         self.dbtool_factory__ = DBToolFactory.get_instance(db_configs)
 
@@ -1225,14 +1248,14 @@ class DSWrapper(object):
             try:
                 db_tool.delete(db_table=db_table, filter_by=filter_by)
             except Exception as ex:
-                LOGGER.debug('Failure: {}', ex)
+                LOGGER.error('Failure: {}', ex)
                 raise DSWrapperException(ex)
         elif replace:
             LOGGER.debug('Truncating underlying db = {}, table {}', db_key, db_table)
             try:
                 db_tool.truncate(db_table=db_table)
             except Exception as ex:
-                LOGGER.debug('Failure: {}', ex)
+                LOGGER.error('Failure: {}', ex)
                 raise DSWrapperException(ex)
 
     '''
@@ -1253,7 +1276,7 @@ class DSWrapper(object):
             raise DSWrapperException(msg)
         db_table = ds_config.get('db_table')
         query_string = ds_config.get('query_string')
-        LOGGER.debug('Qurey string: {}', query_string)
+        LOGGER.debug('Query string: {}', query_string)
         if db_table is None:
             if query_string is None:
                 msg = 'An appropriate DB table name or query string must be specified'
@@ -1282,7 +1305,7 @@ class DSWrapper(object):
         except DBToolException as outEx:
             raise outEx
         except Exception as ex:
-            LOGGER.debug('Failure: {}', ex)
+            LOGGER.error('Failure: {}', ex)
             raise DSWrapperException(ex)
         return data_df
 
@@ -1338,9 +1361,9 @@ class DSWrapper(object):
                 except Exception as ignore:
                     if is_raw:
                         msg = 'WARNING only: Processing a raw-templated file --> ' + str(ignore)
-                        LOGGER.debug(msg)
+                        LOGGER.warning(msg)
                     else:
-                        raise DSWrapperException(ignore).with_traceback(ignore.__traceback__)
+                        raise DSWrapperException(ignore)
                 # do any additional processing
                 if dropna_cols is not None:
                     data_df.dropna(subset=dropna_cols, inplace=True)
@@ -1378,9 +1401,9 @@ class DSWrapper(object):
                     except Exception as ignore:
                         if is_raw:
                             msg = 'WARNING only: Processing a raw-templated file' + str(ignore)
-                            LOGGER.debug(msg)
+                            LOGGER.warning(msg)
                         else:
-                            raise DSWrapperException(ignore).with_traceback(ignore.__traceback__)
+                            raise DSWrapperException(ignore)
                     # do any additional processing
                     if dropna_cols is not None:
                         data_df.dropna(subset=dropna_cols, inplace=True)
@@ -1465,7 +1488,7 @@ class DSWrapper(object):
         except DBToolException as outEx:
             raise outEx
         except Exception as ex:
-            LOGGER.debug('Failure: {}', ex.__cause__)
+            LOGGER.error('Failure: {}', ex.__cause__)
             raise DSWrapperException(ex)
 
     '''
@@ -1659,12 +1682,12 @@ class DSWrapper(object):
                 data_df.to_csv(path_to_data_file, index=False)
                 LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as ex:
-                LOGGER.debug('FAILED attempt to save data to csvfile: {}, {}', path_to_data_file, ex)
+                LOGGER.error('FAILED attempt to save data to csvfile: {}, {}', path_to_data_file, ex)
                 raise DSWrapperException(ex)
         else:
             try:
                 data_df.to_excel(path_to_data_file, index=False)
                 LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as ex:
-                LOGGER.debug('FAILED attempt to save data to excelfile: {}', path_to_data_file, ex)
+                LOGGER.error('FAILED attempt to save data to excelfile: {}', path_to_data_file, ex)
                 raise DSWrapperException(ex)
