@@ -7,7 +7,7 @@ from cheutils.decorator_singleton import singleton
 from cheutils.project_tree import get_data_dir, get_root_dir
 from cheutils.exceptions import PropertiesException
 from cheutils.loggers import LoguruWrapper
-from cheutils.common_utils import dump_properties
+from cheutils.common_utils import properties_to_frame
 
 # Define project constants.
 APP_CONFIG = 'app-config.properties'
@@ -216,7 +216,7 @@ class AppProperties(object):
             configured properties as a dataframe.
         """
         if prop_key is None:
-            return dump_properties(self.app_props__.properties)
+            return properties_to_frame(self.app_props__.properties)
         prop_value = self.app_props__.get(prop_key)
         if prop_value is None:
             return None
@@ -333,7 +333,7 @@ class AppProperties(object):
         :rtype:
         """
         assert props is not None, 'A valid properties dictionary is required'
-        return dump_properties(props)
+        return properties_to_frame(props)
 
     def load_custom_properties(self, prop_file_name: str)->Properties:
         """

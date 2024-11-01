@@ -202,7 +202,7 @@ def get_func_def(func):
     return inspect.getsource(func)
 
 
-def dump_properties(props: dict):
+def properties_to_frame(props: dict):
     """
     Dump the properties in the specified dict as a dataframe of key, value columns
     :param props:
