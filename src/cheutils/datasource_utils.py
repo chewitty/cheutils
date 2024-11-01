@@ -1084,7 +1084,7 @@ class DBTool(object):
         except Exception as err:
             tb = err.__traceback__
             LOGGER.error('Failed: executing bulk_insert to table: {} - {}', db_table, err)
-            raise DBToolException(tb).with_traceback(tb)
+            raise DBToolException(err).with_traceback(tb)
         finally:
             LOGGER.debug('Completed attempt of execute bulk_insert to table: {}', db_table)
 
