@@ -74,7 +74,7 @@ you can use to conduct a finer hyperparameter space search using other algorithm
 ```
 promising_grid = cheutils.promising_params_grid(pipeline, X_train, y_train, grid_resolution=3, prefix='model_prefix')
 ```
-You can run hyperparameter optimization or tuning as follows (assuming you enabled cross-validation in your configuration or app-conf.properties - e.g., with an entry such as `model.cross_val.num_folds=3`), if using hyperopt; and if you are running Mlflow experiments and logging, you could also pass an optional mlflow_log=True in the optimization call:
+You can run hyperparameter optimization or tuning as follows (assuming you enabled cross-validation in your configuration or app-conf.properties - e.g., with an entry such as `model.cross_val.num_folds=3`), if using hyperopt; and if you are running Mlflow experiments and logging, you could also pass an optional mlflow_exp={'log': True, 'uri': 'http://<mlflow_tracking_server>:<port>', } in the optimization call:
 ```
 best_estimator, best_score, best_params, cv_results = cheutils.params_optimization(pipeline, X_train, y_train, promising_params_grid=promising_grid, with_narrower_grid=True, fine_search='hyperoptcv', prefix='model_prefix')
 ```

@@ -193,11 +193,11 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
             mlflow.set_tracking_uri(uri=mlflow_uri)
             # check the version endpoint of mlflow server is running
             response = requests.get(mlflow_uri + '/version')
-            LOGGER.info('Remote tracking server version: ', mlflow.__version__)
-            LOGGER.info('Client-side version of MLflow: ', response.text)
+            LOGGER.info('Remote tracking server version: {}', mlflow.__version__)
+            LOGGER.info('Client-side version of MLflow: {}', response.text)
             assert response.status_code == 200, 'The remote MLflow tracking server must be running ...'
-            assert response.text == mlflow.__version__, 'The client-side version of MLflow is not up-to-date with a remote tracking server'
-
+            if not (response.text == mlflow.__version__):
+                LOGGER.warning('The client-side version of MLflow is not aligned with the remote tracking server')
     if random_state is None:
         random_state = RANDOM_SEED
     name = None
