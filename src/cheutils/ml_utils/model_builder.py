@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+import requests
+import mlflow
 from functools import partial
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.pipeline import Pipeline
@@ -153,7 +155,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
 @track_duration(name='params_optimization')
 def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
                 fine_search: str = 'hyperoptcv', scaling_factor: float = 0.20, grid_resolution: int=None, prefix: str = None,
-                random_state: int=None, mlflow_log: bool=False, **kwargs):
+                random_state: int=None, mlflow_exp: dict= None, **kwargs):
     """
     Perform a fine hyperparameter optimization or tuning consisting of a fine search using bayesian optimization
     for a more detailed search within the narrower hyperparameter space to fine the best possible
@@ -172,13 +174,30 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
     :param random_state: random seed for reproducibility
-    :param mlflow_log: if mlflow logging should be enabled - only valid for "hyperoptcv"
+    :param mlflow_exp: dict such as {'log': False, 'uri': None} indicating if this is part of a Mlflow experiment in which logging should be enabled - BUT only valid for "hyperoptcv"
     :param kwargs:
     :type kwargs:
     :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_)
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
+
+    if mlflow_exp is not None:
+        if mlflow_exp.get('log') is True:
+            LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
+            LOGGER.warning('Make sure that you have set the MLFLOW_TRACKING_URI environment variable')
+            LOGGER.warning('Alternatively, make sure that you have called  appropriately')
+            mlflow_uri = mlflow_exp.get('uri')
+            if mlflow_uri is None:
+                mlflow_uri = 'http://localhost:8080'
+            mlflow.set_tracking_uri(uri=mlflow_uri)
+            # check the version endpoint of mlflow server is running
+            response = requests.get(mlflow_uri + '/version')
+            LOGGER.info('Remote tracking server version: ', mlflow.__version__)
+            LOGGER.info('Client-side version of MLflow: ', response.text)
+            assert response.status_code == 200, 'The remote MLflow tracking server must be running ...'
+            assert response.text == mlflow.__version__, 'The client-side version of MLflow is not up-to-date with a remote tracking server'
+
     if random_state is None:
         random_state = RANDOM_SEED
     name = None
@@ -219,7 +238,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                                      fine_search=fine_search,
                                                                                      random_state=random_state),
                                      model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
-                                     max_evals=N_TRIALS, n_jobs=N_JOBS, mlflow_log=mlflow_log,
+                                     max_evals=N_TRIALS, n_jobs=N_JOBS, mlflow_exp=mlflow_exp,
                                      trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimize' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(narrow_param_grid,

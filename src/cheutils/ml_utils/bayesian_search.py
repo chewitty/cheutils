@@ -8,6 +8,7 @@ from sklearn.base import BaseEstimator, clone
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import cross_val_score
 from hpsklearn import HyperoptEstimator
+
 from cheutils.common_base import CheutilsBase
 from cheutils.ml_utils.model_options import get_hyperopt_estimator, get_estimator
 from cheutils.loggers import LoguruWrapper
@@ -64,7 +65,7 @@ class HyperoptSearch(CheutilsBase):
 class HyperoptSearchCV(CheutilsBase, BaseEstimator):
     def __init__(self, estimator, model_option:str=None, max_evals: int=100, algo=None,
                  cv=None, n_jobs: int=-1, params_space: dict= None, trial_timeout: int=60,
-                 random_state: int=100, mlflow_log: bool=False, **kwargs):
+                 random_state: int=100, mlflow_exp: dict=None, **kwargs):
         super().__init__()
         self.model_option = model_option
         self.max_evals = max_evals
@@ -80,41 +81,44 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         self.scoring_ = kwargs.get('scoring', 'neg_mean_squared_error')
         self.params_space = params_space if params_space is not None else {}
         self.algo = algo
-        self.mlflow_log = mlflow_log
+        self.mlflow_exp = mlflow_exp
         self.trial_run = 0
         self.X = None
         self.y = None
+        self.signature = None
 
     def fit(self, X, y=None, **kwargs):
         LOGGER.debug('HyperoptSearchCV: Fitting dataset, shape {}, {}', X.shape, y.shape if y is not None else None)
         self.X = X
         self.y = y
+        input_example = self.X.head()
+        self.signature = infer_signature(input_example, self.y.head())
         # Perform the optimization
-        def optimize_and_fit(trials: Trials=None):
+        def optimize_and_fit():
+            trials = Trials()
             best_params = fmin(fn=self.__objective, space=self.params_space, algo=self.algo,
                                max_evals=self.max_evals, timeout=self.trial_timeout, trials=trials,
                                rstate=np.random.default_rng(self.random_state))
+            best_run = sorted(trials.results, key=lambda x: x['loss'])[0]
+            LOGGER.debug('Minimum loss = {}', best_run['loss'])
             self.best_params_ = space_eval(self.params_space, best_params)
             self.best_estimator_ = clone(self.estimator).set_params(**self.best_params_)
             self.best_estimator_.fit(X, y)
+            self.best_score_ = best_run['loss']
+            LOGGER.debug('Best score = {}', self.best_score_)
             LOGGER.debug('HyperoptSearchCV: Best hyperparameters  = \n{}', self.best_params_)
-        if self.mlflow_log:
-            trials = Trials()
+        if self.mlflow_exp is not None and self.mlflow_exp.get('log'):
             mlflow.config.enable_async_logging(enable=True)
-            with mlflow.start_run(nested=True, log_system_metrics=True, description='Hyperopt optimization') as active_run:
+            with mlflow.start_run(log_system_metrics=True, description='Hyperopt optimization') as active_run:
+                optimize_and_fit()
+                mlflow.set_tag('Best model info', 'Best model by evaluation metric')
                 model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
                 LOGGER.debug('Mlflow model URI = {}', model_uri)
-                optimize_and_fit(trials=trials)
-                mlflow.set_tag('Best model info', 'Best model by evaluation metric')
-                input_example = self.X.head()
-                signature = infer_signature(input_example, self.y.head())
-                mlflow.sklearn.log_model(sk_model=self.best_estimator_, artifact_path='best_model',
-                                         input_example=input_example, signature=signature,
-                                         registered_model_name='best_model')
-                best_run = sorted(trials.results, key=lambda x: x['loss'])[0]
                 mlflow.log_params(self.best_params_)
-                mlflow.log_metric('min_eval_mse', best_run['loss'])
-                LOGGER.debug('Minimum loss = {}', best_run['loss'])
+                mlflow.log_metric('eval_mse', self.best_score_)
+                mlflow.sklearn.log_model(sk_model=self.best_estimator_, artifact_path='best_model',
+                                         input_example=input_example, signature=self.signature,
+                                         registered_model_name='best_model')
         else:
             optimize_and_fit()
         return self
@@ -133,7 +137,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         LOGGER.debug('\nRunning trial ID = {}', self.trial_run)
         underlying_model = clone(self.estimator)
         underlying_model.set_params(**params)
-        def evaluate_obj(cur_tag: str=None):
+        def evaluate_obj():
             min_score = self.best_score_
             if self.cv is not None:
                 cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
@@ -143,13 +147,8 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                 if min_score < self.best_score_:
                     self.best_score_ = min_score
                     self.cv_results_ = cv_score
-                if self.mlflow_log:
-                    underlying_model.fit(self.X, self.y)
-                    input_example = self.X.head()
-                    signature = infer_signature(input_example, self.y.head())
-                    mlflow.sklearn.log_model(sk_model=underlying_model, artifact_path=cur_tag,
-                                             input_example=input_example, signature=signature,
-                                             registered_model_name=cur_tag)
+                # refit the model for mlflow registering and logging
+                underlying_model.fit(self.X, self.y)
             else:
                 #no cross-validation
                 underlying_model.fit(self.X, self.y)
@@ -159,21 +158,22 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                 if min_score < self.best_score_:
                     self.best_score_ = min_score
             return min_score
-        if self.mlflow_log:
-            cur_tag = self.model_option + '_' + str(self.trial_run)
-            min_score = evaluate_obj(cur_tag=cur_tag)
-            mlflow.set_tag('Trial model', cur_tag)
-            mlflow.log_params(params)
-            mlflow.log_metric('eval_mse', min_score)
+        if self.mlflow_exp is not None and self.mlflow_exp.get('log'):
+            with mlflow.start_run(nested=True) as active_run:
+                model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
+                LOGGER.debug('Mlflow model URI = {}', model_uri)
+                input_example = self.X.head()
+                min_score = evaluate_obj()
+                mlflow.set_tag('Trial model', 'Trial model ' + str(self.trial_run))
+                mlflow.log_params(params)
+                mlflow.log_metric('eval_mse', min_score)
+                mlflow.sklearn.log_model(sk_model=underlying_model, artifact_path='best_model',
+                                         input_example=input_example, signature=self.signature,
+                                         registered_model_name='trial_model_' + str(self.trial_run))
         else:
             min_score = evaluate_obj()
         self.trial_run = self.trial_run + 1
         return {'loss': min_score, 'status': STATUS_OK, 'model': underlying_model}
-
-    def __get_model_params(self, params):
-        model_params = params.copy()
-        model_params['model_option'] = self.model_option
-        return model_params
 
 
 
