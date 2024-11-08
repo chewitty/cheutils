@@ -1,0 +1,5 @@
+[gui_scripts]
+check-exception = check:check_exception
+check-hyperoptspace = check:sample_hyperopt_space
+check-logger = check:check_logger
+check-models = check:check_models

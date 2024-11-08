@@ -1,16 +1,48 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 2.5.4
+Version: 2.5.5
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
+Maintainer-email: Ferdinand Che <ferdinand.che@gmail.com>
 Project-URL: Homepage, https://github.com/chewitty/cheutils
 Project-URL: Issues, https://github.com/chewitty/cheutils/issues
+Project-URL: Repository, https://github.com/chewitty/cheutils.git
+Keywords: machine learning utilities,machine learning pipeline utilities,quick start machine learning,python project configuration,project configuration,python project properties files
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: numpy>=1.10
+Requires-Dist: pandas
+Requires-Dist: codetiming
+Requires-Dist: tdqm
+Requires-Dist: pytz
+Requires-Dist: regex
+Requires-Dist: typing
+Requires-Dist: pydantic
+Requires-Dist: inspect-it
+Requires-Dist: jproperties
+Requires-Dist: matplotlib
+Requires-Dist: seaborn
+Requires-Dist: scikit-learn
+Requires-Dist: loguru
+Requires-Dist: hyperopt
+Requires-Dist: scikit-optimize
+Requires-Dist: fast_ml
+Requires-Dist: mlflow
+Provides-Extra: datasource
+Requires-Dist: dask[dataframe]; extra == "datasource"
+Requires-Dist: psycopg2; extra == "datasource"
+Requires-Dist: pyodbc; extra == "datasource"
+Requires-Dist: pymysql; extra == "datasource"
+Requires-Dist: mysqlclient; extra == "datasource"
+Requires-Dist: pymssql; extra == "datasource"
+Requires-Dist: mysql.connector; extra == "datasource"
+Requires-Dist: sqlalchemy; extra == "datasource"
+Provides-Extra: mlflow
+Requires-Dist: mlflow; extra == "mlflow"
 
 # cheutils
 
@@ -60,7 +92,7 @@ You can set the logger prefix as follows:
 ```
 LOGGER.set_prefix(prefix='my_project')
 ```
-The `model_options` currently supports the following estimators: Lasso, LinearRegression, Ridge, GradientBoostingRegressor, XGBRegressor, LGBMRegressor, DecisionTreeRegressor, RandomForestRegressor
+The `model_options` currently supports any configured estimator (see, the xgb_boost example below for how to configure any estimator).
 You can configure any of the models for your project with an entry in the app-config.properties as follows:
 ```
 model.active.model_option=xgb_boost # with default parameters

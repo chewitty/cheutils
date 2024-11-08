@@ -46,7 +46,7 @@ You can set the logger prefix as follows:
 ```
 LOGGER.set_prefix(prefix='my_project')
 ```
-The `model_options` currently supports the following estimators: Lasso, LinearRegression, Ridge, GradientBoostingRegressor, XGBRegressor, LGBMRegressor, DecisionTreeRegressor, RandomForestRegressor
+The `model_options` currently supports any configured estimator (see, the xgb_boost example below for how to configure any estimator).
 You can configure any of the models for your project with an entry in the app-config.properties as follows:
 ```
 model.active.model_option=xgb_boost # with default parameters

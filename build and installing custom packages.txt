@@ -7,6 +7,7 @@ py -m build
 
 # to install locally, from the module root folder
 pip install -e .
+pip install --editable .
 
 # to install on pytest
 twine upload --repository testpypi dist/*

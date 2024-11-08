@@ -18,6 +18,8 @@ src/cheutils/setup.py
 src/cheutils.egg-info/PKG-INFO
 src/cheutils.egg-info/SOURCES.txt
 src/cheutils.egg-info/dependency_links.txt
+src/cheutils.egg-info/entry_points.txt
+src/cheutils.egg-info/requires.txt
 src/cheutils.egg-info/top_level.txt
 src/cheutils/ml_utils/__init__.py
 src/cheutils/ml_utils/bayesian_search.py

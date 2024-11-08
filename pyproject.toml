@@ -4,19 +4,65 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cheutils"
-version = "2.5.4"
+version = "2.5.5"
 authors = [
+  { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
+]
+maintainers = [
   { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
 ]
 description = "A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project."
 readme = "README.md"
+dependencies = [
+    "numpy>=1.10",
+    "pandas",
+    "codetiming",
+    "tdqm",
+    "pytz",
+    "regex",
+    "typing",
+    "pydantic",
+    "inspect-it",
+    "jproperties",
+    "matplotlib",
+    "seaborn",
+    "scikit-learn",
+    "loguru",
+    "hyperopt",
+    "scikit-optimize",
+    "fast_ml",
+    "mlflow"
+]
 requires-python = ">=3.9"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
+keywords = ["machine learning utilities", "machine learning pipeline utilities", "quick start machine learning", "python project configuration", "project configuration", "python project properties files"]
+
+[project.gui-scripts]
+check-logger = "check:check_logger"
+check-models = "check:check_models"
+check-exception = "check:check_exception"
+check-hyperoptspace = "check:sample_hyperopt_space"
+
+[project.optional-dependencies]
+datasource = [
+    "dask[dataframe]",
+    "psycopg2",
+    "pyodbc",
+    "pymysql",
+    "mysqlclient",
+    "pymssql",
+    "mysql.connector",
+    "sqlalchemy"
+]
+mlflow = [
+    "mlflow"
+]
 
 [project.urls]
 Homepage = "https://github.com/chewitty/cheutils"
 Issues = "https://github.com/chewitty/cheutils/issues"
+Repository = "https://github.com/chewitty/cheutils.git"
