@@ -25,3 +25,10 @@ docker compose up -d
 # undeploy container using docker compose
 docker compose down
 
+# running mlflow project
+mlflow server --host localhost --port 8080
+
+# serving mlflow models
+mlflow models serve -m models:/best_model/1 --port 5002 --env-manager local
+
+

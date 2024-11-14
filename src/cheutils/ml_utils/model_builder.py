@@ -237,7 +237,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                                      params_bounds=params_bounds,
                                                                                      fine_search=fine_search,
                                                                                      random_state=random_state),
-                                     model_option=MODEL_OPTION, cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                     cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                      max_evals=N_TRIALS, n_jobs=N_JOBS, mlflow_exp=mlflow_exp,
                                      trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimize' == fine_search:
@@ -304,7 +304,7 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
                                                                                           params_bounds=params_bounds,
                                                                                           fine_search=fine_search,
                                                                                           random_state=random_state),
-                                          model_option=MODEL_OPTION, cv=with_cv, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                          cv=with_cv, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                           max_evals=10, n_jobs=N_JOBS,
                                           trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
             elif 'skoptimize' == fine_search:
@@ -407,7 +407,7 @@ def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int
         #LOGGER.debug('Scikit-optimize parameter space = \n{}', param_grid)
     elif ('hyperoptsk' == fine_search) | ('hyperoptcv' == fine_search):
         # Define the hyperparameter space
-        fudge_factor = 0.20  # in cases where the hyperparameter is a single value instead of a list of at least 2
+        fudge_factor = 0.40  # in cases where the hyperparameter is a single value instead of a list of at least 2
         for key, value in default_grid.items():
             bounds = params_bounds.get(key.split('__')[-1])
             if bounds is not None:

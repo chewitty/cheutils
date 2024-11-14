@@ -63,11 +63,10 @@ class HyperoptSearch(CheutilsBase):
         return self.base_estimator_.predict_proba(X)
 
 class HyperoptSearchCV(CheutilsBase, BaseEstimator):
-    def __init__(self, estimator, model_option:str=None, max_evals: int=100, algo=None,
+    def __init__(self, estimator, max_evals: int=100, algo=None,
                  cv=None, n_jobs: int=-1, params_space: dict= None, trial_timeout: int=60,
                  random_state: int=100, mlflow_exp: dict=None, **kwargs):
         super().__init__()
-        self.model_option = model_option
         self.max_evals = max_evals
         self.cv = cv
         self.n_jobs = n_jobs
@@ -135,6 +134,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
 
     def __objective(self, params):
         LOGGER.debug('\nRunning trial ID = {}', self.trial_run)
+        LOGGER.debug('Current hyperparams:\n{}', params)
         underlying_model = clone(self.estimator)
         underlying_model.set_params(**params)
         def evaluate_obj():
