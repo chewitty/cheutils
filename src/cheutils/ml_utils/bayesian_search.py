@@ -101,8 +101,8 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
             best_run = sorted(trials.results, key=lambda x: x['loss'])[0]
             LOGGER.debug('Minimum loss = {}', best_run['loss'])
             self.best_params_ = space_eval(self.params_space, best_params)
-            self.best_estimator_ = clone(self.estimator).set_params(**self.best_params_)
-            self.best_estimator_.fit(X, y)
+            """self.best_estimator_ = clone(self.estimator).set_params(**self.best_params_)
+            self.best_estimator_.fit(X, y)"""
             self.best_score_ = best_run['loss']
             LOGGER.debug('Best score = {}', self.best_score_)
             LOGGER.debug('HyperoptSearchCV: Best hyperparameters  = \n{}', self.best_params_)
@@ -144,11 +144,12 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                                            cv=self.cv, n_jobs=self.n_jobs)
                 min_score = abs(cv_score.mean())
                 LOGGER.debug('Current cv loss = {}', min_score)
+                # refit the model for mlflow registering and logging
+                underlying_model.fit(self.X, self.y)
                 if min_score < self.best_score_:
                     self.best_score_ = min_score
                     self.cv_results_ = cv_score
-                # refit the model for mlflow registering and logging
-                underlying_model.fit(self.X, self.y)
+                    self.best_estimator_ = underlying_model
             else:
                 #no cross-validation
                 underlying_model.fit(self.X, self.y)
@@ -157,6 +158,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                 LOGGER.debug('Current loss = {}', min_score)
                 if min_score < self.best_score_:
                     self.best_score_ = min_score
+                    self.best_estimator_ = underlying_model
             return min_score
         if self.mlflow_exp is not None and self.mlflow_exp.get('log'):
             with mlflow.start_run(nested=True) as active_run:

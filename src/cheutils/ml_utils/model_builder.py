@@ -154,8 +154,8 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
 
 @track_duration(name='params_optimization')
 def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
-                fine_search: str = 'hyperoptcv', scaling_factor: float = 0.20, grid_resolution: int=None, prefix: str = None,
-                random_state: int=None, mlflow_exp: dict= None, **kwargs):
+                        fine_search: str = 'hyperoptcv', scaling_factor: float = 0.20, grid_resolution: int=None,
+                        prefix: str = None, cv: int=None, random_state: int=None, mlflow_exp: dict= None, **kwargs):
     """
     Perform a fine hyperparameter optimization or tuning consisting of a fine search using bayesian optimization
     for a more detailed search within the narrower hyperparameter space to fine the best possible
@@ -173,6 +173,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :type scaling_factor:
     :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
+    :param cv: cross-validation
     :param random_state: random seed for reproducibility
     :param mlflow_exp: dict such as {'log': False, 'uri': None} indicating if this is part of a Mlflow experiment in which logging should be enabled - BUT only valid for "hyperoptcv"
     :param kwargs:
@@ -237,7 +238,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                                      params_bounds=params_bounds,
                                                                                      fine_search=fine_search,
                                                                                      random_state=random_state),
-                                     cv=CV, scoring=SCORING, algo=HYPEROPT_ALGOS,
+                                     cv=cv, scoring=SCORING, algo=HYPEROPT_ALGOS,
                                      max_evals=N_TRIALS, n_jobs=N_JOBS, mlflow_exp=mlflow_exp,
                                      trial_timeout=TRIAL_TIMEOUT, random_state=random_state)
     elif 'skoptimize' == fine_search:
@@ -246,7 +247,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                                    params_bounds=params_bounds,
                                                                                    fine_search=fine_search,
                                                                                    random_state=random_state),
-                                  scoring=SCORING, cv=CV, n_iter=5, n_jobs=N_JOBS,
+                                  scoring=SCORING, cv=cv, n_iter=5, n_jobs=N_JOBS,
                                   random_state=random_state, verbose=10, )
     else:
         LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
