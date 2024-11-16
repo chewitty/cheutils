@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 2.5.8
+Version: 2.5.11
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Maintainer-email: Ferdinand Che <ferdinand.che@gmail.com>
@@ -140,5 +140,20 @@ ds_config = {'db_key': 'mysql_local', 'ds_namespace': 'test', 'db_table': 'some_
 data_df = ds.read_from_datasource(ds_config=ds_config, chunksize=5000)
 ```
 Note that, if you call `read_from_datasource()` with `data_file` set in the `ds_config` as either an Excel or CSV then it is equivalent to calling a read CSV or Excel.
+There are transformers for dropping clipping data based on catagorical aggregate statistics such as mean or median values.
+You can add a clipping transformer to your pipeline as follows:
+```
+num_cols = ['rental_rate', 'release_year', 'length', 'replacement_cost']
+filter_by = 'R_rated'
+clip_outliers_tf = ClipDataTransformer(rel_cols=num_cols, filterby=filter_by)
+standard_pipeline_steps.append(('clip_outlier_step', clip_outliers_tf))
+```
+You can also include feature selection by adding the following to the pipeline:
+```
+feat_sel_tf = FeatureSelectionTransformer(estimator=get_estimator(model_option='xgboost'), random_state=100)
+# add feature selection to pipeline
+standard_pipeline_steps.append(('feat_selection_step', feat_sel_tf))
+```
+
 
 

@@ -4,6 +4,10 @@ import re
 import pingouin as pg
 import datetime as dt
 import inspect
+from scipy.stats import iqr
+from cheutils.loggers import LoguruWrapper
+
+LOGGER = LoguruWrapper().get_logger()
 
 # Validation of all loaded data columns according to expectations
 def validate_data(df, expectations):
@@ -33,13 +37,14 @@ def calc_prop_missing(df):
     prop_sr.rename('prop', inplace=True)
     return prop_sr
 
-def find_numeric(row_str):
+def find_numeric(rel_str):
     """
     Return any numeric characters found - i.e., numbers from 0-9
-    :param row_str: string of interest
+    :param rel_str: string of interest
     :return: numeric digits or blank
     """
-    return re.findall('\d', row_str)
+    assert rel_str is not None, 'A valid string expected as input'
+    return re.findall('\d', rel_str)
 
 def cat_to_numeric(data_in, drop_first: bool = False):
     """
@@ -51,28 +56,6 @@ def cat_to_numeric(data_in, drop_first: bool = False):
     assert data_in is not None, 'A valid DataFrame/Series expected as input'
     result_out = pd.get_dummies(data_in, prefix='', prefix_sep='', dtype=np.int32, drop_first=drop_first)
     return result_out
-
-def quantilefy(df: pd.DataFrame, rel_col: str, q: list = None):
-    """
-    Return the calcuated quantiles specified by the list otherwise a list containing the lower, median,
-    and upper bounds for detecting outliers by default.
-    :param df: the DataFrame containing the relevant column
-    :param rel_col: the relevant column
-    :param q: a sequence of probabilities for the quantiles to compute
-    :return: list of quantile values
-    """
-    assert df is not None, 'A valid DataFrame expected as input'
-    assert rel_col is not None, 'A valid column name expected as input'
-    col_sr = df[rel_col]
-    assert col_sr.isna().sum() == 0, 'Column contains NaN values'
-    qr_vals = None
-    if q is not None:
-        qr_vals = np.quantile(col_sr, q=q)
-    # otherwise, continue
-    else:
-        req_props = [0.25, 0.50, 0.75]
-        qr_vals = np.quantile(col_sr, req_props)
-    return qr_vals
 
 def apply_annova(df: pd.DataFrame, rel_col: list, between_col: str, alpha: float = 0.05):
     """
@@ -213,3 +196,120 @@ def properties_to_frame(props: dict):
     assert props is not None, 'A valid properties dictionary is required'
     props_df = pd.DataFrame(data={'key': props.keys(), 'value': props.values()}, columns=['key', 'value'])
     return props_df
+
+def get_quantiles(df: pd.DataFrame, rel_col: str, q_probs: list = None, ignore_nan: bool=True):
+    """
+    Return the calculated quantiles from the specified column in the dataframe.
+    :param df: the DataFrame containing the relevant column
+    :param rel_col: the relevant column to compute the quantiles from
+    :param q_probs: a sequence of probabilities for the quantiles to compute - e.g., [0.25, 0.5, 0.75]; if not specified a list containing the lower, median,
+    and upper bounds for detecting outliers is returned by default.
+    :param ignore_nan: whether to ignore null values when computing the quantiles - if True, null values are ignored; if False, an exception is raised if null values are found.
+    :return: list of quantile values for the relevant column
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert rel_col is not None, 'A valid column name expected as input'
+    col_sr = df[rel_col].copy(deep=True)
+    nulls_vals = col_sr.isna().sum()
+    if not ignore_nan and nulls_vals > 0:
+        raise ValueError(f'Column {rel_col} contains NaN values')
+    col_sr.dropna(inplace=True)
+    qr_vals = None
+    if q_probs is not None:
+        qr_vals = np.quantile(col_sr, q=q_probs)
+    # otherwise, continue
+    else:
+        req_props = [0.25, 0.50, 0.75]
+        qr_vals = np.quantile(col_sr, req_props)
+    if len(qr_vals) == 1:
+        return (qr_vals, )
+    return qr_vals
+
+def get_aggs(df: pd.DataFrame, rel_cols: list = None, by: list = None, aggfunc: str = 'mean'):
+    """
+    Calculates aggregates for the relevant columns.
+    :param df: the relevant dataframe
+    :param rel_cols: a list of relevant column labels to apply aggregate func to
+    :param by: list of columns to group data by before applying aggregate func
+    :param aggfunc: the aggregate function to apply to the relevant columns; defaults to 'mean'
+    :return: the computed aggregates
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert (rel_cols is not None) or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
+    assert (by is not None) or not (not by), 'A valid list or non-empty list of column labels to group by expected as input'
+    group_aggs = df.groupby(by)[rel_cols].agg(aggfunc)
+    return group_aggs
+
+def get_correlated(df: pd.DataFrame, num_cols: list = None, corr_thres: float = 0.70):
+    """
+    Return list of column labels with highly correlated features, based on the specified correlation threshold.
+    :param df: the dataframe of interest
+    :param num_cols: list of numeric columns or features in the dataframe
+    :param corr_thres: pairs of features or columns with correlations greater than this threshold should be flagged as highly correlated; defaults to 0.70.
+    :return: list of columns or features that are highly correlated
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert (num_cols is not None) or not (not num_cols), 'A valid list or non-empty list of column labels expected as input'
+    # Set of all names of correlated columns
+    col_corr = set()
+    corr_mat = df[num_cols].corr()
+    for i in range(len(corr_mat.columns)):
+        for j in range(i):
+            if abs(corr_mat.iloc[i, j]) > corr_thres:
+                colname = corr_mat.columns[i]
+                col_corr.add(colname)
+    return list(col_corr)
+
+def apply_impute(df: pd.DataFrame, rel_cols: list = None, by: list = None, aggfunc: str = 'mean'):
+    """
+    Apply imputation using the specified aggregation method on the relevant columns.
+    :param df: the relevant dataframe
+    :param rel_cols: the relevant column labels to apply aggregate func to
+    :param by: list of columns to group data by before applying aggregate func
+    :param aggfunc: the aggregate function to apply to the relevant columns; defaults to 'mean'
+    :return: the transformed or imputed dataframe
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert (rel_cols is not None) or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
+    assert (by is not None) or not (not by), 'A valid list or non-empty list of column labels to group by expected as input'
+    # Impute median for calories
+    imputed_df = df.copy(deep=True)
+    # now execute the imputation accordingly now the full dataframe is in place
+    for col in rel_cols:
+        imputed_df.loc[:, col] = imputed_df[col].fillna(imputed_df.groupby(by, observed=True)[col].transform(aggfunc))
+    return imputed_df
+
+def apply_clipping(df: pd.DataFrame, rel_cols: list, filterby: str, pos_thres: bool=False, ):
+    """
+    Clips the relevant columns based on outlier rules - that is, an outlier is less than 1st_quartile - 1.5*iqr and more than 3rd_quartile + 1.5*iqr; additionally, enforce that the values must be positive as desired.
+    :param df: the relevant dataframe
+    :param rel_cols: the list of columns to clip
+    :param filterby: column to filter the data by
+    :param pos_thres: enforce positive clipping boundaries or thresholds values
+    :return: a clipped dataframe
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert (rel_cols is not None) or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
+    LOGGER.debug('Clipping the dataframe columns = {} filtered by {}', rel_cols, filterby)
+    def cat_thresholds(rel_col: str, rel_cat: str, l_quartile: float = 0.25, u_quartile: float = 0.75):
+        is_not_null = df[rel_col].notnull()
+        cat_df = df[is_not_null]
+        cat_df = cat_df[cat_df[filterby] == rel_cat]
+        col_iqr = iqr(cat_df[rel_col])
+        qvals = get_quantiles(cat_df, rel_col, [l_quartile, u_quartile])
+        l_thres = qvals[0] - 1.5 * col_iqr
+        u_thres = qvals[1] + 1.5 * col_iqr
+        l_thres = max(0, l_thres) if pos_thres else l_thres
+        u_thres = max(0, u_thres) if pos_thres else u_thres
+        return l_thres, u_thres
+    # Clip the  affected columns based on which category they are associated with
+    clipped_df = df.copy(deep=True)
+    filter_vals = df[filterby].unique()
+    for col in rel_cols:
+        clipped_subset = []
+        for filter_val in filter_vals:
+            l_thres, u_thres = cat_thresholds(col, filter_val)
+            clipped_subset.append(clipped_df[clipped_df[filterby] == filter_val][col].clip(lower=l_thres, upper=u_thres))
+        clipped_sr = pd.concat(clipped_subset, ignore_index=True)
+        clipped_df.loc[:, col] = clipped_sr.values
+    return clipped_df
