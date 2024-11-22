@@ -6,4 +6,4 @@ from cheutils.ml_utils.model_builder import (fit, exclude_nulls, get_narrow_para
 from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
 from cheutils.ml_utils.visualize import (plot_hyperparameter, plot_reg_residuals, plot_pie, plot_reg_predictions,
                         plot_reg_residuals_dist, plot_reg_predictions_dist)
-from cheutils.ml_utils.pipeline_details import show_pipeline
+from cheutils.ml_utils.pipeline_details import show_pipeline, get_column_transformers

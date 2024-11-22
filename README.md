@@ -108,6 +108,15 @@ feat_sel_tf = FeatureSelectionTransformer(estimator=get_estimator(model_option='
 # add feature selection to pipeline
 standard_pipeline_steps.append(('feat_selection_step', feat_sel_tf))
 ```
+You can also use a configured column transformer called `SelectiveColumnTransformer`. For example, if you already have configured a column transformer in the `app-config.properties` such as:
+```
+model.selectivescaler.transformers={{'name': 'scaler_tf', 'transformer_name': 'StandardScaler', 'transformer_package': 'sklearn.preprocessing', 'transformer_params': {}, 'columns': ['col1_label', 'col2_label']}, }
+```
+Then you can add it to the pipeline as below. The `SelectiveColumnTransformer` uses the configured property to determine the transformer(s) to add to the pipeline.
+```
+scaler_tf = SelectiveColumnTransformer()
+standard_pipeline_steps.append(('scale_feats_step', scaler_tf))
+```
 
 
 

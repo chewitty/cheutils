@@ -5,9 +5,25 @@ import pingouin as pg
 import datetime as dt
 import inspect
 from scipy.stats import iqr
+from fast_ml import eda
+from fast_ml.utilities import display_all
 from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()
+
+def summarize(df: pd.DataFrame, display: bool = True):
+    """
+    Generate useful summary - variables, datatype, number of unique values, sample of unique values, missing count, missing percent
+    :param df: specified dataframe
+    :param display: whether to display the dataframe
+    :return: summary dataframe or None
+    :rtype:
+    """
+    summary_df = eda.df_info(df)
+    if display:
+        display_all(summary_df)
+    else:
+        return summary_df
 
 # Validation of all loaded data columns according to expectations
 def validate_data(df, expectations):
