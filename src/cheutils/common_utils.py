@@ -329,3 +329,26 @@ def apply_clipping(df: pd.DataFrame, rel_cols: list, filterby: str, pos_thres: b
         clipped_sr = pd.concat(clipped_subset, ignore_index=True)
         clipped_df.loc[:, col] = clipped_sr.values
     return clipped_df
+
+
+def parse_special_features(special_feat_str, feature_mappings: dict, sep: str =',', ):
+    """
+    Returns a dictionary with flags indicating the special features included in the movie
+    :param special_feat_str: any relevant string that may contain some special features to be matched - e.g., "Trailers, commentaries, feat1, feat2,"
+    :type special_feat_str: str
+    :param feature_mappings: complete dictionary of features or tokens to be matched in feature string and their corresponding desired labels - e.g., {"feat1": "label1", "feat2": "label2", "Trailers": "trailers"}
+    :type feature_mappings: dict
+    :param sep: separator character to be used in the feature string, defaults to ','
+    :return: list of flags indicating the special features, identified by the feature mapping keys, included in the input string correctly matched
+    :rtype: list
+    """
+    assert special_feat_str is not None, "Special features expected"
+    assert feature_mappings is not None, 'Special feature mappings expected'
+    feat_split = special_feat_str.split(sep)
+    feat_keys = list(feature_mappings.keys())
+    feat_mappings = list(feature_mappings.values())
+    feat_pattern = {mapping: 0 for mapping in feat_mappings}
+    for feat_key in feat_keys:
+        if feat_key in feat_split:
+            feat_pattern[feature_mappings.get(feat_key)] = 1
+    return list(feat_pattern.values())
