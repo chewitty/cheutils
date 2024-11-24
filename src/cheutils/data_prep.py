@@ -50,6 +50,7 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
         new_X.reset_index(drop=True, inplace=True)
         # otherwise also generate the following features
         for rel_col, prefix in zip(self.rel_cols, self.prefixes):
+            new_X[rel_col] = pd.to_datetime(new_X[rel_col], errors='coerce', utc=True) # to be absolutely sure it is datetime
             new_X.loc[:, prefix + 'dow'] = new_X[rel_col].dt.dayofweek
             null_dayofweek = new_X[prefix + 'dow'].isna()
             nulldofwk = new_X[null_dayofweek]
@@ -385,10 +386,155 @@ class SelectiveColumnTransformer(ColumnTransformer):
         new_X = pd.DataFrame(transformed_X, columns=self.feature_names)
         return new_X
 
+"""
+The imblearn.FunctionSampler and imblearn.pipeline.Pipeline need to be used in order to correctly add this to a data pipeline
+"""
+def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols: list=None,
+                masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
+                calc_features: dict=None, gen_target: dict=None, correlated_cols: list=None,
+                pot_leak_cols: list=None, drop_missing: bool=False, clip_data: dict=None,
+                include_target: bool=False,):
+    """
+    Pre-process dataset by handling date conversions, type casting of columns, clipping data,
+    generating special features, calculating new features, masking columns, dropping correlated
+    and potential leakage columns, and generating target variables if needed.
+    :param X: Input dataframe with data to be processed
+    :param y: Optional target Series; default is None
+    :param date_cols: any date columns to be concerted to datetime
+    :type date_cols: list
+    :param int_cols: Columns to be converted to integer type
+    :type int_cols: list
+    :param float_cols: Columns to be converted to float type
+    :type float_cols: list
+    :param masked_cols: dictionary of columns and function generates a mask or a mask (bool Series) - e.g., {'col_label1': mask_func)
+    :type masked_cols: dict
+    :param special_features: dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }
+    :type special_features: dict
+    :param drop_feats_cols: drop special_features cols if True
+    :type drop_feats_cols: bool
+    :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': col_gen_func1, 'col_label2': col_gen_func2}
+    :type calc_features: dict
+    :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
+    :type gen_target: dict
+    :param correlated_cols: columns that are moderately to highly correlated and should be dropped
+    :type correlated_cols: list
+    :param pot_leak_cols: columns that could potentially introduce data leakage and should be dropped
+    :type pot_leak_cols: list
+    :param drop_missing: drop rows with missing data if True; default is False
+    :type drop_missing: bool
+    :param clip_data: clip the data based on categories defined by the filterby key and whether to enforec positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
+    :type clip_data: dict
+    :param include_target: include the target Series in the returned first item of the tuple if True; default is False
+    :return: Processed dataframe and updated target Series
+    :rtype: tuple(pd.DataFrame, pd.Series or None)
+    """
+    LOGGER.debug('Preprocessing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+    new_X = X.copy(deep=True)
+    new_y = y.copy(deep=True) if (y is not None) else None
+    if drop_missing:
+        def drop_missing(df: pd.DataFrame, target_sr: pd.Series = None):
+            """
+            Drop rows with missing data
+            :param df: dataframe with the specified columns, which may not contain any target class labels
+            :param target_sr: optional target class labels corresponding to the dataframe
+            :return: revised dataframe and corresponding target series where present
+            """
+            assert df is not None, 'A valid DataFrame expected as input'
+            clean_df = df.copy(deep=True)
+            clean_target_sr = target_sr.copy(deep=True) if (target_sr is not None) else None
+            null_rows = clean_df.isna().any(axis=1)
+            clean_df = clean_df.dropna()
+            # do not reset index here
+            # clean_df.reset_index(drop=True, inplace=True)
+            LOGGER.debug('Preprocessing, rows with missing data = {}', len(df) - len(clean_df))
+            if target_sr is not None:
+                clean_target_sr = clean_target_sr[~null_rows]
+                # do not reset index here
+                # clean_target_sr.reset_index(drop=True)
+            return clean_df, clean_target_sr
+        new_X, new_y = drop_missing(X, target_sr=new_y)
+    if date_cols is not None:
+        for col in date_cols:
+            if col in new_X.columns:
+                new_X[col] = pd.to_datetime(new_X[col], errors='coerce', utc=True)
+    if int_cols is not None:
+        for col in int_cols:
+            if col in new_X.columns:
+                new_X[col] = new_X[col].astype(int)
+    if float_cols is not None:
+        for col in float_cols:
+            if col in new_X.columns:
+                new_X[col] = new_X[col].astype(float)
+    # process any data clipping
+    if clip_data:
+        rel_cols = clip_data.get('rel_cols')
+        filterby = clip_data.get('filterby')
+        pos_thres = clip_data.get('pos_thres')
+        new_X = apply_clipping(new_X, rel_cols=rel_cols, filterby=filterby, pos_thres=pos_thres)
+    # process any special features
+    def process_feature(col, feat_mappings, sep:str=','):
+        created_features = new_X[col].apply(lambda x: parse_special_features(x, feat_mappings, sep=sep))
+        new_feat_values = {mapping: [] for mapping in feat_mappings.values()}
+        for index, col in enumerate(feat_mappings.values()):
+            for row in range(created_features.shape[0]):
+                new_feat_values.get(col).append(created_features.iloc[row][index])
+            new_X.loc[:, col] = new_feat_values.get(col)
+    if special_features is not None:
+        rel_cols = special_features.keys()
+        for col in rel_cols:
+            # first apply any regex replacements to clean-up
+            regex_pat = special_features.get(col).get('regex_pat')
+            regex_repl = special_features.get(col).get('regex_repl')
+            if regex_pat is not None:
+                new_X[col] = new_X[col].str.replace(regex_pat, regex_repl, regex=True)
+            # then process features mappings
+            feat_mappings = special_features.get(col).get('feat_mappings')
+            sep = special_features.get(col).get('sep')
+            process_feature(col, feat_mappings, sep=sep if sep is not None else ',')
+        if drop_feats_cols:
+            to_drop = [col for col in rel_cols if col in new_X.columns]
+            new_X.drop(columns=to_drop, inplace=True)
+    # generate any calculated columns as needed
+    if calc_features is not None:
+        for col, col_gen_func in calc_features.items():
+            new_X[col] = new_X.apply(col_gen_func, axis=1)
+    # apply any masking logic
+    if masked_cols is not None:
+        for col, mask in masked_cols.items():
+            new_X[col] = np.where(new_X.apply(mask, axis=1), 1, 0)
+    # generate any target variables as needed
+    # do this safely so that if any missing features is encountered, as with real unseen data situation where
+    # future variable is not available at the time of testing, then ignore the target generation as it ought
+    # to be predicted
+    try:
+        if gen_target is not None:
+            tmp_X = new_X.copy(deep=True)
+            if new_y is not None:
+                tmp_X[new_y.name] = pd.to_datetime(new_y, errors='coerce', utc=True) if new_y.name in date_cols else new_y
+            target_col = gen_target.get('target_col')
+            target_gen_func = gen_target.get('target_gen_func')
+            new_y = tmp_X.apply(target_gen_func, axis=1)
+            new_y.name = target_col
+            if include_target:
+                new_X[target_col] = new_y.copy(deep=True)
+            del tmp_X
+    except Exception as warnEx:
+        LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
+        pass
+    if correlated_cols is not None or not (not correlated_cols):
+        to_drop = [col for col in correlated_cols if col in new_X.columns]
+        new_X.drop(columns=to_drop, inplace=True)
+    if pot_leak_cols is not None or not (not pot_leak_cols):
+        to_drop = [col for col in pot_leak_cols if col in new_X.columns]
+        new_X.drop(columns=to_drop, inplace=True)
+    LOGGER.debug('Preprocessed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+    return new_X, new_y
+
 class DataPrepTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
-                 calc_features: dict=None, gen_target: dict=None, pot_leak_cols: list=None, **kwargs):
+                 calc_features: dict=None, gen_target: dict=None, correlated_cols: list=None,
+                 pot_leak_cols: list=None, drop_missing: bool=False, clip_data: dict=None, **kwargs):
         """
         Preprocessing dataframe columns to ensure consistent data types and formatting, and optionally extracting any special features described by dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }.
         :param date_cols: any date columns to be concerted to datetime
@@ -404,7 +550,10 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :param drop_feats_cols: drop special_features cols if True
         :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': col_gen_func1, 'col_label2': col_gen_func2}
         :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
+        :param correlated_cols: columns that are moderately to highly correlated and should be dropped
         :param pot_leak_cols: columns that could potentially introduce data leakage and should be dropped
+        :param drop_missing: drop rows with missing data if True; default is False
+        :param clip_data: clip the data based on categories defined by the filterby key and whether to enforec positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
         :param kwargs:
         :type kwargs:
         """
@@ -412,11 +561,14 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         self.int_cols = int_cols
         self.float_cols = float_cols
         self.masked_cols = masked_cols
-        self.feature_mappings = special_features
+        self.special_features = special_features
         self.drop_feats_cols = drop_feats_cols
         self.gen_target = gen_target
         self.calc_features = calc_features
+        self.correlated_cols = correlated_cols
         self.pot_leak_cols = pot_leak_cols
+        self.drop_missing = drop_missing
+        self.clip_data = clip_data
 
     def fit(self, X, y=None):
         LOGGER.debug('DataPrepTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
@@ -424,59 +576,14 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         LOGGER.debug('DataPrepTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        if self.date_cols is not None:
-            for col in self.date_cols:
-                X[col] = pd.to_datetime(X[col])
-        if self.int_cols is not None:
-            for col in self.int_cols:
-                X[col] = X[col].astype(int)
-        if self.float_cols is not None:
-            for col in self.float_cols:
-                X[col] = X[col].astype(float)
-        new_X = X.copy(deep=True)
-        def process_feature(col, feat_mappings, sep:str=','):
-            created_features = new_X[col].apply(lambda x: parse_special_features(x, feat_mappings, sep=sep))
-            new_feat_values = {mapping: [] for mapping in feat_mappings.values()}
-            for index, col in enumerate(feat_mappings.values()):
-                for row in range(created_features.shape[0]):
-                    new_feat_values.get(col).append(created_features[row][index])
-                new_X.loc[:, col] = new_feat_values.get(col)
-        if self.feature_mappings is not None:
-            rel_cols = self.feature_mappings.keys()
-            for col in rel_cols:
-                # first apply any regex replacements to clean-up
-                regex_pat = self.feature_mappings.get(col).get('regex_pat')
-                regex_repl = self.feature_mappings.get(col).get('regex_repl')
-                if regex_pat is not None:
-                    new_X[col] = new_X[col].str.replace(regex_pat, regex_repl, regex=True)
-                # then process features mappings
-                feat_mappings = self.feature_mappings.get(col).get('feat_mappings')
-                sep = self.feature_mappings.get(col).get('sep')
-                process_feature(col, feat_mappings, sep=sep if sep is not None else ',')
-            if self.drop_feats_cols:
-                new_X.drop(columns=rel_cols, inplace=True)
-        # generate any calculated columns as needed
-        if self.calc_features is not None:
-            for col, col_gen_func in self.calc_features.items():
-                new_X[col] = new_X.apply(col_gen_func, axis=1)
-        # apply any masking logic
-        if self.masked_cols is not None:
-            for col, mask in self.masked_cols.items():
-                new_X[col] = np.where(new_X.apply(mask, axis=1), 1, 0)
-        # generate any target variables as needed
-        # do this safely so that if any missing features is encountered, as with real unseen data situation where
-        # future variable is not available at the time of testing, then ignore the target generation as it ought
-        # to be predicted
-        try:
-            if self.gen_target is not None:
-                target_col = self.gen_target.get('target_col')
-                target_gen_func = self.gen_target.get('target_gen_func')
-                new_X[target_col] = new_X.apply(target_gen_func, axis=1)
-        except:
-            pass
-        if self.pot_leak_cols is not None or not (not self.pot_leak_cols):
-            new_X.drop(columns=self.pot_leak_cols, inplace=True)
-        LOGGER.debug('DataPrepTransformer: Transforming dataset, out shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        # be sure to patch in any generated target column
+        new_X, new_y = pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols, float_cols=self.float_cols,
+                                   masked_cols=self.masked_cols, special_features=self.special_features,
+                                   drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
+                                   calc_features=self.calc_features, correlated_cols=self.correlated_cols,
+                                   pot_leak_cols=self.pot_leak_cols, drop_missing=self.drop_missing,
+                                   clip_data=self.clip_data, include_target=True)
+        LOGGER.debug('DataPrepTransformer: Transforming dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
 
     def get_params(self, deep=True):
@@ -485,9 +592,12 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             'int_cols': self.int_cols,
             'float_cols': self.float_cols,
             'masked_cols': self.masked_cols,
-            'feature_mappings': self.feature_mappings,
+            'special_features': self.special_features,
             'drop_feats_cols': self.drop_feats_cols,
             'gen_target': self.gen_target,
             'calc_features': self.calc_features,
+            'correlated_cols': self.correlated_cols,
             'pot_leak_cols': self.pot_leak_cols,
+            'drop_missing': self.drop_missing,
+            'clip_data': self.clip_data,
         }

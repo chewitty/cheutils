@@ -297,10 +297,10 @@ def apply_impute(df: pd.DataFrame, rel_cols: list = None, by: list = None, aggfu
 
 def apply_clipping(df: pd.DataFrame, rel_cols: list, filterby: str, pos_thres: bool=False, ):
     """
-    Clips the relevant columns based on outlier rules - that is, an outlier is less than 1st_quartile - 1.5*iqr and more than 3rd_quartile + 1.5*iqr; additionally, enforce that the values must be positive as desired.
+    Clips the relevant columns based on their category or group aggregate statistics and outlier rules - that is, an outlier is less than 1st_quartile - 1.5*iqr and more than 3rd_quartile + 1.5*iqr; additionally, enforce that the values must be positive as desired.
     :param df: the relevant dataframe
     :param rel_cols: the list of columns to clip
-    :param filterby: column to filter the data by
+    :param filterby: column to group by or filter the data by
     :param pos_thres: enforce positive clipping boundaries or thresholds values
     :return: a clipped dataframe
     """
