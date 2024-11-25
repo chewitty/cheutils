@@ -168,6 +168,19 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         LOGGER.debug('DropSelectedColsTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.target = y
+        new_X = self.__do_transform(X, y)
+        LOGGER.debug('DropSelectedColsTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        LOGGER.debug('DropSelectedColsTransformer: Columns dropped = {}', self.rel_cols)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('DropSelectedColsTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.target = y
+        new_X = self.__do_transform(X, y, **fit_params)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
         def drop_selected(df: pd.DataFrame, rel_cols: list):
             """
             Drop rows with missing data
