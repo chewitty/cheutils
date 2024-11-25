@@ -46,19 +46,32 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         LOGGER.debug('DateFeaturesTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y,)
+        LOGGER.debug('DateFeaturesTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('DateFeaturesTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.target = y
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('DateFeaturesTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
         new_X = X.copy(deep=True)
         new_X.reset_index(drop=True, inplace=True)
         # otherwise also generate the following features
         for rel_col, prefix in zip(self.rel_cols, self.prefixes):
-            new_X[rel_col] = pd.to_datetime(new_X[rel_col], errors='coerce', utc=True) # to be absolutely sure it is datetime
+            new_X[rel_col] = pd.to_datetime(new_X[rel_col], errors='coerce',
+                                            utc=True)  # to be absolutely sure it is datetime
             new_X.loc[:, prefix + 'dow'] = new_X[rel_col].dt.dayofweek
             null_dayofweek = new_X[prefix + 'dow'].isna()
             nulldofwk = new_X[null_dayofweek]
             new_X[prefix + 'dow'] = new_X[prefix + 'dow'].astype(int)
             new_X.loc[:, prefix + 'wk'] = new_X[rel_col].apply(lambda x: pd.Timestamp(x).week)
             new_X[prefix + 'wk'] = new_X[prefix + 'wk'].astype(int)
-            #new_X.loc[:, prefix + 'doy'] = new_X[rel_col].dt.dayofyear
-            #new_X[prefix + 'doy'] = new_X[prefix + 'doy'].astype(int)
+            # new_X.loc[:, prefix + 'doy'] = new_X[rel_col].dt.dayofyear
+            # new_X[prefix + 'doy'] = new_X[prefix + 'doy'].astype(int)
             new_X.loc[:, prefix + 'qtr'] = new_X[rel_col].dt.quarter
             new_X[prefix + 'qtr'] = new_X[prefix + 'qtr'].astype(int)
             new_X.loc[:, prefix + 'wkend'] = np.where(new_X[rel_col].dt.dayofweek.isin([5, 6]), 1, 0)
@@ -72,7 +85,6 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
                     if self.drop_rel_cols[index]:
                         to_drop_cols.append(to_drop_cols)
                 new_X.drop(columns=to_drop_cols, inplace=True)
-        LOGGER.debug('DateFeaturesTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def get_date_cols(self):
@@ -117,10 +129,23 @@ class SpecialFeaturesTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         LOGGER.debug('SpecialFeaturesTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y=y)
+        LOGGER.debug('SpecialFeaturesTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('SpecialFeaturesTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.target = y
+        new_X = self.__do_transform(X, y=y, **fit_params)
+        LOGGER.debug('SpecialFeaturesTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
         new_X = X.copy(deep=True)
         new_X.reset_index(drop=True, inplace=True)
         # otherwise also generate the following features
-        created_features = new_X[self.rel_col].apply(lambda x: parse_special_features(x, self.feature_mappings, sep=self.sep))
+        created_features = new_X[self.rel_col].apply(
+                lambda x: parse_special_features(x, self.feature_mappings, sep=self.sep))
         new_feat_values = {mapping: [] for mapping in self.feature_mappings.values()}
         for index, col in enumerate(self.feature_mappings.values()):
             for row in range(created_features.shape[0]):
@@ -129,7 +154,6 @@ class SpecialFeaturesTransformer(BaseEstimator, TransformerMixin):
         if self.rel_col is not None:
             if self.drop_col:
                 new_X.drop(columns=[self.rel_col], inplace=True)
-        LOGGER.debug('SpecialFeaturesTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def get_date_cols(self):
@@ -211,13 +235,28 @@ class FeatureSelectionTransformer(RFE):
         #LOGGER.debug('FeatureSelectionTransformer: Feature coefficients = {}', self.estimator.coef_)
         return super().fit(X, y, **fit_params)
 
-    def transform(self, X, y=None):
+    def transform(self, X, y=None, **fit_params):
         LOGGER.debug('FeatureSelectionTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        transformed_X = super().transform(X)
+        new_X = self.__do_transform(X, y=None)
+        LOGGER.debug('FeatureSelectionTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        LOGGER.debug('FeatureSelectionTransformer: Transformed features selected = {}', self.selected_cols)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('FeatureSelectionTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.target = y
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('FeatureSelectionTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        LOGGER.debug('FeatureSelectionTransformer: Fit-transformed features selected = {}', self.selected_cols)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if y is None:
+            transformed_X = super().transform(X)
+        else:
+            transformed_X = super().fit_transform(X, y, **fit_params)
         self.selected_cols = list(X.columns[self.get_support()])
         new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
-        LOGGER.debug('FeatureSelectionTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        LOGGER.debug('FeatureSelectionTransformer: Features selected = {}', self.selected_cols)
         return new_X
 
     def get_selected_features(self):
@@ -373,16 +412,23 @@ class SelectiveColumnTransformer(ColumnTransformer):
         super().fit(X, y, **fit_params)
         return self
 
-    def transform(self, X, y=None):
-        LOGGER.debug('SelectiveColumnTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        transformed_X = super().transform(X)
-        new_X = pd.DataFrame(transformed_X, columns=self.feature_names)
+    def transform(self, X, **fit_params):
+        LOGGER.debug('SelectiveColumnTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('SelectiveColumnTransformer: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
         self.feature_names = list(X.columns)
-        transformed_X = super().fit_transform(X, y, **fit_params)
+        if y is None:
+            transformed_X = super().transform(X, **fit_params)
+        else:
+            transformed_X = super().fit_transform(X, y, **fit_params)
         new_X = pd.DataFrame(transformed_X, columns=self.feature_names)
         return new_X
 
@@ -506,11 +552,40 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     # do this safely so that if any missing features is encountered, as with real unseen data situation where
     # future variable is not available at the time of testing, then ignore the target generation as it ought
     # to be predicted
+    new_X, new_y = generate_target(new_X, new_y, gen_target=gen_target, include_target=include_target, )
+    if correlated_cols is not None or not (not correlated_cols):
+        to_drop = [col for col in correlated_cols if col in new_X.columns]
+        new_X.drop(columns=to_drop, inplace=True)
+    if pot_leak_cols is not None or not (not pot_leak_cols):
+        to_drop = [col for col in pot_leak_cols if col in new_X.columns]
+        new_X.drop(columns=to_drop, inplace=True)
+    LOGGER.debug('Preprocessed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+    return new_X, new_y
+
+def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, include_target: bool=False, **kwargs):
+    """
+    Generate the target variable from available data in X, and y.
+    :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
+    :type X:
+    :param y: part or all of the raw target variable, may contribute to generating the actual target
+    :type y:
+    :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
+    :type gen_target:
+    :param include_target: include the target Series in the returned first item of the tuple if True; default is False
+    :type include_target:
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
+    assert X is not None, 'A valid DataFrame expected as input'
+    new_X = X.copy(deep=True)
+    new_y = y.copy(deep=True) if (y is not None) else None
     try:
         if gen_target is not None:
             tmp_X = new_X.copy(deep=True)
             if new_y is not None:
-                tmp_X[new_y.name] = pd.to_datetime(new_y, errors='coerce', utc=True) if new_y.name in date_cols else new_y
+                tmp_X[new_y.name] = new_y
             target_col = gen_target.get('target_col')
             target_gen_func = gen_target.get('target_gen_func')
             new_y = tmp_X.apply(target_gen_func, axis=1)
@@ -521,20 +596,13 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     except Exception as warnEx:
         LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
         pass
-    if correlated_cols is not None or not (not correlated_cols):
-        to_drop = [col for col in correlated_cols if col in new_X.columns]
-        new_X.drop(columns=to_drop, inplace=True)
-    if pot_leak_cols is not None or not (not pot_leak_cols):
-        to_drop = [col for col in pot_leak_cols if col in new_X.columns]
-        new_X.drop(columns=to_drop, inplace=True)
-    LOGGER.debug('Preprocessed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
     return new_X, new_y
 
 class DataPrepTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
                  calc_features: dict=None, gen_target: dict=None, correlated_cols: list=None,
-                 pot_leak_cols: list=None, drop_missing: bool=False, clip_data: dict=None, **kwargs):
+                 pot_leak_cols: list=None, drop_missing: bool=False, clip_data: dict=None, include_target: bool=False, **kwargs):
         """
         Preprocessing dataframe columns to ensure consistent data types and formatting, and optionally extracting any special features described by dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }.
         :param date_cols: any date columns to be concerted to datetime
@@ -554,6 +622,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :param pot_leak_cols: columns that could potentially introduce data leakage and should be dropped
         :param drop_missing: drop rows with missing data if True; default is False
         :param clip_data: clip the data based on categories defined by the filterby key and whether to enforec positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
+        :param include_target: include the target Series in the returned first item of the tuple if True (usually during exploratory analysis only); default is False (when as part of model pipeline)
         :param kwargs:
         :type kwargs:
         """
@@ -569,22 +638,39 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         self.pot_leak_cols = pot_leak_cols
         self.drop_missing = drop_missing
         self.clip_data = clip_data
+        self.include_target = include_target
+        self.target = None
 
     def fit(self, X, y=None):
         LOGGER.debug('DataPrepTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.target = y
         return self
 
-    def transform(self, X, y=None):
-        LOGGER.debug('DataPrepTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+    def transform(self, X):
+        LOGGER.debug('DataPrepTransformer: Transforming dataset, shape = {}', X.shape)
         # be sure to patch in any generated target column
+        new_X, new_y = self.__do_transform(X)
+        self.target = new_y
+        LOGGER.debug('DataPrepTransformer: Transforming dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('DataPrepTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        # be sure to patch in any generated target column
+        self.target = y
+        new_X, new_y = self.__do_transform(X, y)
+        self.target = new_y
+        LOGGER.debug('DataPrepTransformer: Fit-transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
         new_X, new_y = pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols, float_cols=self.float_cols,
                                    masked_cols=self.masked_cols, special_features=self.special_features,
                                    drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
                                    calc_features=self.calc_features, correlated_cols=self.correlated_cols,
                                    pot_leak_cols=self.pot_leak_cols, drop_missing=self.drop_missing,
-                                   clip_data=self.clip_data, include_target=True)
-        LOGGER.debug('DataPrepTransformer: Transforming dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
-        return new_X
+                                   clip_data=self.clip_data, include_target=self.include_target,)
+        return new_X, new_y
 
     def get_params(self, deep=True):
         return {
@@ -600,4 +686,5 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             'pot_leak_cols': self.pot_leak_cols,
             'drop_missing': self.drop_missing,
             'clip_data': self.clip_data,
+            'include_target': self.include_target,
         }

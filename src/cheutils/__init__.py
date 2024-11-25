@@ -20,7 +20,7 @@ from .ml_utils import (fit, get_estimator, exclude_nulls,
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (FeatureSelectionTransformer, SelectiveRobustScaler, SpecialFeaturesTransformer, DateFeaturesTransformer,
                         DropSelectedColsTransformer, ClipDataTransformer, DropMissingDataTransformer, SelectiveColumnTransformer,
-                        DataPrepTransformer, pre_process)
+                        DataPrepTransformer, pre_process, generate_target)
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 
