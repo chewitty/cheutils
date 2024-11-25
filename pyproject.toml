@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cheutils"
-version = "2.7.5"
+version = "2.7.6"
 authors = [
   { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
 ]

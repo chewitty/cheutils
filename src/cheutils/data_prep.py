@@ -12,7 +12,21 @@ from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()
 APP_PROPS = AppProperties()
-CONFIG_TRANSFORMERS = APP_PROPS.get_dict_properties('model.selectivescaler.transformers')
+CONFIG_TRANSFORMERS = APP_PROPS.get_dict_properties('model.selective_column.transformers')
+if (CONFIG_TRANSFORMERS is not None) or not (not CONFIG_TRANSFORMERS):
+    LOGGER.debug('Preparing configured column transformers: \n{}', CONFIG_TRANSFORMERS)
+    SELECTIVE_TRANSFORMERS = []
+    for item in CONFIG_TRANSFORMERS.values():
+        name = item.get('name')
+        tf_params = item.get('transformer_params')
+        cols = list(item.get('columns'))
+        tf_class = getattr(importlib.import_module(item.get('transformer_package')),
+                           item.get('transformer_name'))
+        try:
+            tf = tf_class(**tf_params)
+            SELECTIVE_TRANSFORMERS.append((name, tf, cols))
+        except TypeError as err:
+            LOGGER.error('Problem encountered instantiating transformer: {}, {}', name, err)
 
 class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
     """
@@ -206,26 +220,11 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
 class SelectiveColumnTransformer(ColumnTransformer):
     def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose_feature_names_out=False, verbose=False, n_jobs=None, **kwargs):
+        super().__init__(transformers=SELECTIVE_TRANSFORMERS, remainder=remainder,
+                         force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=verbose_feature_names_out,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
         self.feature_names = None
-        if (CONFIG_TRANSFORMERS is not None) or not (not CONFIG_TRANSFORMERS):
-            LOGGER.debug('SelectiveColumnTransformer: Configured column transformers: \n{}', CONFIG_TRANSFORMERS)
-            transformers = []
-            for item in CONFIG_TRANSFORMERS.values():
-                name = item.get('name')
-                tf_params = item.get('transformer_params')
-                cols = list(item.get('columns'))
-                tf_class = getattr(importlib.import_module(item.get('transformer_package')),
-                                   item.get('transformer_name'))
-                try:
-                    tf = tf_class(**tf_params)
-                except TypeError as err:
-                    LOGGER.debug('Failure encountered instantiating transformer: {}', name)
-                    raise KeyError('Unspecified or unsupported transformer')
-                transformers.append((name, tf, cols))
-            super().__init__(transformers=transformers, remainder=remainder,
-                             force_int_remainder_cols=force_int_remainder_cols,
-                             verbose_feature_names_out=False,
-                             verbose=verbose, n_jobs=n_jobs, **kwargs)
 
     def fit(self, X, y=None, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
