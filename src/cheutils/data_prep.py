@@ -284,7 +284,10 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     """
     LOGGER.debug('Preprocessing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
     new_X = X.copy(deep=True)
-    new_y = y.copy(deep=True) if (y is not None) else None
+    if isinstance(y, pd.Series):
+        new_y = y.copy(deep=True) if (y is not None) else None
+    else:
+        new_y = y.copy() if (y is not None) else None
     if drop_missing:
         def drop_missing(df: pd.DataFrame, target_sr: pd.Series = None):
             """
@@ -295,7 +298,10 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
             """
             assert df is not None, 'A valid DataFrame expected as input'
             clean_df = df.copy(deep=True)
-            clean_target_sr = target_sr.copy(deep=True) if (target_sr is not None) else None
+            if isinstance(target_sr, pd.Series):
+                clean_target_sr = target_sr.copy(deep=True) if (target_sr is not None) else None
+            else:
+                clean_target_sr = target_sr.copy() if (target_sr is not None) else None
             null_rows = clean_df.isna().any(axis=1)
             clean_df = clean_df.dropna()
             # do not reset index here
@@ -388,7 +394,10 @@ def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, i
     """
     assert X is not None, 'A valid DataFrame expected as input'
     new_X = X.copy(deep=True)
-    new_y = y.copy(deep=True) if (y is not None) else None
+    if isinstance(y, pd.Series):
+        new_y = y.copy(deep=True) if (y is not None) else None
+    else:
+        new_y = y.copy() if (y is not None) else None
     try:
         if gen_target is not None:
             tmp_X = new_X.copy(deep=True)
@@ -399,7 +408,10 @@ def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, i
             new_y = tmp_X.apply(target_gen_func, axis=1)
             new_y.name = target_col
             if include_target:
-                new_X[target_col] = new_y.copy(deep=True)
+                if isinstance(new_y, pd.Series):
+                    new_X[target_col] = new_y.copy(deep=True) if (new_y is not None) else None
+                else:
+                    new_X[target_col] = new_y.copy() if (new_y is not None) else None
             del tmp_X
     except Exception as warnEx:
         LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
