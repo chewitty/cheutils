@@ -390,7 +390,7 @@ class SelectiveColumnTransformer(ColumnTransformer):
                  verbose_feature_names_out=False, verbose=False, n_jobs=None, **kwargs):
         self.feature_names = None
         if (CONFIG_TRANSFORMERS is not None) or not (not CONFIG_TRANSFORMERS):
-            LOGGER.debug('SelectiveColumnTransformer: Configured column transformers: {}\n', CONFIG_TRANSFORMERS)
+            LOGGER.debug('SelectiveColumnTransformer: Configured column transformers: \n{}', CONFIG_TRANSFORMERS)
             transformers = []
             for item in CONFIG_TRANSFORMERS.values():
                 name = item.get('name')
@@ -404,7 +404,10 @@ class SelectiveColumnTransformer(ColumnTransformer):
                     LOGGER.debug('Failure encountered instantiating transformer: {}', name)
                     raise KeyError('Unspecified or unsupported transformer')
                 transformers.append((name, tf, cols))
-            super().__init__(transformers=transformers, remainder=remainder, force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, n_jobs=n_jobs, **kwargs)
+            super().__init__(transformers=transformers, remainder=remainder,
+                             force_int_remainder_cols=force_int_remainder_cols,
+                             verbose_feature_names_out=False,
+                             verbose=verbose, n_jobs=n_jobs, **kwargs)
 
     def fit(self, X, y=None, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
