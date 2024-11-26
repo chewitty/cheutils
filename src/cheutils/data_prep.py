@@ -3,22 +3,22 @@ import importlib
 import pandas as pd
 import numpy as np
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import RobustScaler
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
-from cheutils.common_utils import apply_clipping, parse_special_features
+from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()
 APP_PROPS = AppProperties()
-CONFIG_TRANSFORMERS = APP_PROPS.get_dict_properties('model.selective_column.transformers')
+CONFIG_TRANSFORMERS = APP_PROPS.get_list_properties('model.selective_column.transformers')
 if (CONFIG_TRANSFORMERS is not None) or not (not CONFIG_TRANSFORMERS):
     LOGGER.debug('Preparing configured column transformers: \n{}', CONFIG_TRANSFORMERS)
     SELECTIVE_TRANSFORMERS = []
-    for item in CONFIG_TRANSFORMERS.values():
+    for item in CONFIG_TRANSFORMERS:
         name = item.get('name')
         tf_params = item.get('transformer_params')
+        tf_params = {} if tf_params is None else tf_params
         cols = list(item.get('columns'))
         tf_class = getattr(importlib.import_module(item.get('transformer_package')),
                            item.get('transformer_name'))
@@ -72,7 +72,7 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
-        new_X = X.copy(deep=True)
+        new_X = safe_copy(X)
         new_X.reset_index(drop=True, inplace=True)
         # otherwise also generate the following features
         for rel_col, prefix in zip(self.rel_cols, self.prefixes):
@@ -295,11 +295,8 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     :rtype: tuple(pd.DataFrame, pd.Series or None)
     """
     LOGGER.debug('Preprocessing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-    new_X = X.copy(deep=True)
-    if isinstance(y, pd.Series):
-        new_y = y.copy(deep=True) if (y is not None) else None
-    else:
-        new_y = y.copy() if (y is not None) else None
+    new_X = safe_copy(X)
+    new_y = safe_copy(y)
     if drop_missing:
         def drop_missing(df: pd.DataFrame, target_sr: pd.Series = None):
             """
@@ -309,11 +306,8 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
             :return: revised dataframe and corresponding target series where present
             """
             assert df is not None, 'A valid DataFrame expected as input'
-            clean_df = df.copy(deep=True)
-            if isinstance(target_sr, pd.Series):
-                clean_target_sr = target_sr.copy(deep=True) if (target_sr is not None) else None
-            else:
-                clean_target_sr = target_sr.copy() if (target_sr is not None) else None
+            clean_df = safe_copy(df)
+            clean_target_sr = safe_copy(target_sr)
             null_rows = clean_df.isna().any(axis=1)
             clean_df = clean_df.dropna()
             # do not reset index here
@@ -405,14 +399,11 @@ def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, i
     :rtype:
     """
     assert X is not None, 'A valid DataFrame expected as input'
-    new_X = X.copy(deep=True)
-    if isinstance(y, pd.Series):
-        new_y = y.copy(deep=True) if (y is not None) else None
-    else:
-        new_y = y.copy() if (y is not None) else None
+    new_X = safe_copy(X)
+    new_y = safe_copy(y)
     try:
         if gen_target is not None:
-            tmp_X = new_X.copy(deep=True)
+            tmp_X = safe_copy(new_X)
             if new_y is not None:
                 tmp_X[new_y.name] = new_y
             target_col = gen_target.get('target_col')
@@ -420,10 +411,7 @@ def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, i
             new_y = tmp_X.apply(target_gen_func, axis=1)
             new_y.name = target_col
             if include_target:
-                if isinstance(new_y, pd.Series):
-                    new_X[target_col] = new_y.copy(deep=True) if (new_y is not None) else None
-                else:
-                    new_X[target_col] = new_y.copy() if (new_y is not None) else None
+                new_X[target_col] = safe_copy(new_y)
             del tmp_X
     except Exception as warnEx:
         LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)

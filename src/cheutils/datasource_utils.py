@@ -2,7 +2,6 @@ import math
 import time
 import datetime as dt
 import sys, os
-import traceback
 import dask.dataframe as dd
 import pandas as pd
 import pyodbc
@@ -14,10 +13,7 @@ from urllib.parse import quote_plus, unquote_plus
 import mysql.connector
 import sqlalchemy as sa
 from typing import Union
-
-from analytics import timeout
 from dask.delayed import delayed
-from docutils.nodes import tbody
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.engine import URL
@@ -25,7 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import text
 from sqlalchemy.event import listens_for
 from cheutils.loggers import LoguruWrapper
-from cheutils.common_utils import datestamp
+from cheutils.common_utils import datestamp, safe_copy
 from cheutils.properties_util import AppProperties
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
@@ -1436,7 +1432,7 @@ class DSWrapper(object):
                                                      force_parallelize=force_parallelize)
                 data_dfs = []
                 for data_df in data_read:
-                    data_df = data_df.copy()
+                    data_df = safe_copy(data_df)
                     try:
                         data_df.drop_duplicates(subset=unique_key, inplace=True)
                     except Exception as err:
@@ -1565,7 +1561,7 @@ class DSWrapper(object):
             dd_df = self.read_large_csv(path_to_data_file, input_types=input_types)
             # break the dataframe into appropriate chunks
             # see also: https://stackoverflow.com/questions/17315737/split-a-large-pandas-dataframe
-            chunks = [dd_df[i:i + chunksize].copy() for i in range(0, dd_df.shape[0], chunksize)]
+            chunks = [safe_copy(dd_df[i:i + chunksize]) for i in range(0, dd_df.shape[0], chunksize)]
             LOGGER.debug('No. of chunks: {}', len(chunks))
             return chunks
         else:

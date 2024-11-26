@@ -9,6 +9,7 @@ from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
 from hyperopt import tpe, hp, mix, anneal, rand
 from hyperopt.pyll import scope
+from cheutils.common_utils import safe_copy
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
 from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
@@ -95,8 +96,8 @@ def exclude_nulls(X, y):
     assert X is not None, "A valid X expected"
     assert y is not None, "A valid y expected"
     # The prediction step does not need null values
-    X_pred = X.copy(deep=True)
-    y_pred = y.copy(deep=True)
+    X_pred = safe_copy(X)
+    y_pred = safe_copy(y)
     X_pred.reset_index(drop=True, inplace=True)
     y_pred.reset_index(drop=True, inplace=True)
     null_rows = X_pred.isna().any(axis=1)

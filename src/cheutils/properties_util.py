@@ -2,6 +2,7 @@ import datetime
 import os
 import pandas as pd
 from jproperties import Properties
+from ast import literal_eval
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.project_tree import get_data_dir, get_root_dir
@@ -144,6 +145,45 @@ class AppProperties(object):
             return None
         tmp_list = prop_value.replace('\'', '').replace('\"', '').strip('][').split(',')
         result_list = list([x.strip() for x in tmp_list])
+        return result_list
+
+    '''
+            Get the value associated with the specified key as a list of strings.
+        '''
+
+    def get_list_properties(self, prop_key=None):
+        """
+        Parameters:
+            prop_key(str): the property name for which a value is required.
+        Returns:
+            list(Union[str, dict]): the value associated with the specified key as a list of either Union[str, dict] or None if there is no value; None if the key specified is None.
+        """
+        if prop_key is None:
+            return None
+        prop_item = self.app_props__.get(prop_key)
+        if prop_item is None:
+            return None
+        prop_value = prop_item.data
+        if prop_value is None:
+            return None
+        result_list = []
+        sec_char = prop_value[1]
+        if sec_char == '{':
+            tmp_list = [x.strip() + '}' for x in prop_value[1:-1].split('},')] # str starts with { and ends in }
+        else:
+            tmp_list = [x.strip() + ']' for x in prop_value[1:-1].split('],')]  # str starts with [ and ends in ]
+        for item in tmp_list:
+            if item.startswith('{'):
+                item = item + str('}' if not item.endswith('}') else '')
+                try:
+                    result_list.append(literal_eval(item))
+                except (ValueError, SyntaxError) as e:
+                    LOGGER.error(f'Skipping invalid item: {item}, error: {e}')
+                    # Optionally, you can choose to handle or transform invalid items
+                    continue
+            elif item.startswith('['):
+                item = item + str(']' if not item.endswith(']') else '')
+                result_list.extend([literal_eval(i.strip()) for i in item.split('],')])
         return result_list
 
     '''

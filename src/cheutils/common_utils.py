@@ -1,9 +1,11 @@
 import numpy as np
+import copy
 import pandas as pd
 import re
 import pingouin as pg
 import datetime as dt
 import inspect
+from typing import Union, Any
 from scipy.stats import iqr
 from fast_ml import eda
 from fast_ml.utilities import display_all
@@ -352,3 +354,19 @@ def parse_special_features(special_feat_str, feature_mappings: dict, sep: str ='
         if feat_key in feat_split:
             feat_pattern[feature_mappings.get(feat_key)] = 1
     return list(feat_pattern.values())
+
+def safe_copy(data_in: Union[pd.DataFrame, pd.Series, list, np.ndarray, Any]):
+    """
+    Safely make a copy of the input data.
+    :param data_in: input data, which can be any of dataframe, series, list, or numpy array
+    :type data_in:
+    :return: deep copy of the data where possible
+    :rtype: Any
+    """
+    if isinstance(data_in, (pd.DataFrame, pd.Series)):
+        new_data = data_in.copy(deep=True) if (data_in is not None) else None
+    elif isinstance(data_in, (list, np.ndarray)):
+        new_data = copy.deepcopy(data_in) if (data_in is not None) else None
+    else:
+        new_data = data_in.copy() if (data_in is not None) else None
+    return new_data

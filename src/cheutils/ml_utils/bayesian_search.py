@@ -3,7 +3,6 @@ import mlflow
 from mlflow.models import infer_signature
 from functools import partial
 from hyperopt import fmin, tpe, hp, mix, anneal, rand, space_eval, STATUS_OK, Trials
-from hyperopt.pyll import scope
 from sklearn.base import BaseEstimator, clone
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import cross_val_score
