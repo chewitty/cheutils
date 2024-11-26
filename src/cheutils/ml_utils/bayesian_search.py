@@ -100,14 +100,13 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
             best_run = sorted(trials.results, key=lambda x: x['loss'])[0]
             LOGGER.debug('Minimum loss = {}', best_run['loss'])
             self.best_params_ = space_eval(self.params_space, best_params)
-            """self.best_estimator_ = clone(self.estimator).set_params(**self.best_params_)
-            self.best_estimator_.fit(X, y)"""
             self.best_score_ = best_run['loss']
             LOGGER.debug('Best score = {}', self.best_score_)
             LOGGER.debug('HyperoptSearchCV: Best hyperparameters  = \n{}', self.best_params_)
         if self.mlflow_exp is not None and self.mlflow_exp.get('log'):
             mlflow.config.enable_async_logging(enable=True)
-            with mlflow.start_run(log_system_metrics=True, description='Hyperopt optimization') as active_run:
+            descr = 'Hyperopt optimization - ' + str(self.estimator)
+            with mlflow.start_run(log_system_metrics=True, description=descr) as active_run:
                 optimize_and_fit()
                 mlflow.set_tag('Best model info', 'Best model by evaluation metric')
                 model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
