@@ -156,7 +156,7 @@ class AppProperties(object):
         Parameters:
             prop_key(str): the property name for which a value is required.
         Returns:
-            list(Union[str, dict]): the value associated with the specified key as a list of either Union[str, dict] or None if there is no value; None if the key specified is None.
+            list(Union[list, dict]): the value associated with the specified key as a list of either Union[str, dict] or None if there is no value; None if the key specified is None.
         """
         if prop_key is None:
             return None

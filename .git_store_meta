@@ -44,5 +44,5 @@ src/cheutils/ml_utils/model_builder.py	f	2024-11-26T10:18:25Z
 src/cheutils/ml_utils/model_options.py	f	2024-10-29T10:59:23Z
 src/cheutils/ml_utils/pipeline_details.py	f	2024-11-22T20:25:46Z
 src/cheutils/project_tree.py	f	2024-10-29T15:14:00Z
-src/cheutils/properties_util.py	f	2024-11-26T14:34:22Z
+src/cheutils/properties_util.py	f	2024-11-26T15:08:04Z
 src/cheutils/setup.py	f	2024-10-30T13:04:51Z
