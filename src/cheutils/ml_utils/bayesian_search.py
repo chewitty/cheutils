@@ -159,7 +159,8 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                     self.best_estimator_ = underlying_model
             return min_score
         if self.mlflow_exp is not None and self.mlflow_exp.get('log'):
-            with mlflow.start_run(nested=True) as active_run:
+            descr = 'Nested run - ' + str(underlying_model)
+            with mlflow.start_run(nested=True, description=descr) as active_run:
                 model_uri = 'runs:/{run_id}/model'.format(run_id=active_run.info.run_id)
                 LOGGER.debug('Mlflow model URI = {}', model_uri)
                 input_example = self.X.head()
