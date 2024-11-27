@@ -17,6 +17,7 @@ from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
+from cheutils.sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db
 
 LOGGER = LoguruWrapper().get_logger()
 APP_PROPS = AppProperties()
@@ -49,8 +50,6 @@ TRIAL_TIMEOUT = int(APP_PROPS.get('model.trial_timeout'))
 GRID_SEARCH_ON = APP_PROPS.get_bol('model.tuning.grid_search.on')
 # cache narrower parameter grid, keyed by num_params and scaling_factor
 NARROW_PARAM_GRIDS = {}
-# cache best preliminary params, keyed by num_params
-BEST_PARAM_GRIDS = {}
 # cache optimal num_params, keyed by model option
 OPTIMAL_NUM_PARAMS = {}
 # Hyperopt algorithms
@@ -137,7 +136,8 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     params_grid = get_params_grid(MODEL_OPTION, prefix=prefix)
     LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
     num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
-    best_params = BEST_PARAM_GRIDS.get(num_params)
+    # attempt to fetch promising grid from SQLite DB
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, model_prefix=prefix)
     if best_params is None:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
                                        scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
@@ -147,10 +147,12 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
         else:
             show_pipeline(search_cv)
         search_cv.fit(X, y)
-        LOGGER.debug('Preliminary best estimator = \n{}',
+        LOGGER.debug('Promising estimator details = \n{}',
                       (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
         best_params = search_cv.best_params_
-        BEST_PARAM_GRIDS[num_params] = best_params
+        # cache the promising grid to SQLite
+        save_param_grid_to_sqlite_db(param_grid=best_params, model_prefix=prefix,
+                                     grid_resolution=num_params, table_name=MODEL_OPTION,)
     return best_params
 
 @track_duration(name='params_optimization')
@@ -209,9 +211,10 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     LOGGER.debug('Promising hyperparameters = \n{}', str(promising_params_grid))
     # get the parameter boundaries from the range specified in properties file
     params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
-    # fetch promising params grdi from cache if possible
+    # fetch promising params grid from cache if possible
     num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
-    best_params = BEST_PARAM_GRIDS.get(num_params) if promising_params_grid is None else promising_params_grid
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, model_prefix=prefix)
+    best_params = best_params if promising_params_grid is None else promising_params_grid
     # fetch narrow params grid from cache if possible
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
     narrow_param_grid = NARROW_PARAM_GRIDS.get(params_cache_key) if with_narrower_grid else get_params_grid(MODEL_OPTION, prefix=prefix)

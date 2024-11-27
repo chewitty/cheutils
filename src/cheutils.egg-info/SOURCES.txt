@@ -16,6 +16,7 @@ src/cheutils/progress_tracking.py
 src/cheutils/project_tree.py
 src/cheutils/properties_util.py
 src/cheutils/setup.py
+src/cheutils/sqlite_util.py
 src/cheutils.egg-info/PKG-INFO
 src/cheutils.egg-info/SOURCES.txt
 src/cheutils.egg-info/dependency_links.txt

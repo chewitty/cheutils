@@ -6,7 +6,8 @@ import pingouin as pg
 import datetime as dt
 import inspect
 from typing import Union, Any
-from scipy.stats import iqr
+from scipy.stats import iqr, mstats, trimboth
+from scipy.stats.mstats import winsorize
 from fast_ml import eda
 from fast_ml.utilities import display_all
 from cheutils.loggers import LoguruWrapper
@@ -370,3 +371,55 @@ def safe_copy(data_in: Union[pd.DataFrame, pd.Series, list, np.ndarray, Any]):
     else:
         new_data = data_in.copy() if (data_in is not None) else None
     return new_data
+
+def winsorize_it(data_in: Union[pd.Series, list, np.ndarray], limits: list = [0.05, 0.05], **kwargs):
+    """
+    Apply winsorize to the input data - i.e., replaces extreme values (outliers) at both ends of the data with the
+    nearest values within the dataset. It doesn't discard data but instead adjusts the most extreme values to reduce
+    their impact. Therefore, prefer this, when you want to preserve the data structure (i.e., keep the sample size
+    the same) but still reduce the effect of extreme values. For datasets where removing data points (as in trimming)
+    would result in an unrepresentative or incomplete sample, winsorization preserves all values, ensuring the dataset remains usable.
+    :param data_in: input data, which can be any of series, list, or numpy array
+    :type data_in:
+    :param limits: scipe of the winsorization - defaults to 5% limits for both ends
+    :type limits:
+    :param kwargs: any other scipy.stats.mstats.winsorize parameters
+    :return: Returns a Winsorized version of the input data.
+    :rtype:
+    """
+    assert data_in is not None, 'Input data expected'
+    assert len(limits) == 2, 'Limits must be a list of two values'
+    assert limits[0] >= 0.0, 'Lower limit must be greater than or equal to zero'
+    assert limits[1] <= 1.0, 'Upper limit must be less than or equal to 1; much better to use a small proportion - e.g., 0.05'
+    assert limits[0] <= limits[1], 'Lower limit must be less than or equal to upper limit'
+    data_out = None
+    if isinstance(data_in, pd.Series):
+        data_out = mstats.winsorize(data_in, limits=limits, **kwargs)
+    elif isinstance(data_in, (list, np.ndarray)):
+        data_out = mstats.winsorize(np.array(data_in), limits=limits, **kwargs)
+    return data_out
+
+def trim_both(data_in: Union[pd.Series, list, np.ndarray], proportiontocut: float = 0.05, **kwargs):
+    """
+    Slice off a proportion of items from both ends of the input data - removes (trims) the lowest and highest percentage
+    of data points - i.e., discards a portion of data at both ends. Note that, this does not retains the overall structure
+    of the dataset as it discards extreme data points. Note suited for datasets where removing data points
+    (as in trimming) would result in unrepresentative or incomplete sample.
+    :param data_in: input data, which can be any of series, list, or numpy array
+    :type data_in:
+    :param proportiontocut: proportion of data to trim from both ends (in the range 0-1) - defaults to 5%
+    :type proportiontocut:
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
+    assert data_in is not None, 'Input data expected'
+    assert proportiontocut >= 0.0, 'Proportion to cut must be greater than or equal to zero'
+    assert proportiontocut <= 1.0, 'Proportion to cut must be less than or equal to one'
+    data_out = None
+    if isinstance(data_in, pd.Series):
+        data_out = mstats.trimboth(data_in, proportiontocut=proportiontocut, **kwargs)
+    elif isinstance(data_in, (list, np.ndarray)):
+        data_out = mstats.trimboth(np.array(data_in), proportiontocut=proportiontocut, **kwargs)
+    return data_out

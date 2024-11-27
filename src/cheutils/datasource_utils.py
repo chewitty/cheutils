@@ -836,7 +836,7 @@ class DBTool(object):
         Parameters:
             db_table(str): the underlying DB table name holding the data.
         """
-        msg = LOGGER.debug('Executing delete query against {}, {}', db_table, '...')
+        LOGGER.debug('Executing delete query against {}, {}', db_table, '...')
         if db_table is None:
             LOGGER.debug('DB table name required and must be specified')
             raise DBToolException('DB table name required and must be specified')
@@ -846,9 +846,9 @@ class DBTool(object):
                 try:
                     stmt = 'DELETE FROM ' + db_table
                     result = connection.execute(text(stmt))
-                    msg = LOGGER.debug('Deletion completed')
+                    LOGGER.debug('Deletion completed')
                 except IntegrityError as err:
-                    msg = LOGGER.error("DB error: {}", err)
+                    LOGGER.error("DB error: {}", err)
                     tb = err.__traceback__
                     raise DBToolException(err).with_traceback(tb)
                 except Exception as err:
@@ -1245,7 +1245,7 @@ class DSWrapper(object):
     @debug_func(enable_debug=True, prefix='clear_ds')
     def clear_datasource(self, ds_config=None):
         if ds_config is None:
-            msg = 'The datasource wrapper configuration must be specified'
+            'The datasource wrapper configuration must be specified'
             LOGGER.debug(msg)
             raise DSWrapperException(msg)
         # fetch all required properties from the ds_config dict
