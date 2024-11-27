@@ -13,7 +13,7 @@ from cheutils.common_utils import safe_copy
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
 from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
-from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds
+from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, parse_grid_types
 from cheutils.ml_utils.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
@@ -138,6 +138,8 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
     # attempt to fetch promising grid from SQLite DB
     best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, model_prefix=prefix)
+    best_params = parse_grid_types(best_params, model_option=MODEL_OPTION,
+                                   prefix=prefix) if best_params is not None else best_params
     if best_params is None:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
                                        scoring=SCORING, cv=CV, n_iter=N_ITERS, n_jobs=N_JOBS,
@@ -151,8 +153,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
                       (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
         best_params = search_cv.best_params_
         # cache the promising grid to SQLite
-        save_param_grid_to_sqlite_db(param_grid=best_params, model_prefix=prefix,
-                                     grid_resolution=num_params, table_name=MODEL_OPTION,)
+        save_param_grid_to_sqlite_db(param_grid=best_params, model_prefix=prefix, grid_resolution=num_params, )
     return best_params
 
 @track_duration(name='params_optimization')
@@ -214,6 +215,8 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     # fetch promising params grid from cache if possible
     num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
     best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, model_prefix=prefix)
+    best_params = parse_grid_types(best_params, model_option=MODEL_OPTION,
+                                   prefix=prefix) if best_params is not None else best_params
     best_params = best_params if promising_params_grid is None else promising_params_grid
     # fetch narrow params grid from cache if possible
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
