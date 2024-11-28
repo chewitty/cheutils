@@ -137,7 +137,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
     num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
     # attempt to fetch promising grid from SQLite DB
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, model_prefix=prefix, tb_name=MODEL_OPTION)
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid), model_prefix=prefix, tb_name=MODEL_OPTION)
     best_params = parse_grid_types(best_params, model_option=MODEL_OPTION,
                                    prefix=prefix) if best_params is not None else best_params
     if best_params is None:
@@ -149,12 +149,12 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
         else:
             show_pipeline(search_cv)
         search_cv.fit(X, y)
-        LOGGER.debug('Promising estimator details = \n{}',
+        LOGGER.debug('Promising params_grid search results = \n{}',
                       (search_cv.best_estimator_, search_cv.best_score_, search_cv.best_params_))
         best_params = search_cv.best_params_
         # cache the promising grid to SQLite
         save_param_grid_to_sqlite_db(param_grid=best_params, model_prefix=prefix, grid_resolution=num_params,
-                                     tb_name=MODEL_OPTION, )
+                                     grid_size=len(params_grid), tb_name=MODEL_OPTION, )
     return best_params
 
 @track_duration(name='params_optimization')
@@ -187,7 +187,6 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
-
     if mlflow_exp is not None:
         if mlflow_exp.get('log') is True:
             LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
@@ -215,7 +214,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     params_bounds = get_params_pounds(MODEL_OPTION, prefix=prefix)
     # fetch promising params grid from cache if possible
     num_params = CONFIGURED_NUM_PARAMS if (grid_resolution is None) else grid_resolution
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, model_prefix=prefix, tb_name=MODEL_OPTION)
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds), model_prefix=prefix, tb_name=MODEL_OPTION)
     best_params = parse_grid_types(best_params, model_option=MODEL_OPTION,
                                    prefix=prefix) if best_params is not None else best_params
     best_params = best_params if promising_params_grid is None else promising_params_grid
