@@ -54,29 +54,30 @@ def parse_grid_types(from_grid: dict, params_key_stem: str='model.param_grids.',
     params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
     param_keys = from_grid.keys()
     for param_key in param_keys:
-        param = params_grid_dict.get(param_key)
+        conf_param_key = param_key.split('__')[1] if '__' in param_key else param_key
+        param = params_grid_dict.get(conf_param_key)
         if param is not None:
             param_type = param.get('type')
             if param_type == int:
                 if prefix is None:
                     params_grid[param_key] = int(from_grid.get(param_key))
                 else:
-                    params_grid[prefix + '__' + param_key] = int(from_grid.get(param_key))
+                    params_grid[prefix + '__' + conf_param_key] = int(from_grid.get(param_key))
             elif param_type == float:
                 if prefix is None:
                     params_grid[param_key] = float(from_grid.get(param_key))
                 else:
-                    params_grid[prefix + '__' + param_key] = float(from_grid.get(param_key))
+                    params_grid[prefix + '__' + conf_param_key] = float(from_grid.get(param_key))
             elif param_type == bool:
                 if prefix is None:
                     params_grid[param_key] = bool(from_grid.get(param_key))
                 else:
-                    params_grid[prefix + '__' + param_key] = bool(from_grid.get(param_key))
+                    params_grid[prefix + '__' + conf_param_key] = bool(from_grid.get(param_key))
             else:
                 if prefix is None:
                     params_grid[param_key] = from_grid.get(param_key)
                 else:
-                    params_grid[prefix + '__' + param_key] = from_grid.get(param_key)
+                    params_grid[prefix + '__' + conf_param_key] = from_grid.get(param_key)
     if params_grid is None:
         params_grid = {}
     return params_grid

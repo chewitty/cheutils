@@ -3,16 +3,18 @@
 .gitignore	f	2024-10-19T21:29:20Z
 README.md	f	2024-11-26T14:54:49Z
 build and installing custom packages.txt	f	2024-11-13T12:29:52Z
-dist	d	2024-11-27T22:16:47Z
+dist	d	2024-11-28T00:04:52Z
 dist/cheutils-2.7.10-py3-none-any.whl	f	2024-11-27T22:16:47Z
 dist/cheutils-2.7.10.tar.gz	f	2024-11-27T22:16:23Z
+dist/cheutils-2.7.11-py3-none-any.whl	f	2024-11-28T00:04:52Z
+dist/cheutils-2.7.11.tar.gz	f	2024-11-28T00:04:28Z
 dist/cheutils-2.7.9-py3-none-any.whl	f	2024-11-27T21:57:43Z
 dist/cheutils-2.7.9.tar.gz	f	2024-11-27T21:57:09Z
-pyproject.toml	f	2024-11-27T22:03:46Z
+pyproject.toml	f	2024-11-27T23:11:35Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2024-11-27T21:47:59Z
 src/cheutils.egg-info	d	2024-11-08T14:07:14Z
-src/cheutils.egg-info/PKG-INFO	f	2024-11-27T22:17:22Z
+src/cheutils.egg-info/PKG-INFO	f	2024-11-28T00:05:10Z
 src/cheutils.egg-info/SOURCES.txt	f	2024-11-27T21:57:09Z
 src/cheutils.egg-info/entry_points.txt	f	2024-11-08T14:07:14Z
 src/cheutils.egg-info/requires.txt	f	2024-11-08T14:07:14Z
@@ -26,10 +28,10 @@ src/cheutils/ds-config.properties	f	2024-10-31T14:30:21Z
 src/cheutils/exceptions.py	f	2024-11-27T17:19:04Z
 src/cheutils/ml_utils/__init__.py	f	2024-11-22T19:51:35Z
 src/cheutils/ml_utils/bayesian_search.py	f	2024-11-26T23:40:20Z
-src/cheutils/ml_utils/model_builder.py	f	2024-11-27T22:15:53Z
-src/cheutils/ml_utils/model_options.py	f	2024-10-29T10:59:23Z
+src/cheutils/ml_utils/model_builder.py	f	2024-11-27T23:18:28Z
+src/cheutils/ml_utils/model_options.py	f	2024-11-28T00:03:03Z
 src/cheutils/ml_utils/pipeline_details.py	f	2024-11-22T20:25:46Z
 src/cheutils/project_tree.py	f	2024-10-29T15:14:00Z
 src/cheutils/properties_util.py	f	2024-11-26T15:08:04Z
 src/cheutils/setup.py	f	2024-10-30T13:04:51Z
-src/cheutils/sqlite_util.py	f	2024-11-27T21:47:59Z
+src/cheutils/sqlite_util.py	f	2024-11-27T23:45:28Z

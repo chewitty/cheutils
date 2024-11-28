@@ -11,7 +11,7 @@ APP_PROPS = AppProperties()
 LOGGER = LoguruWrapper().get_logger()
 SQLITE_DB = APP_PROPS.get('project.sqlite3.db')
 
-def save_param_grid_to_sqlite_db(param_grid: dict, table_name: str='promising_grids', grid_resolution: int=1,
+def save_param_grid_to_sqlite_db(param_grid: dict, tb_name: str='promising_grids', grid_resolution: int=1,
                                  model_prefix: str=None, **kwargs):
     """
     Save the input data to the underlying project SQLite database (see app-config.properties for DB details).
@@ -19,9 +19,9 @@ def save_param_grid_to_sqlite_db(param_grid: dict, table_name: str='promising_gr
     :type param_grid:
     :param grid_resolution: the prevailing parameter grid resolution or maximum number of parameters supported by grid
     :param model_prefix: any prevailing model prefix
-    :param table_name: the name of the table - this could be a project-specific name, for example, the configured
+    :param tb_name: the name of the table - this could be a project-specific name, for example, the configured
     estimator name if caching promising hyperparameter grid
-    :type table_name:
+    :type tb_name:
     :param kwargs:
     :type kwargs:
     :return:
@@ -29,15 +29,15 @@ def save_param_grid_to_sqlite_db(param_grid: dict, table_name: str='promising_gr
     """
     assert param_grid is not None, 'Input parameter grid data must be provided'
     assert grid_resolution > 0, 'A valid grid resolution (>0) expected'
-    assert table_name is not None and len(table_name) > 0, 'Table name must be provided'
+    assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
     conn = None
     cursor = None
-    model_prefix = model_prefix if model_prefix is not None else ''
     sqlite_db = os.path.join(get_data_dir(), SQLITE_DB)
     try:
         data_grid = {}
         for key, value in param_grid.items():
-            key = key.split(model_prefix + '__')[1] if model_prefix in key else key
+            if (model_prefix is not None) and not (not model_prefix):
+                key = key.split('__')[1] if model_prefix in key else key
             data_grid[key] = value
         data_df = pd.DataFrame(data_grid, index=[0])
         # Connect to the SQLite database (or create it if it doesn't exist)
@@ -47,10 +47,10 @@ def save_param_grid_to_sqlite_db(param_grid: dict, table_name: str='promising_gr
         tb_cols = ['grid_resolution']
         tb_cols.extend(data_df.columns.tolist())
         num_tb_cols = len(tb_cols)
-        crt_stmt = f'CREATE TABLE IF NOT EXISTS {table_name} ({str(tb_cols).strip("[]")})'
+        crt_stmt = f'CREATE TABLE IF NOT EXISTS {tb_name} ({str(tb_cols).strip("[]")})'
         cursor.execute(crt_stmt)
         # insert the rows of data
-        INSERT_STMT = f'INSERT INTO {table_name} VALUES ({",".join(["?"] * num_tb_cols)})'
+        INSERT_STMT = f'INSERT INTO {tb_name} VALUES ({",".join(["?"] * num_tb_cols)})'
         for index, row in data_df.iterrows():
             row_vals = [grid_resolution]
             row_vals.extend(row.tolist())
@@ -101,7 +101,7 @@ def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolutio
             col_names.append(column[0])
         data_df = pd.DataFrame(data_row, columns=col_names, index=[0])
         data_df.drop(columns=['grid_resolution'], inplace=True)
-        data_df.rename(columns=lambda x: model_prefix + '__' + x if model_prefix is not None else x, inplace=True)
+        data_df.rename(columns=lambda x: model_prefix + '__' + x if (model_prefix is not None) and not (not model_prefix) else x, inplace=True)
         grid_dicts = data_df.to_dict('records')
         return grid_dicts[0] if grid_dicts is not None or not (not grid_dicts) else None
     except Exception as warning:
