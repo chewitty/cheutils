@@ -2,8 +2,6 @@ import importlib
 import pandas as pd
 import numpy as np
 import geolib.geohash as gh
-from shapely import Point
-from shapely.geometry import Polygon
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -618,13 +616,13 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
         return new_X
 
     @staticmethod
-    def __generate_geohashes(X, y=None, geo_data_cols=None, agg_func: str='median', **fit_params):
+    def __generate_geohashes(X, y=None, geo_data_cols=None, agg_func: str='median', precision: int=6, **fit_params):
         assert geo_data_cols is not None and not (not geo_data_cols), 'A valid list of latitude, longitude, and geohash column labels is expected'
         if geo_data_cols is None:
             geo_data_cols = ['latitude', 'longitude', 'geohash']
         new_X = safe_copy(X)
         # precision of 5 translates to ≤ 4.89km × 4.89km; 6 translates to ≤ 1.22km × 0.61km; 7 translates to ≤ 153m × 153m
-        new_X[geo_data_cols[2]] = new_X.apply(lambda x: gh.encode(x[geo_data_cols[0]], x[geo_data_cols[1]], precision=5), axis=1)
+        new_X[geo_data_cols[2]] = new_X.apply(lambda x: gh.encode(x[geo_data_cols[0]], x[geo_data_cols[1]], precision=precision), axis=1)
         return new_X
 
     @staticmethod
@@ -643,13 +641,12 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
         try:
             return expected_spatial_features.loc[geohash].values[0]
         except KeyError as missing_err:
-            neighbors = GeospatialTransformer.__get_neighbours(level=2, geohashes=[geohash])
-            bounding_pts = []
-            for nb in neighbors:
-                bounding_pts.append(Point(gh.decode(nb)))
-            bbox = Polygon(bounding_pts)
+            # compute estimated spatial feature based proximity search of neighboring geohashes
+            # focusing on all points that fall within a specific set of Geohashes
+            # Geohash is useful for proximity searches because locations that are close to each other have similar Geohash prefixes
+            # However: we must rely entirely on any insights extracted at training to avoid data leakage
             all_exp_hashes = expected_spatial_features.index.to_list()
-            neighbors_vals = [expected_spatial_features.loc[the_gh] for the_gh in all_exp_hashes if bbox.contains(Point(gh.decode(the_gh)))]
+            neighbors_vals = [expected_spatial_features.loc[the_gh] for the_gh in all_exp_hashes if the_gh.startswith(geohash[:len(geohash)-1])]
             if len(neighbors_vals) > 0:
                 if missing_func == 'mode':
                     return np.median(neighbors_vals)
