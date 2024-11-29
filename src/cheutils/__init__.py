@@ -19,8 +19,8 @@ from .ml_utils import (fit, get_estimator, exclude_nulls,
                        promising_params_grid, params_optimization, get_column_transformers)
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (FeatureSelectionTransformer, DateFeaturesTransformer,
-                        DropSelectedColsTransformer, SelectiveColumnTransformer,
-                        DataPrepTransformer, pre_process, generate_target)
+                        DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer,
+                        DataPrepTransformer, pre_process, generate_target, SelectiveFunctionTransformer)
 from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space

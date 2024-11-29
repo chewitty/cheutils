@@ -19,6 +19,7 @@ setup(
     url='https://github.com/chewitty/cheutils/ml_utils',
     packages=find_packages(include=['ml_utils', 'ml_utils.*']),
     install_requires=['numpy>=1.10', 'pandas', 'codetiming', 'tdqm', 'icecream', 'regex',
-                      'inspect-it', 'jproperties', 'matplotlib', 'scikit-learn', 'icecream', ],
+                      'inspect-it', 'jproperties', 'matplotlib', 'scikit-learn', 'icecream',
+                      'geohash2'],
     python_requires='>=3.9',
 )

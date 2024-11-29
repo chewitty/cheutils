@@ -1,8 +1,11 @@
 import importlib
-
 import pandas as pd
 import numpy as np
+import geolib.geohash as gh
+from shapely import Point
+from shapely.geometry import Polygon
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
 from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
@@ -508,3 +511,174 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             'clip_data': self.clip_data,
             'include_target': self.include_target,
         }
+
+class SelectiveFunctionTransformer(FunctionTransformer):
+    def __init__(self, rel_cols: list, **kwargs):
+        self.rel_cols = rel_cols
+        super().__init__(**kwargs)
+
+    def fit(self, X, y=None):
+        LOGGER.debug('SelectiveFunctionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        to_fit = safe_copy(X[self.rel_cols])
+        super().fit(to_fit, y)
+        return self
+
+    def transform(self, X):
+        LOGGER.debug('SelectiveFunctionTransformer: Transforming dataset, shape = {}', X.shape)
+        new_X = self.__do_transform(X)
+        LOGGER.debug('SelectiveFunctionTransformer: Transformed dataset, out shape = {}', new_X.shape)
+        return new_X
+
+    def fit_transform(self, X, y=None, **kwargs):
+        LOGGER.debug('SelectiveFunctionTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y, **kwargs)
+        LOGGER.debug('SelectiveFunctionTransformer: Fit=transformed dataset, out shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **kwargs):
+        to_transform = safe_copy(X[self.rel_cols])
+        fitted_X = super().transform(to_transform)
+        if isinstance(fitted_X, np.ndarray):
+            fitted_X = pd.DataFrame(fitted_X, columns=self.rel_cols)
+        new_X = safe_copy(X)
+        new_X.drop(columns=self.rel_cols, inplace=True)
+        for col in self.rel_cols:
+            new_X[col] = fitted_X[col]
+        return new_X
+
+    def __inverse_transform(self, X):
+        to_inverse = safe_copy(X[self.rel_cols])
+        inversed_X = super().inverse_transform(to_inverse)
+        if isinstance(inversed_X, np.ndarray):
+            inversed_X = pd.DataFrame(inversed_X, columns=self.rel_cols)
+        new_X = safe_copy(X)
+        new_X.drop(columns=self.rel_cols, inplace=True)
+        for col in self.rel_cols:
+            new_X[col] = inversed_X[col]
+        return new_X
+
+class GeospatialTransformer(BaseEstimator, TransformerMixin):
+    """
+    Transforms latitude-longitude point to a geohashed fixed neighborhood.
+    """
+    def __init__(self, lat_col: str, long_col: str, to_col: str, drop_geo_cols: bool=True, agg_func: str='median', **kwargs):
+        """
+        Transforms latitude-longitude point to a geohashed fixed neighborhood.
+        :param lat_col: the column labels for desired latitude column
+        :type lat_col: str
+        :param long_col: the column labels for desired longitude column
+        :type long_col: str
+        :param to_col: the new generated column label for the geohashed fixed neighborhood
+        :param drop_geo_cols: drops the latitude and longitude columns
+        :param agg_func: aggregate function - e.g., 'mean', 'median', 'sum', 'min', 'max' - the default is 'median'
+        :param kwargs:
+        :type kwargs:
+        """
+        assert lat_col is not None and not (not lat_col), 'A valid column label is expected for latitude column'
+        assert long_col is not None and not (not long_col), 'A valid column label is expected for longitude'
+        assert to_col is not None and not (not to_col), 'A valid column label is expected for the generated geohashed fixed neighborhood'
+        super().__init__(**kwargs)
+        self.lat_col = lat_col
+        self.long_col = long_col
+        self.to_col = to_col
+        self.geo_data_cols = [lat_col, long_col, to_col]
+        self.drop_geo_cols = drop_geo_cols
+        self.expected_spatial_features = None
+        self.agg_func = agg_func
+
+    def fit(self, X, y=None):
+        LOGGER.debug('GeospatialTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        # generate expected weights based on
+        self.expected_spatial_features = GeospatialTransformer.__do_fit(X, y, self.geo_data_cols, agg_func=self.agg_func, )
+        LOGGER.debug('GeospatialTransformer: Fitted dataset, out shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return self
+
+    def transform(self, X, y=None):
+        LOGGER.debug('GeospatialTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y,)
+        LOGGER.debug('GeospatialTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('GeospatialTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        if self.expected_spatial_features is None:
+            self.expected_spatial_features = GeospatialTransformer.__do_fit(X, y, self.geo_data_cols, agg_func=self.agg_func, )
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('GeospatialTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        gen_geohashes = GeospatialTransformer.__generate_geohashes(X, y, self.geo_data_cols, agg_func=self.agg_func, **fit_params)
+        new_X = safe_copy(X)
+        #new_X[self.to_col] = gen_geohashes.apply(lambda x: self.expected_spatial_features.loc[x[self.to_col]], axis=1)
+        new_X[self.to_col] = gen_geohashes.apply(lambda x: GeospatialTransformer.__get_feature_value(self.expected_spatial_features, x[self.to_col]), axis=1)
+        if self.drop_geo_cols:
+            to_drop = [self.lat_col, self.long_col]
+            new_X.drop(columns=to_drop, inplace=True)
+        return new_X
+
+    @staticmethod
+    def __generate_geohashes(X, y=None, geo_data_cols=None, agg_func: str='median', **fit_params):
+        assert geo_data_cols is not None and not (not geo_data_cols), 'A valid list of latitude, longitude, and geohash column labels is expected'
+        if geo_data_cols is None:
+            geo_data_cols = ['latitude', 'longitude', 'geohash']
+        new_X = safe_copy(X)
+        # precision of 5 translates to ≤ 4.89km × 4.89km; 6 translates to ≤ 1.22km × 0.61km; 7 translates to ≤ 153m × 153m
+        new_X[geo_data_cols[2]] = new_X.apply(lambda x: gh.encode(x[geo_data_cols[0]], x[geo_data_cols[1]], precision=5), axis=1)
+        return new_X
+
+    @staticmethod
+    def __do_fit(X, y=None, geo_data_cols=None, agg_func: str='median', **fit_params):
+        gen_geohashes = GeospatialTransformer.__generate_geohashes(X, y, geo_data_cols, agg_func=agg_func, **fit_params)
+        new_y = safe_copy(y)
+        new_y = new_y.reset_index(drop=True) if isinstance(new_y, pd.Series) else new_y
+        gen_geohashes['train_target'] = new_y.values if isinstance(new_y, pd.Series) else new_y
+        expected_spatial_features = gen_geohashes.groupby(geo_data_cols[2]).agg({'train_target': agg_func})
+        return expected_spatial_features
+
+    @staticmethod
+    def __get_feature_value(expected_spatial_features, geohash: str, missing_func: str='mode'):
+        assert expected_spatial_features is not None, 'Valid expected_spatial_features is expected'
+        assert geohash is not None and not (not geohash), 'A valid geohash is expected'
+        try:
+            return expected_spatial_features.loc[geohash].values[0]
+        except KeyError as missing_err:
+            neighbors = GeospatialTransformer.__get_neighbours(level=2, geohashes=[geohash])
+            bounding_pts = []
+            for nb in neighbors:
+                bounding_pts.append(Point(gh.decode(nb)))
+            bbox = Polygon(bounding_pts)
+            all_exp_hashes = expected_spatial_features.index.to_list()
+            neighbors_vals = [expected_spatial_features.loc[the_gh] for the_gh in all_exp_hashes if bbox.contains(Point(gh.decode(the_gh)))]
+            if len(neighbors_vals) > 0:
+                if missing_func == 'mode':
+                    return np.median(neighbors_vals)
+                else:
+                    return np.mean(neighbors_vals)
+            else:
+                # defaults to mean of expected features
+                if missing_func == 'mode':
+                    return expected_spatial_features['train_target'].median()
+                else:
+                    return expected_spatial_features['train_target'].mean()
+
+    @staticmethod
+    def __get_neighbours(level: int, geohashes: list)-> list:
+        assert isinstance(level, int) and level >= 1, 'Level must be a positive integer greater than 0'
+        assert isinstance(geohashes, list) and all(isinstance(h, str) for h in geohashes), 'geohashes must be a list of strings'
+        try:
+            visited = set(geohashes)
+            queue = geohashes.copy()
+            next_level_items = []
+            while level > 0:
+                for hash in queue:
+                    neighbors = gh.neighbours(hash)
+                    next_level_items.extend(neighbors)
+                    visited.update(neighbors)
+                queue = next_level_items.copy()
+                next_level_items.clear()
+                level -= 1
+            return list(visited)
+        except ValueError as e:
+            LOGGER.warning(f'Error encountered attempting to get geohash neighbors: {e}')
+            return []
