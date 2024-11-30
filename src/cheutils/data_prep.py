@@ -240,17 +240,17 @@ class SelectiveColumnTransformer(ColumnTransformer):
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.feature_names = list(X.columns)
         new_X = self.__do_transform(X, y, **fit_params)
         LOGGER.debug('SelectiveColumnTransformer: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
-        self.feature_names = list(X.columns)
         if y is None:
             transformed_X = super().transform(X, **fit_params)
         else:
             transformed_X = super().fit_transform(X, y, **fit_params)
-        new_X = pd.DataFrame(transformed_X, columns=self.feature_names)
+        new_X = pd.DataFrame(transformed_X[:, :-1], columns=self.feature_names)
         return new_X
 
 """
@@ -511,10 +511,9 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         }
 
 class SelectiveFunctionTransformer(FunctionTransformer):
-    def __init__(self, rel_cols: list, drop_cols:bool=False, **kwargs):
+    def __init__(self, rel_cols: list, **kwargs):
         super().__init__(**kwargs)
         self.rel_cols = rel_cols
-        self.drop_cols = drop_cols
 
     def fit(self, X, y=None):
         LOGGER.debug('SelectiveFunctionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
@@ -541,9 +540,7 @@ class SelectiveFunctionTransformer(FunctionTransformer):
             fitted_X = super().transform(to_transform)
             if isinstance(fitted_X, np.ndarray):
                 fitted_X = pd.DataFrame(fitted_X, columns=[col])
-            new_X[col] = fitted_X[col] if isinstance(fitted_X, pd.DataFrame) else fitted_X
-        if self.drop_cols:
-            new_X.drop(columns=self.rel_cols, inplace=True)
+            new_X[col] = fitted_X[col].values if isinstance(fitted_X, pd.DataFrame) else fitted_X
         return new_X
 
     def __inverse_transform(self, X):
@@ -553,9 +550,7 @@ class SelectiveFunctionTransformer(FunctionTransformer):
             inversed_X = super().inverse_transform(to_inverse)
             if isinstance(inversed_X, np.ndarray):
                 inversed_X = pd.DataFrame(inversed_X, columns=self.rel_cols)
-            new_X[col] = inversed_X[col] if isinstance(inversed_X, pd.DataFrame) else inversed_X
-            if self.drop_cols:
-                new_X.drop(columns=self.rel_cols, inplace=True)
+            new_X[col] = inversed_X[col].values if isinstance(inversed_X, pd.DataFrame) else inversed_X
         return new_X
 
 class GeospatialTransformer(BaseEstimator, TransformerMixin):
