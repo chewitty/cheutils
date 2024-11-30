@@ -511,9 +511,10 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         }
 
 class SelectiveFunctionTransformer(FunctionTransformer):
-    def __init__(self, rel_cols: list, **kwargs):
-        self.rel_cols = rel_cols
+    def __init__(self, rel_cols: list, drop_cols:bool=False, **kwargs):
         super().__init__(**kwargs)
+        self.rel_cols = rel_cols
+        self.drop_cols = drop_cols
 
     def fit(self, X, y=None):
         LOGGER.debug('SelectiveFunctionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
@@ -534,25 +535,27 @@ class SelectiveFunctionTransformer(FunctionTransformer):
         return new_X
 
     def __do_transform(self, X, y=None, **kwargs):
-        to_transform = safe_copy(X[self.rel_cols])
-        fitted_X = super().transform(to_transform)
-        if isinstance(fitted_X, np.ndarray):
-            fitted_X = pd.DataFrame(fitted_X, columns=self.rel_cols)
         new_X = safe_copy(X)
-        new_X.drop(columns=self.rel_cols, inplace=True)
         for col in self.rel_cols:
-            new_X[col] = fitted_X[col]
+            to_transform = safe_copy(X[col])
+            fitted_X = super().transform(to_transform)
+            if isinstance(fitted_X, np.ndarray):
+                fitted_X = pd.DataFrame(fitted_X, columns=[col])
+            new_X[col] = fitted_X[col] if isinstance(fitted_X, pd.DataFrame) else fitted_X
+        if self.drop_cols:
+            new_X.drop(columns=self.rel_cols, inplace=True)
         return new_X
 
     def __inverse_transform(self, X):
-        to_inverse = safe_copy(X[self.rel_cols])
-        inversed_X = super().inverse_transform(to_inverse)
-        if isinstance(inversed_X, np.ndarray):
-            inversed_X = pd.DataFrame(inversed_X, columns=self.rel_cols)
         new_X = safe_copy(X)
-        new_X.drop(columns=self.rel_cols, inplace=True)
         for col in self.rel_cols:
-            new_X[col] = inversed_X[col]
+            to_inverse = safe_copy(X[col])
+            inversed_X = super().inverse_transform(to_inverse)
+            if isinstance(inversed_X, np.ndarray):
+                inversed_X = pd.DataFrame(inversed_X, columns=self.rel_cols)
+            new_X[col] = inversed_X[col] if isinstance(inversed_X, pd.DataFrame) else inversed_X
+            if self.drop_cols:
+                new_X.drop(columns=self.rel_cols, inplace=True)
         return new_X
 
 class GeospatialTransformer(BaseEstimator, TransformerMixin):
