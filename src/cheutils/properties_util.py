@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from jproperties import Properties
 from ast import literal_eval
+from abc import ABC, abstractmethod
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.project_tree import get_data_dir, get_root_dir
@@ -14,6 +15,15 @@ from cheutils.common_utils import properties_to_frame
 APP_CONFIG = 'app-config.properties'
 LOGGER = LoguruWrapper().get_logger()
 
+class AppPropertiesHandler(ABC):
+    def __init__(self):
+        super().__init__()
+
+
+    @abstractmethod
+    def reload(self):
+        pass
+
 """
 Utilities for reading project properties or configuration files. When instantiated, it loads the first 
 app-config.properties found anywhere in the project root folder or subfolders. Usually, it is 
@@ -24,6 +34,7 @@ a reload method, which allows a reload of the properties file anytime subsequent
 class AppProperties(object):
     instance__ = None
     app_props__ = None
+    handlers__ = []
     """
     A static method responsible for creating and returning a new instance (called before __init__)
     """
@@ -58,6 +69,7 @@ class AppProperties(object):
         cur_props = self.app_props__
         try:
             self.__load()
+            self.__notify_handlers()
             LOGGER.success('Successfully reloaded = {}', APP_CONFIG)
         except Exception as ex:
             # revert to previous version
@@ -439,3 +451,15 @@ class AppProperties(object):
             raise PropertiesException(ex)
         # log message on completion
         LOGGER.info('Application properties loaded = {}', path_to_app_config)
+
+    def subscribe(self, handler: AppPropertiesHandler):
+        if handler is not None:
+            self.handlers__.append(handler)
+
+    def unsubscribe(self, handler: AppPropertiesHandler):
+        if handler is not None:
+            self.handlers__.remove(handler)
+
+    def __notify_handlers(self):
+        for handler in self.handlers__:
+            handler.reload()

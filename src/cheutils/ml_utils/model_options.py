@@ -1,13 +1,10 @@
 import numpy as np
 import importlib
+from .model_properties_handler import ModelProperties
 from cheutils.loggers import LoguruWrapper
-from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()
-APP_PROPS = AppProperties()
-prop_key = 'project.models.supported'
-MODELS_SUPPORTED = APP_PROPS.get_dict_properties(prop_key)
-assert MODELS_SUPPORTED is not None, 'Models supported must be specified'
+MODEL_PROPERTIES = ModelProperties()
 
 def get_estimator(**model_params):
     """
@@ -21,7 +18,7 @@ def get_estimator(**model_params):
     if 'params_grid_key' in cur_model_params:
         params_grid_key = cur_model_params.get('params_grid_key')
         del cur_model_params['params_grid_key']
-    model_info = MODELS_SUPPORTED.get(model_option)
+    model_info = MODEL_PROPERTIES.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
     try:
@@ -32,7 +29,7 @@ def get_estimator(**model_params):
     return model
 
 def get_hyperopt_estimator(model_option, **model_params):
-    model_info = MODELS_SUPPORTED.get(model_option)
+    model_info = MODEL_PROPERTIES.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
     try:
@@ -42,16 +39,16 @@ def get_hyperopt_estimator(model_option, **model_params):
         raise KeyError('Unspecified or unsupported estimator')
     return model
 
-def get_params_grid(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
+def get_params_grid(model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
     return __get_estimator_params(model_option, params_key_stem=params_key_stem, prefix=prefix)
 
-def get_params_pounds(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
-    return APP_PROPS.get_ranges(prop_key=params_key_stem + model_option)
+def get_params_pounds(model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
+    return MODEL_PROPERTIES.get_params_grid(model_option=model_option, is_range=True)
 
-def parse_grid_types(from_grid: dict, params_key_stem: str='model.param_grids.', model_option: str=None, prefix: str=None):
+def parse_grid_types(from_grid: dict, params_key_stem: str='model.params_grid.', model_option: str=None, prefix: str=None):
     assert from_grid is not None, 'A valid parameter grid must be provided'
     params_grid = {}
-    params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
+    params_grid_dict = MODEL_PROPERTIES.get_params_grid(model_option=model_option)
     param_keys = from_grid.keys()
     for param_key in param_keys:
         conf_param_key = param_key.split('__')[1] if '__' in param_key else param_key
@@ -82,9 +79,9 @@ def parse_grid_types(from_grid: dict, params_key_stem: str='model.param_grids.',
         params_grid = {}
     return params_grid
 
-def __get_estimator_params(model_option, params_key_stem: str='model.param_grids.', prefix: str=None):
+def __get_estimator_params(model_option, params_key_stem: str='model.params_grid.', prefix: str=None):
     params_grid = {}
-    params_grid_dict = APP_PROPS.get_dict_properties(prop_key=params_key_stem + model_option)
+    params_grid_dict = MODEL_PROPERTIES.get_params_grid(model_option=model_option)
     param_keys = params_grid_dict.keys()
     for param_key in param_keys:
         param = params_grid_dict.get(param_key)
@@ -120,7 +117,7 @@ def __get_estimator_params(model_option, params_key_stem: str='model.param_grids
     #LOGGER.debug('Hyperparameter grid: {}'.format(params_grid))
     return params_grid
 
-def get_default_grid(param_key: str, model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
+def get_default_grid(param_key: str, model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
     param_grid = get_params_grid(model_option=model_option, params_key_stem=params_key_stem, prefix=prefix)
     param_keys = param_grid.keys()
     rel_param_grid = {}
@@ -130,6 +127,6 @@ def get_default_grid(param_key: str, model_option: str, params_key_stem: str='mo
     LOGGER.debug('Default hyperparameter grid params: {}'.format(rel_param_grid))
     return rel_param_grid
 
-def get_params(model_option: str, params_key_stem: str='model.param_grids.', prefix: str=None):
+def get_params(model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
     param_grid = get_params_grid(model_option=model_option, params_key_stem=params_key_stem, prefix=prefix)
     return param_grid.keys()

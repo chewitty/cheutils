@@ -27,6 +27,7 @@ src/cheutils/ml_utils/__init__.py
 src/cheutils/ml_utils/bayesian_search.py
 src/cheutils/ml_utils/model_builder.py
 src/cheutils/ml_utils/model_options.py
+src/cheutils/ml_utils/model_properties_handler.py
 src/cheutils/ml_utils/pipeline_details.py
 src/cheutils/ml_utils/setup.py
 src/cheutils/ml_utils/visualize.py

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 2.7.13
+Version: 2.7.14
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Maintainer-email: Ferdinand Che <ferdinand.che@gmail.com>
@@ -49,14 +49,13 @@ Requires-Dist: mlflow; extra == "mlflow"
 A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 
 ### Features
-
-- model_options: methods such as get_estimator to get a handle on a configured estimator with a specified parameter dictionary or get_default_grid to get the configured hyperparameter grid
-- model_builder: methods for building and executing ML pipeline steps e.g., params_optimization etc.
-- project_tree: methods for accessing the project tree - e.g., get_data_dir() for accessing the configured data and get_output_dir() for the output folders, loading and savings Excel and CSV.
-- common_utils: methods to support common programming tasks, such as labeling (e.g., `label(file_name, label='some_label')`) or tagging and date-stamping files (e.g., `datestamp(file_name, fmt='%Y-%m-%d')`).
-- propertiesutil: utility for managing properties files or project configuration, based on jproperties. The application configuration is expected to be available in a file named app-config.properties, which can be placed anywhere in the project root or any subfolder thereafter.
-- decorator_debug, decorator_timer, and decorator_singleton: decorators for enabling logging and method timers; as well as a singleton decorator
-- datasource_utils: utility for managing datasource configuration or properties file (ds-config.properties) and offers a set of generic datasource access methods.
+- `propertiesutil`: utility for managing properties files or project configuration, based on jproperties. The application configuration is expected to be available in a properties file named `app-config.properties`, which can be placed anywhere in the project root or any project subfolder.
+- `model_options`: methods such as get_estimator to get a handle on a configured estimator with a specified parameter dictionary or get_default_grid to get the configured hyperparameter grid
+- `model_builder`: methods for building and executing ML pipeline steps e.g., params_optimization etc.
+- `project_tree`: methods for accessing the project tree - e.g., get_data_dir() for accessing the configured data and get_output_dir() for the output folders, loading and savings Excel and CSV.
+- `common_utils`: methods to support common programming tasks, such as labeling (e.g., `label(file_name, label='some_label')`) or tagging and date-stamping files (e.g., `datestamp(file_name, fmt='%Y-%m-%d')`).
+- `decorator_debug`, decorator_timer, and decorator_singleton: decorators for enabling logging and method timers; as well as a singleton decorator
+- `datasource_utils`: utility for managing datasource configuration or properties file (ds-config.properties) and offers a set of generic datasource access methods.
 ### Usage
 You import the `cheutils` module as per usual:
 ```
