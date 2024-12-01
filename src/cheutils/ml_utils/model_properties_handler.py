@@ -13,7 +13,6 @@ class ModelProperties(AppPropertiesHandler):
         self.__model_properties = {}
         self.__app_props = AppProperties()
         self.__app_props.subscribe(self)
-        self._load(prop_key='models_supported')
 
     # overriding abstract method
     def reload(self):
@@ -53,6 +52,9 @@ class ModelProperties(AppPropertiesHandler):
         self.__model_properties['model_params_grid_' + str(params.get('model_option'))] = self.__app_props.get_ranges(key)
 
     def get_models_supported(self):
+        value = self.__model_properties.get('models_supported')
+        if value is None:
+            self._load_models_supported()
         return self.__model_properties.get('models_supported')
 
     def get_params_grid(self, model_option: str=None, is_range: bool=False):

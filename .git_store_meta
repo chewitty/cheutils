@@ -8,8 +8,8 @@ dist/cheutils-2.7.12-py3-none-any.whl	f	2024-11-28T16:44:56Z
 dist/cheutils-2.7.12.tar.gz	f	2024-11-28T16:44:37Z
 dist/cheutils-2.7.13-py3-none-any.whl	f	2024-11-30T14:40:17Z
 dist/cheutils-2.7.13.tar.gz	f	2024-11-30T14:39:59Z
-dist/cheutils-2.7.14-py3-none-any.whl	f	2024-12-01T12:39:31Z
-dist/cheutils-2.7.14.tar.gz	f	2024-12-01T12:38:56Z
+dist/cheutils-2.7.14-py3-none-any.whl	f	2024-12-01T12:53:37Z
+dist/cheutils-2.7.14.tar.gz	f	2024-12-01T12:53:18Z
 pyproject.toml	f	2024-12-01T08:49:55Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2024-12-01T12:35:46Z
@@ -31,7 +31,7 @@ src/cheutils/ml_utils/__init__.py	f	2024-12-01T10:18:27Z
 src/cheutils/ml_utils/bayesian_search.py	f	2024-11-26T23:40:20Z
 src/cheutils/ml_utils/model_builder.py	f	2024-11-28T16:15:56Z
 src/cheutils/ml_utils/model_options.py	f	2024-12-01T12:10:28Z
-src/cheutils/ml_utils/model_properties_handler.py	f	2024-12-01T12:38:07Z
+src/cheutils/ml_utils/model_properties_handler.py	f	2024-12-01T12:52:12Z
 src/cheutils/ml_utils/pipeline_details.py	f	2024-11-22T20:25:46Z
 src/cheutils/ml_utils/setup.py	f	2024-11-29T00:16:31Z
 src/cheutils/project_tree.py	f	2024-10-29T15:14:00Z
