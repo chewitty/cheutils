@@ -128,3 +128,116 @@ def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolutio
             conn.close()
         except:
             pass
+
+def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key: str=None, model_prefix: str=None, **kwargs):
+    """
+    Save the input data to the underlying project SQLite database (see app-config.properties for DB details).
+    :param param_grid: input parameter grid data to be saved or persisted
+    :type param_grid:
+    :param tb_name: the name of the table - this could be a project-specific name, for example, the configured
+    estimator name if caching promising hyperparameter grid
+    :type tb_name:
+    :param cache_key: the unique cache key to be used for persisting and lookup
+    :param model_prefix: model prefix
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
+    assert param_grid is not None, 'Input parameter grid data must be provided'
+    assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
+    assert cache_key is not None and len(cache_key) > 0, 'Unique lookup key must be provided'
+    conn = None
+    cursor = None
+    sqlite_db = os.path.join(get_data_dir(), SQLITE_DB)
+    underlying_tb_name = tb_name + '_narrow_grids'
+    try:
+        data_grid = {}
+        for key, value in param_grid.items():
+            if (model_prefix is not None) and not (not model_prefix):
+                key = key.split('__')[1] if model_prefix in key else key
+            data_grid[key] = value
+        data_df = pd.DataFrame(data_grid, index=[0])
+        # Connect to the SQLite database (or create it if it doesn't exist)
+        conn = sqlite3.connect(sqlite_db)
+        # Create a cursor object using the cursor() method
+        cursor = conn.cursor()
+        tb_cols = ['cache_key']
+        tb_cols.extend(data_df.columns.tolist())
+        num_tb_cols = len(tb_cols)
+        crt_stmt = f'CREATE TABLE IF NOT EXISTS {underlying_tb_name} ({str(tb_cols).strip("[]")})'
+        cursor.execute(crt_stmt)
+        # insert the rows of data
+        INSERT_STMT = f'INSERT INTO {underlying_tb_name} VALUES ({",".join(["?"] * num_tb_cols)})'
+        for index, row in data_df.iterrows():
+            row_vals = [cache_key]
+            row_vals.extend(row.tolist())
+            cursor.execute(INSERT_STMT, row_vals)
+        conn.commit()
+        LOGGER.debug('Updated SQLite DB: {}', sqlite_db)
+    except ValueError as err:
+        msg = LOGGER.error('Value error attempting to save to: {}, {}', sqlite_db, err)
+        tb = err.__traceback__
+        raise SQLiteUtilException(err).with_traceback(tb)
+    except Exception as err:
+        msg = LOGGER.error("SQLite DB error: {}, {}", sqlite_db, err)
+        tb = err.__traceback__
+        raise SQLiteUtilException(err).with_traceback(tb)
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass
+
+def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model_prefix: str=None, **kwargs):
+    """
+    Fetches data from the underlying SQLite DB using the query string.
+    :param tb_name: the table name to be queried
+    :param cache_key: the prevailing cache or lookup key
+    :param model_prefix: any prevailing model prefix
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
+    assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
+    assert cache_key is not None and len(cache_key) > 0, 'Unique lookup key must be provided'
+    conn = None
+    cursor = None
+    sqlite_db = os.path.join(get_data_dir(), SQLITE_DB)
+    try:
+        # Connect to the SQLite database (or create it if it doesn't exist)
+        conn = sqlite3.connect(sqlite_db)
+        # Create a cursor object using the cursor() method
+        cursor = conn.cursor()
+        underlying_tb_name = tb_name + '_narrow_grids'
+        query_str = 'SELECT * FROM ' + underlying_tb_name + ' WHERE cache_key=:cache_key'
+        result_cur = cursor.execute(query_str, {'cache_key': cache_key})
+        data_row = cursor.fetchone()
+        if data_row is None or (not data_row):
+            return None
+        data_row = np.array(list(data_row) if data_row is not None and not(not data_row) else [])
+        col_names = []
+        for column in result_cur.description:
+            col_names.append(column[0])
+        data_row = data_row.reshape(1, -1)
+        data_df = pd.DataFrame(data_row, columns=col_names, index=[0])
+        data_df.drop(columns=['cache_key'], inplace=True)
+        col_names.remove('cache_key')
+        data_df.rename(columns=lambda x: model_prefix + '__' + x if (model_prefix is not None) and not (not model_prefix) else x, inplace=True)
+        grid_dicts = data_df.to_dict('records')
+        return grid_dicts[0] if grid_dicts is not None or not (not grid_dicts) else None
+    except Exception as warning:
+        LOGGER.warning('SQLite DB error: {}, {}', sqlite_db, warning)
+        # check if the promising grid is still to be generated
+        if 'no such table' in str(warning):
+            return None
+        tb = warning.__traceback__
+        raise SQLiteUtilException(warning).with_traceback(tb)
+    finally:
+        try:
+            cursor.close()
+            conn.close()
+        except:
+            pass

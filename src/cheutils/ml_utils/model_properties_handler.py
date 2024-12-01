@@ -43,6 +43,30 @@ class ModelProperties(AppPropertiesHandler):
         key = 'project.models.supported'
         self.__model_properties['models_supported'] = self.__app_props.get_dict_properties(key)
 
+    def _load_n_jobs(self):
+        key = 'model.active.n_jobs'
+        self.__model_properties['n_jobs'] = int(self.__app_props.get(key))
+
+    def _load_model_option(self):
+        key = 'model.active.model_option'
+        self.__model_properties['model_option'] = self.__app_props.get(key)
+
+    def _load_n_iters(self):
+        key = 'model.active.n_iters'
+        self.__model_properties['n_iters'] = int(self.__app_props.get(key))
+
+    def _load_n_trials(self):
+        key = 'model.active.n_trials'
+        self.__model_properties['n_trials'] = int(self.__app_props.get(key))
+
+    def _load_grid_resolution(self):
+        key = 'model.active.grid_resolution'
+        self.__model_properties['grid_resolution'] = int(self.__app_props.get(key))
+
+    def _load_find_grid_resolution(self):
+        key = 'model.find_optimal.grid_resolution'
+        self.__model_properties['find_grid_resolution'] = self.__app_props.get_bol(key)
+
     def _load_params_grid(self, params: dict=None):
         key = 'model.params_grid.' + str(params.get('model_option'))
         self.__model_properties['model_params_grid_' + str(params.get('model_option'))] = self.__app_props.get_dict_properties(key)
@@ -50,6 +74,34 @@ class ModelProperties(AppPropertiesHandler):
     def _load_params_range(self, params: dict=None):
         key = 'model.params_grid.' + str(params.get('model_option'))
         self.__model_properties['model_params_grid_' + str(params.get('model_option'))] = self.__app_props.get_ranges(key)
+
+    def _load_grid_resolutions_sample(self):
+        key = 'model.grid_resolutions.sample'
+        self.__model_properties['grid_resolutions_sample'] = self.__app_props.get_dict_properties(key)
+
+    def _load_grid_resolution_with_cv(self):
+        key = 'model.find_optimal.grid_resolution.with_cv'
+        self.__model_properties['grid_resolution_with_cv'] = self.__app_props.get_bol(key)
+
+    def _load_hyperopt_algos(self):
+        key = 'model.hyperopt.algos'
+        self.__model_properties['hyperopt_algos'] = self.__app_props.get_dict_properties(key)
+
+    def _load_cross_val_scoring(self):
+        key = 'model.cross_val.scoring'
+        self.__model_properties['cross_val_scoring'] = self.__app_props.get(key)
+
+    def _load_cross_val_num_folds(self):
+        key = 'model.cross_val.num_folds'
+        self.__model_properties['cross_val_num_folds'] = int(self.__app_props.get(key))
+
+    def _load_random_seed(self):
+        key = 'model.active.random_seed'
+        self.__model_properties['random_seed'] = int(self.__app_props.get(key))
+
+    def _load_trial_timeout(self):
+        key = 'model.active.trial_timeout'
+        self.__model_properties['trial_timeout'] = int(self.__app_props.get(key))
 
     def get_models_supported(self):
         value = self.__model_properties.get('models_supported')
@@ -67,4 +119,84 @@ class ModelProperties(AppPropertiesHandler):
                 self._load_range(prop_key='params_range', params=model_option)
             return self.__model_properties.get(key)
         return value
+
+    def get_n_jobs(self):
+        value = self.__model_properties.get('n_jobs')
+        if value is None:
+            self._load_n_jobs()
+        return self.__model_properties.get('n_jobs')
+
+    def get_n_iters(self):
+        value = self.__model_properties.get('n_iters')
+        if value is None:
+            self._load_n_iters()
+        return self.__model_properties.get('n_iters')
+
+    def get_n_trials(self):
+        value = self.__model_properties.get('n_trials')
+        if value is None:
+            self._load_n_trials()
+        return self.__model_properties.get('n_trials')
+
+    def get_grid_resolution(self):
+        value = self.__model_properties.get('grid_resolution')
+        if value is None:
+            self._load_grid_resolution()
+        return self.__model_properties.get('grid_resolution')
+
+    def get_find_grid_resolution(self):
+        value = self.__model_properties.get('find_grid_resolution')
+        if value is None:
+            self._load_find_grid_resolution()
+        return self.__model_properties.get('find_grid_resolution')
+
+    def get_grid_resolutions_sample(self):
+        value = self.__model_properties.get('grid_resolutions_sample')
+        if value is None:
+            self._load_grid_resolutions_sample()
+        return self.__model_properties.get('grid_resolutions_sample')
+
+    def get_model_option(self):
+        value = self.__model_properties.get('model_option')
+        if value is None:
+            self._load_model_option()
+        return self.__model_properties.get('model_option')
+
+    def get_grid_resolution_with_cv(self):
+        value = self.__model_properties.get('grid_resolution_with_cv')
+        if value is None:
+            self._load_grid_resolution_with_cv()
+        return self.__model_properties.get('grid_resolution_with_cv')
+
+    def get_hyperopt_algos(self):
+        value = self.__model_properties.get('hyperopt_algos')
+        if value is None:
+            self._load_hyperopt_algos()
+        return self.__model_properties.get('hyperopt_algos')
+
+    def get_cross_val_scoring(self):
+        value = self.__model_properties.get('cross_val_scoring')
+        if value is None:
+            self._load_cross_val_scoring()
+        return self.__model_properties.get('cross_val_scoring')
+
+    def get_cross_val_num_folds(self):
+        value = self.__model_properties.get('cross_val_num_folds')
+        if value is None:
+            self._load_cross_val_num_folds()
+        return self.__model_properties.get('cross_val_num_folds')
+
+    def get_random_seed(self):
+        value = self.__model_properties.get('random_seed')
+        if value is None:
+            self._load_random_seed()
+        return self.__model_properties.get('random_seed')
+
+    def get_trial_timeout(self):
+        value = self.__model_properties.get('trial_timeout')
+        if value is None:
+            self._load_trial_timeout()
+        return self.__model_properties.get('trial_timeout')
+
+
 

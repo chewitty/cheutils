@@ -8,3 +8,5 @@ from cheutils.ml_utils.visualize import (plot_hyperparameter, plot_reg_residuals
                         plot_reg_residuals_dist, plot_reg_predictions_dist)
 from cheutils.ml_utils.pipeline_details import show_pipeline, get_column_transformers
 from cheutils.ml_utils.model_properties_handler import ModelProperties
+
+MODEL_PROPERTIES = ModelProperties()
