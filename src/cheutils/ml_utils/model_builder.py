@@ -390,7 +390,7 @@ def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int
         for key, value in default_grid.items():
             bounds = params_bounds.get(key.split('__')[-1])
             if bounds is not None:
-                lbound, ubound = bounds
+                lbound, ubound = bounds.get('start'), bounds.get('end')
                 if isinstance(value[0], (int, np.integer)):
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = max(int(value[0] * (1 - fudge_factor)), lbound)

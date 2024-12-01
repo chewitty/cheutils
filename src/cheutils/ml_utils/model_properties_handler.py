@@ -30,11 +30,11 @@ class ModelProperties(AppPropertiesHandler):
 
     def _load_params(self, prop_key: str=None, params: dict=None):
         LOGGER.debug('Attempting to load model property: {}, {}', prop_key, params)
-        return getattr(self, '_load_' + prop_key, lambda: 'unspecified')(**params)
+        return getattr(self, '_load_' + prop_key, lambda: 'unspecified')(params)
 
     def _load_range(self, prop_key: str=None, params: dict=None):
         LOGGER.debug('Attempting to load model property: {}, {}', prop_key, params)
-        return getattr(self, '_load_' + prop_key, lambda: 'unspecified')(**params)
+        return getattr(self, '_load_' + prop_key, lambda: 'unspecified')(params)
 
     def _load_unspecified(self):
         raise PropertiesException('Attempting to load unspecified model property')
@@ -114,9 +114,9 @@ class ModelProperties(AppPropertiesHandler):
         value = self.__model_properties.get(key)
         if value is None:
             if is_range:
-                self._load_params(prop_key='params_grid', params=model_option)
+                self._load_range(prop_key='params_range', params={'model_option': model_option})
             else:
-                self._load_range(prop_key='params_range', params=model_option)
+                self._load_params(prop_key='params_grid', params={'model_option': model_option})
             return self.__model_properties.get(key)
         return value
 

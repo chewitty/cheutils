@@ -6,28 +6,67 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
+from cheutils.decorator_singleton import singleton
 from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
 from cheutils.loggers import LoguruWrapper
-from cheutils.properties_util import AppProperties
+from cheutils.properties_util import AppProperties, AppPropertiesHandler
+from cheutils.exceptions import PropertiesException
 
 LOGGER = LoguruWrapper().get_logger()
-APP_PROPS = AppProperties()
-CONFIG_TRANSFORMERS = APP_PROPS.get_list_properties('model.selective_column.transformers')
-if (CONFIG_TRANSFORMERS is not None) or not (not CONFIG_TRANSFORMERS):
-    LOGGER.debug('Preparing configured column transformers: \n{}', CONFIG_TRANSFORMERS)
-    SELECTIVE_TRANSFORMERS = []
-    for item in CONFIG_TRANSFORMERS:
-        name = item.get('name')
-        tf_params = item.get('transformer_params')
-        tf_params = {} if tf_params is None else tf_params
-        cols = list(item.get('columns'))
-        tf_class = getattr(importlib.import_module(item.get('transformer_package')),
-                           item.get('transformer_name'))
-        try:
-            tf = tf_class(**tf_params)
-            SELECTIVE_TRANSFORMERS.append((name, tf, cols))
-        except TypeError as err:
-            LOGGER.error('Problem encountered instantiating transformer: {}, {}', name, err)
+
+@singleton
+class DataPrepProperties(AppPropertiesHandler):
+    __app_props: AppProperties
+
+    def __init__(self):
+        super().__init__()
+        self.__data_prep_properties = {}
+        self.__app_props = AppProperties()
+        self.__app_props.subscribe(self)
+
+    # overriding abstract method
+    def reload(self):
+        for key in self.__data_prep_properties.keys():
+            self.__data_prep_properties[key] = self._load(prop_key=key)
+
+    def _load(self, prop_key: str=None):
+        LOGGER.debug('Attempting to load model property: {}', prop_key)
+        return getattr(self, '_load_' + prop_key, lambda: 'unspecified')()
+
+    def __getattr__(self, item):
+        msg = f'Attempting to load unspecified model property: {item}'
+        LOGGER.error(msg)
+        raise PropertiesException(msg)
+
+    def _load_unspecified(self):
+        raise PropertiesException('Attempting to load unspecified model property')
+
+    def _load_selective_column_transformers(self):
+        key = 'model.selective_column.transformers'
+        #self.__data_prep_properties['selective_column_transformers'] = self.__app_props.get_list_properties(key)
+        transformers = self.__app_props.get_list_properties(key)
+        if (transformers is not None) or not (not transformers):
+            LOGGER.debug('Preparing configured column transformers: \n{}', transformers)
+            col_transformers = []
+            for item in transformers:
+                name = item.get('name')
+                tf_params = item.get('transformer_params')
+                tf_params = {} if tf_params is None else tf_params
+                cols = list(item.get('columns'))
+                tf_class = getattr(importlib.import_module(item.get('transformer_package')),
+                                   item.get('transformer_name'))
+                try:
+                    tf = tf_class(**tf_params)
+                    col_transformers.append((name, tf, cols))
+                    self.__data_prep_properties['selective_column_transformers'] = col_transformers
+                except TypeError as err:
+                    LOGGER.error('Problem encountered instantiating transformer: {}, {}', name, err)
+
+    def get_selective_column_transformers(self):
+        value = self.__data_prep_properties.get('selective_column_transformers')
+        if value is None:
+            self._load_selective_column_transformers()
+        return self.__data_prep_properties.get('selective_column_transformers')
 
 class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
     """
@@ -221,7 +260,7 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
 class SelectiveColumnTransformer(ColumnTransformer):
     def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose_feature_names_out=False, verbose=False, n_jobs=None, **kwargs):
-        super().__init__(transformers=SELECTIVE_TRANSFORMERS, remainder=remainder,
+        super().__init__(transformers=DataPrepProperties().get_selective_column_transformers(), remainder=remainder,
                          force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=verbose_feature_names_out,
                          verbose=verbose, n_jobs=n_jobs, **kwargs)
@@ -250,7 +289,10 @@ class SelectiveColumnTransformer(ColumnTransformer):
             transformed_X = super().transform(X, **fit_params)
         else:
             transformed_X = super().fit_transform(X, y, **fit_params)
-        new_X = pd.DataFrame(transformed_X[:, :-1], columns=self.feature_names)
+        if transformed_X.shape[1] > len(self.feature_names):
+            new_X = pd.DataFrame(transformed_X[:, :-1], columns=self.feature_names)
+        else:
+            new_X = pd.DataFrame(transformed_X, columns=self.feature_names)
         return new_X
 
 """
