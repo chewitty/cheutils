@@ -1,7 +1,7 @@
 import sys
 from loguru import logger
-
 from cheutils.decorator_singleton import singleton
+
 @singleton
 class LoguruWrapper(object):
     instance__ = None

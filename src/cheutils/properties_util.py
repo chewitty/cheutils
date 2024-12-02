@@ -1,12 +1,11 @@
 import datetime
 import os
-import pandas as pd
+import importlib
 from jproperties import Properties
 from ast import literal_eval
 from abc import ABC, abstractmethod
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
-from cheutils.project_tree import get_data_dir, get_root_dir
 from cheutils.exceptions import PropertiesException
 from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import properties_to_frame
@@ -15,13 +14,26 @@ from cheutils.common_utils import properties_to_frame
 APP_CONFIG = 'app-config.properties'
 LOGGER = LoguruWrapper().get_logger()
 
+"""
+Abstract class for properties handlers - i.e., implementations can subscribe or unsubscribe to the prevailing singleton instance of `AppProperties` 
+to be notified of changes in the properties file that trigger a reloading of the properties file, if prompted via `AppProperties` reload() method.
+"""
 class AppPropertiesHandler(ABC):
-    def __init__(self):
+    def __init__(self, name: str=None):
+        assert name is not None and not (not name), 'A valid handler name is required'
         super().__init__()
+        self.__name = name
 
+    def get_name(self):
+        return self.__name
 
     @abstractmethod
     def reload(self):
+        """
+        Reloads the underlying appliation properties file (``app-config.properties``)
+        :return: None
+        :rtype:
+        """
         pass
 
 """
@@ -34,7 +46,7 @@ a reload method, which allows a reload of the properties file anytime subsequent
 class AppProperties(object):
     instance__ = None
     app_props__ = None
-    handlers__ = []
+    handlers__ = {}
     """
     A static method responsible for creating and returning a new instance (called before __init__)
     """
@@ -53,7 +65,7 @@ class AppProperties(object):
     @debug_func(enable_debug=True, prefix='app_config')
     def __init__(self, *args, **kwargs):
         """
-        Initializes the properties utility and loads the first app-config.properties found anywhere in
+        Initializes the properties utility and loads the first `app-config.properties` found anywhere in
         the project root folder or subfolders. Usually, it is recommended that the app-config.properties is stored
         in the data subfolder of the project root.
         """
@@ -62,8 +74,8 @@ class AppProperties(object):
 
     def reload(self) -> None:
         """
-        Reload the properties configuration file.
-        :return:
+        Reload the properties configuration file. All subscribed handlers' reload() method is also called, triggering a refresh of any cached properties.
+        :return: None
         :rtype:
         """
         cur_props = self.app_props__
@@ -78,16 +90,14 @@ class AppProperties(object):
             raise ex
 
     def __str__(self):
-        path_to_app_config = os.path.join(get_data_dir(), APP_CONFIG)
+        path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_data_dir(), APP_CONFIG)
         info = 'AppProperties created, using properties file = ' + path_to_app_config
         LOGGER.info(info)
         return info
-    
-    '''
-    Get the value associated with the specified key.
-    '''
+
     def get(self, prop_key=None):
         """
+        Get the value associated with the specified key.
         Parameters:
             prop_key(str): the property name for which a value is required.
         Returns:
@@ -101,12 +111,9 @@ class AppProperties(object):
             return None
         return prop_value.strip()
 
-    '''
-        Get the value associated with the specified key.
-        '''
-
     def get_bol(self, prop_key=None):
         """
+        Get the value associated with the specified key.
         Parameters:
             prop_key(str): the property name for which a value is required.
         Returns:
@@ -122,12 +129,9 @@ class AppProperties(object):
             return None
         return bool(eval(prop_value.strip()))
 
-    '''
-    Get the list of keys held in the properties file.
-    '''
     def get_keys(self):
         """
-        Returns the list of keys as a list of strings.
+        Get the list of keys held in the properties file.
         :return:
             list(str): a list of keys
         """
@@ -137,11 +141,9 @@ class AppProperties(object):
             list_keys.append(item[0])
         return list_keys
 
-    '''
-        Get the value associated with the specified key as a list of strings.
-    '''
     def get_list(self, prop_key=None):
         """
+        Get the value associated with the specified key as a list of strings.
         Parameters:
             prop_key(str): the property name for which a value is required.
         Returns:
@@ -159,12 +161,9 @@ class AppProperties(object):
         result_list = list([x.strip() for x in tmp_list])
         return result_list
 
-    '''
-            Get the value associated with the specified key as a list of strings.
-        '''
-
     def get_list_properties(self, prop_key=None):
         """
+        Get the value associated with the specified key as a list.
         Parameters:
             prop_key(str): the property name for which a value is required.
         Returns:
@@ -198,11 +197,9 @@ class AppProperties(object):
                 result_list.extend([literal_eval(i.strip()) for i in item.split('],')])
         return result_list
 
-    '''
-        Get the value associated with the specified key as a bool, based on flags set on/off in the properties file.
-    '''
     def is_set(self, prop_key=None):
         """
+        Get the value associated with the specified key as a bool, based on flags set on/off in the properties file.
         Parameters:
             prop_key(str): the full property name - property name in the properties file as stem plus the key-part of a
             key/value pair specified as part of a list of (key=value) pairs in the properties file, appended to the
@@ -232,11 +229,9 @@ class AppProperties(object):
         else:
             return key_set
 
-    '''
-        Get the flag values associated with the specified key as a dict of bools, based on flags set on/off in the properties file.
-    '''
     def get_flags(self, prop_key=None):
         """
+        Get the flag values associated with the specified key as a dict of bools, based on flags set on/off in the properties file.
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
@@ -256,11 +251,9 @@ class AppProperties(object):
             flags[val_pair[0].strip()] = bool(eval(val_pair[1].strip()))
         return flags
 
-    '''
-        Get the key-value pairs as value associated with the specified key as a dict of strings set as key=value in the properties file.
-    '''
     def get_properties(self, prop_key=None):
         """
+        Get the key-value pairs as value associated with the specified key as a dict set as key=value in the properties file.
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
@@ -283,10 +276,11 @@ class AppProperties(object):
 
     def get_dict_properties(self, prop_key=None):
         """
+        Gets any properties configured as a dictionary in the properties file
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
-            dict(str): a dict of string key-value pairs based on the specified key; the default is None.
+            dict(str): a dict of key-value pairs based on the specified key; the default is None.
         """
         if prop_key is None:
             return None
@@ -298,6 +292,13 @@ class AppProperties(object):
         return properties
 
     def get_ranges(self, prop_key=None):
+        """
+        Gets the ranges associated with the specified key as a dict of tuples, based on ranges set in the properties file.
+        :param prop_key:
+        :type prop_key:
+        :return: tuple of min and max values for the specified key; the default is None.
+        :rtype:
+        """
         prop_dict = self.get_dict_properties(prop_key)
         prop_ranges = {}
         for param, value in prop_dict.items():
@@ -306,11 +307,9 @@ class AppProperties(object):
             prop_ranges[param] = (min_val, max_val)
         return prop_ranges
 
-    '''
-        Get the property value associated with the specified key, in a list of key-value pairs in the properties file.
-    '''
     def get_property(self, prop_key=None):
         """
+        Get the property value associated with the specified key, in a list of key-value pairs in the properties file.
         Parameters:
             prop_key(str): the full property name - property name in the properties file as stem plus the key-part of a
             key/value pair specified as part of a list of (key=value) pairs in the properties file, appended to the
@@ -338,12 +337,10 @@ class AppProperties(object):
             return None
         else:
             return val_part
-            
-    '''
-        Get the key-value pairs as value associated with the specified key as a dict of types set as key=value in the properties file.
-    '''
+
     def get_types(self, prop_key=None):
         """
+        Get the key-value pairs as value associated with the specified key as a dict of types set as key=value in the properties file.
         Parameters:
             prop_key(str): the full property name, as in the properties file, for which a value is required
         Returns:
@@ -407,7 +404,7 @@ class AppProperties(object):
                 LOGGER.info('Using custom config = {}', path_to_app_config)
                 break
         if not found_resource:
-            path_to_app_config = os.path.join(get_root_dir(), prop_file_name)
+            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_root_dir(), prop_file_name)
             LOGGER.warning('Will attempt to load custom config = {}', path_to_app_config)
         try:
             custom_props = Properties()
@@ -420,6 +417,26 @@ class AppProperties(object):
         # log message on completion
         LOGGER.info('Custom properties loaded = {}', path_to_app_config)
         return custom_props
+
+    def get_subscriber(self, handler: str)->AppPropertiesHandler:
+        assert handler is not None and not (not handler), 'A valid properties handler name is required'
+        prop_handler = self.handlers__.get(handler)
+        if prop_handler is not None:
+            return prop_handler
+        handler_prop = self.get_dict_properties('project.properties.' + handler)
+        if handler_prop is None:
+            LOGGER.error('No properties found for handler = {}', handler)
+            raise PropertiesException(f'No properties found for handler = {handler}')
+        handler_module = handler_prop.get('module_name')
+        handler_package = handler_prop.get('module_package')
+        handler_class = getattr(importlib.import_module(handler_package), handler_module)
+        try:
+            prop_handler = handler_class(handler)
+            self.subscribe(prop_handler)
+            return prop_handler
+        except TypeError as err:
+            LOGGER.error('Problem encountered instantiating properties handler: {}, {}', handler_module, err)
+            raise PropertiesException('Problem encountered instantiating properties handler: {}', handler_module)
 
     def __load(self)->None:
         """
@@ -439,7 +456,7 @@ class AppProperties(object):
                 LOGGER.info('Using project-specific application config = {}', path_to_app_config)
                 break
         if not found_resource:
-            path_to_app_config = os.path.join(get_root_dir(), APP_CONFIG)
+            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_root_dir(), APP_CONFIG)
             LOGGER.warning('Attempting to use global application config = {}', path_to_app_config)
         try:
             self.app_props__ = Properties()
@@ -453,13 +470,33 @@ class AppProperties(object):
         LOGGER.info('Application properties loaded = {}', path_to_app_config)
 
     def subscribe(self, handler: AppPropertiesHandler):
+        """
+        Adds the specified handler to the subscribers list, indicating that the handlers properties will be refreshed when a global refresh is triggered.
+        :param handler: specified handler interested in receiving notifications when properties are refreshed.
+        :type handler:
+        :return:
+        :rtype:
+        """
         if handler is not None:
-            self.handlers__.append(handler)
+            self.handlers__[handler.get_name()] = handler
 
     def unsubscribe(self, handler: AppPropertiesHandler):
+        """
+        Removes the specified handler from the subscribers' list, indicating that the handlers properties will no longer be refreshed when a global refresh is triggered.
+        :param handler:
+        :type handler:
+        :return:
+        :rtype:
+        """
         if handler is not None:
-            self.handlers__.remove(handler)
+            popped_handler = self.handlers__.pop(handler.get_name(), None)
+            LOGGER.debug('Removed handler = {}', popped_handler)
 
     def __notify_handlers(self):
-        for handler in self.handlers__:
+        """
+        Triggers a reload on each of its subscribers.
+        :return:
+        :rtype:
+        """
+        for handler in self.handlers__.values():
             handler.reload()

@@ -8,6 +8,8 @@ py -m build
 # to install locally, from the module root folder
 pip install -e .
 pip install --editable .
+# install from public registry
+pip install --upgrade cheutils
 
 # to install on pytest
 twine upload --repository testpypi dist/*

@@ -1,11 +1,20 @@
 from codetiming import Timer
 from tqdm.auto import tqdm
-
 from cheutils.loggers import LoguruWrapper
 from cheutils.decorator_debug import debug_func
 
-
 def create_timer(text=None, name: str = 'Timer', logger = None):
+    """
+    Creates a timer instance to be used for tracking processing times.
+    :param text:
+    :type text:
+    :param name: name used as key to track processing times of a method call.
+    :type name:
+    :param logger: any logger - the default is the underlying Loguru logger
+    :type logger:
+    :return:
+    :rtype:
+    """
     dblogger = logger if logger is not None else LoguruWrapper().get_logger()
     return Timer(text=text, name=name, logger=dblogger)
 
@@ -48,4 +57,13 @@ def timer_stats(name = None, prec: int = 2, formatted: bool = False):
 
 @debug_func(enable_debug=True, prefix='progress')
 def progress(*args, **kwargs):
+    """
+    Track progress using tqdm - essentially, a wrapper or equivalent to tqdm().
+    :param args:
+    :type args:
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
     return tqdm(*args, **kwargs)

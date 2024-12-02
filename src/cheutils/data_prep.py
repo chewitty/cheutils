@@ -18,11 +18,10 @@ LOGGER = LoguruWrapper().get_logger()
 class DataPrepProperties(AppPropertiesHandler):
     __app_props: AppProperties
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name: str=None):
+        super().__init__(name=name)
         self.__data_prep_properties = {}
         self.__app_props = AppProperties()
-        self.__app_props.subscribe(self)
 
     # overriding abstract method
     def reload(self):
@@ -30,16 +29,16 @@ class DataPrepProperties(AppPropertiesHandler):
             self.__data_prep_properties[key] = self._load(prop_key=key)
 
     def _load(self, prop_key: str=None):
-        LOGGER.debug('Attempting to load model property: {}', prop_key)
+        LOGGER.debug('Attempting to load data property: {}', prop_key)
         return getattr(self, '_load_' + prop_key, lambda: 'unspecified')()
 
     def __getattr__(self, item):
-        msg = f'Attempting to load unspecified model property: {item}'
+        msg = f'Attempting to load unspecified data property: {item}'
         LOGGER.error(msg)
         raise PropertiesException(msg)
 
     def _load_unspecified(self):
-        raise PropertiesException('Attempting to load unspecified model property')
+        raise PropertiesException('Attempting to load unspecified data property')
 
     def _load_selective_column_transformers(self):
         key = 'model.selective_column.transformers'
@@ -62,11 +61,61 @@ class DataPrepProperties(AppPropertiesHandler):
                 except TypeError as err:
                     LOGGER.error('Problem encountered instantiating transformer: {}, {}', name, err)
 
+    def _load_sqlite3_db(self):
+        key = 'project.sqlite3.db'
+        self.__data_prep_properties['sqlite3_db'] = self.__app_props.get(key)
+
+    def _load_ds_props(self, ds_config_file_name: str=None):
+        LOGGER.debug('Attempting to load datasource properties: {}', ds_config_file_name)
+        return getattr(self.__app_props, 'load_custom_properties', lambda: 'unspecified')(ds_config_file_name)
+
+    def _load_replace_table(self, ds_namespace: str, tb_name: str):
+        key = 'db.to_tables.replace.' + ds_namespace + '.' + tb_name
+        prop_key = 'replace_table_' + ds_namespace + '_' + tb_name
+        self.__data_prep_properties[prop_key] = self.__app_props.get_bol(key)
+
+    def _load_delete_by(self, ds_namespace: str, tb_name: str):
+        key = 'db.to_tables.replace.' + ds_namespace + '.' + tb_name
+        prop_key = 'delete_table_' + ds_namespace + '_' + tb_name
+        self.__data_prep_properties[prop_key] = self.__app_props.get_properties(key)
+
     def get_selective_column_transformers(self):
         value = self.__data_prep_properties.get('selective_column_transformers')
         if value is None:
             self._load_selective_column_transformers()
         return self.__data_prep_properties.get('selective_column_transformers')
+
+    def get_sqlite3_db(self):
+        value = self.__data_prep_properties.get('sqlite3_db')
+        if value is None:
+            self._load_sqlite3_db()
+        return self.__data_prep_properties.get('sqlite3_db')
+
+    def get_ds_config(self, ds_key: str, ds_config_file_name: str):
+        assert ds_key is not None and not (not ds_key), 'A valid datasource key or name required'
+        assert ds_config_file_name is not None and not (not ds_config_file_name), 'A valid datasource file name required'
+        value = self.__data_prep_properties.get(ds_key)
+        if value is None:
+            self.__data_prep_properties[ds_key] = self._load_ds_props(ds_config_file_name=ds_config_file_name)
+        return self.__data_prep_properties.get(ds_key)
+
+    def get_replace_tb(self, ds_namespace: str, tb_name: str):
+        assert ds_namespace is not None and not (not ds_namespace), 'A valid namespace is required'
+        assert tb_name is not None and not (not tb_name), 'A valid table name required'
+        prop_key = 'replace_table_' + ds_namespace + '_' + tb_name
+        value = self.__data_prep_properties.get(prop_key)
+        if value is None:
+            self._load_replace_table(ds_namespace=ds_namespace, tb_name=tb_name)
+        return self.__data_prep_properties.get(prop_key)
+
+    def get_delete_by(self, ds_namespace: str, tb_name: str):
+        assert ds_namespace is not None and not (not ds_namespace), 'A valid namespace is required'
+        assert tb_name is not None and not (not tb_name), 'A valid table name required'
+        prop_key = 'delete_table_' + ds_namespace + '_' + tb_name
+        value = self.__data_prep_properties.get(prop_key)
+        if value is None:
+            self._load_delete_by(ds_namespace=ds_namespace, tb_name=tb_name)
+        return self.__data_prep_properties.get(prop_key)
 
 class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
     """
@@ -260,8 +309,8 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
 class SelectiveColumnTransformer(ColumnTransformer):
     def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose_feature_names_out=False, verbose=False, n_jobs=None, **kwargs):
-        super().__init__(transformers=DataPrepProperties().get_selective_column_transformers(), remainder=remainder,
-                         force_int_remainder_cols=force_int_remainder_cols,
+        super().__init__(transformers=AppProperties().get_subscriber('data_handler').get_selective_column_transformers(),
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=verbose_feature_names_out,
                          verbose=verbose, n_jobs=n_jobs, **kwargs)
         self.feature_names = None

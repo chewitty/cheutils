@@ -8,12 +8,9 @@ import pandas as pd
 from sklearn.utils import estimator_html_repr
 from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import label, datestamp
+from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()
-
-PROJ_ROOT_DIR = './'
-PROJ_DATA_DIR = './data/'
-PROJ_OUTPUT_DIR = './output/'
 
 def get_root_dir():
     """
@@ -21,7 +18,7 @@ def get_root_dir():
     :return: the path to the root directory.
     :rtype:
     """
-    return PROJ_ROOT_DIR
+    return AppProperties().get_subscriber('proj_handler').get_proj_root()
 
 
 def get_data_dir():
@@ -30,7 +27,7 @@ def get_data_dir():
     :return: the path to the data directory.
     :rtype:
     """
-    return PROJ_DATA_DIR
+    return AppProperties().get_subscriber('proj_handler').get_proj_data()
 
 
 def get_output_dir():
@@ -39,8 +36,15 @@ def get_output_dir():
     :return: the path to the output directory.
     :rtype:
     """
-    return PROJ_OUTPUT_DIR
+    return AppProperties().get_subscriber('proj_handler').get_proj_output()
 
+def get_namespace():
+    """
+    Gets the project namespace
+    :return:
+    :rtype:
+    """
+    return AppProperties().get_subscriber('proj_handler').get_proj_namespace()
 
 def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = None, ):
     """

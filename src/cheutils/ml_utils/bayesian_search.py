@@ -13,6 +13,9 @@ from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()
 
+"""
+Special thanks to https://hyperopt.github.io/hyperopt-sklearn/ for the idea of using HyperoptEstimator to perform hyperparameter optimization.
+"""
 class HyperoptSearch(CheutilsBase):
     def __init__(self, model_option:str=None, max_evals: int=100, params_space: dict= None, loss_fn=mean_squared_error,
                  preprocessing: list=None, n_jobs: int=-1, algo=None, cv=None,
@@ -60,6 +63,9 @@ class HyperoptSearch(CheutilsBase):
         assert X is not None, 'A valid X expected'
         return self.base_estimator_.predict_proba(X)
 
+"""
+Based on https://hyperopt.github.io/hyperopt/. A hyperopt implementation that includes using cross validation during optimization
+"""
 class HyperoptSearchCV(CheutilsBase, BaseEstimator):
     def __init__(self, estimator, max_evals: int=100, algo=None,
                  cv=None, n_jobs: int=-1, params_space: dict= None, trial_timeout: int=60,

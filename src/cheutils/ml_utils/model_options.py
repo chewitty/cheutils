@@ -1,14 +1,17 @@
 import numpy as np
 import importlib
-from .model_properties_handler import ModelProperties
+from cheutils.properties_util import AppProperties
 from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()
-MODEL_PROPERTIES = ModelProperties()
 
 def get_estimator(**model_params):
     """
     Gets a specified estimator configured with key 'model_option'.
+    :param model_params: model parameters
+    :type model_params:
+    :return: estimator instance
+    :rtype:
     """
     cur_model_params = model_params.copy()
     model_option = None
@@ -18,7 +21,7 @@ def get_estimator(**model_params):
     if 'params_grid_key' in cur_model_params:
         params_grid_key = cur_model_params.get('params_grid_key')
         del cur_model_params['params_grid_key']
-    model_info = MODEL_PROPERTIES.get_models_supported().get(model_option)
+    model_info = AppProperties().get_subscriber('model_handler').get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
     try:
@@ -29,7 +32,16 @@ def get_estimator(**model_params):
     return model
 
 def get_hyperopt_estimator(model_option, **model_params):
-    model_info = MODEL_PROPERTIES.get_models_supported().get(model_option)
+    """
+    Get a specified estimator configured with key 'model_option' - specifically relevant to hyperoptsklearn estimators.
+    :param model_option: model option string
+    :type model_option:
+    :param model_params: model parameters
+    :type model_params:
+    :return: estimator instance
+    :rtype:
+    """
+    model_info = AppProperties().get_subscriber('model_handler').get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
     try:
@@ -39,16 +51,45 @@ def get_hyperopt_estimator(model_option, **model_params):
         raise KeyError('Unspecified or unsupported estimator')
     return model
 
-def get_params_grid(model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
-    return __get_estimator_params(model_option, params_key_stem=params_key_stem, prefix=prefix)
+def get_params_grid(model_option: str, prefix: str=None):
+    """
+    Gets the hyperparameters grid as configured in the application properties file.
+    :param model_option: model option, e.g. 'random_forest'
+    :type model_option:
+    :param prefix: model prefix, e.g. 'main_model'
+    :type prefix:
+    :return: dictionary of model hyperparameters keys and values
+    :rtype: dict
+    """
+    return __get_estimator_params(model_option, prefix=prefix)
 
-def get_params_pounds(model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
-    return MODEL_PROPERTIES.get_params_grid(model_option=model_option, is_range=True)
+def get_params_pounds(model_option: str, prefix: str=None):
+    """
+    Gets the hyperparameters bounding values as configured in the application properties file.
+    :param model_option: model option, e.g. 'random_forest'
+    :type model_option:
+    :param prefix: model prefix, e.g. 'main_model'
+    :type prefix:
+    :return: dictionary of hyperparameters bounding values
+    :rtype: dict
+    """
+    return AppProperties().get_subscriber('model_handler').get_params_grid(model_option=model_option, is_range=True)
 
-def parse_grid_types(from_grid: dict, params_key_stem: str='model.params_grid.', model_option: str=None, prefix: str=None):
+def parse_grid_types(from_grid: dict, model_option: str=None, prefix: str=None):
+    """
+    Parses the specified hyperparameters grid and returns a copy with hyperparameters of the relevant or configured type.
+    :param from_grid: source hyperparameters grid, which is possibly generated
+    :type from_grid:
+    :param model_option: the relevant model option, if any, e.g. 'random_forest'
+    :type model_option:
+    :param prefix: model prefix, if any, e.g. 'main_model'
+    :type prefix:
+    :return: dictionary of hyperparameters grid
+    :rtype: dict
+    """
     assert from_grid is not None, 'A valid parameter grid must be provided'
     params_grid = {}
-    params_grid_dict = MODEL_PROPERTIES.get_params_grid(model_option=model_option)
+    params_grid_dict = AppProperties().get_subscriber('model_handler').get_params_grid(model_option=model_option)
     param_keys = from_grid.keys()
     for param_key in param_keys:
         conf_param_key = param_key.split('__')[1] if '__' in param_key else param_key
@@ -79,9 +120,30 @@ def parse_grid_types(from_grid: dict, params_key_stem: str='model.params_grid.',
         params_grid = {}
     return params_grid
 
-def __get_estimator_params(model_option, params_key_stem: str='model.params_grid.', prefix: str=None):
+def get_param_defaults(param_key: str, model_option: str, prefix: str=None):
+    """
+    Get the configured default values for the specified parameter key.
+    :param param_key: specified key
+    :type param_key:
+    :param model_option: any specified supported model option
+    :type model_option:
+    :param prefix: elevant model prefix, if any, e.g. 'model_model'
+    :type prefix:
+    :return: dictionary item for the specified key
+    :rtype: dict
+    """
+    param_grid = get_params_grid(model_option=model_option, prefix=prefix)
+    param_keys = param_grid.keys()
+    rel_param_grid = {}
+    for key in param_keys:
+        if param_key == key:
+            rel_param_grid = {key: param_grid.get(key)}
+    LOGGER.debug('Default hyperparameter value: {}'.format(rel_param_grid))
+    return rel_param_grid
+
+def __get_estimator_params(model_option, prefix: str=None):
     params_grid = {}
-    params_grid_dict = MODEL_PROPERTIES.get_params_grid(model_option=model_option)
+    params_grid_dict = AppProperties().get_subscriber('model_handler').get_params_grid(model_option=model_option)
     param_keys = params_grid_dict.keys()
     for param_key in param_keys:
         param = params_grid_dict.get(param_key)
@@ -116,17 +178,3 @@ def __get_estimator_params(model_option, params_key_stem: str='model.params_grid
         params_grid = {}
     #LOGGER.debug('Hyperparameter grid: {}'.format(params_grid))
     return params_grid
-
-def get_default_grid(param_key: str, model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
-    param_grid = get_params_grid(model_option=model_option, params_key_stem=params_key_stem, prefix=prefix)
-    param_keys = param_grid.keys()
-    rel_param_grid = {}
-    for key in param_keys:
-        if param_key == key:
-            rel_param_grid = {key: param_grid.get(key)}
-    LOGGER.debug('Default hyperparameter grid params: {}'.format(rel_param_grid))
-    return rel_param_grid
-
-def get_params(model_option: str, params_key_stem: str='model.params_grid.', prefix: str=None):
-    param_grid = get_params_grid(model_option=model_option, params_key_stem=params_key_stem, prefix=prefix)
-    return param_grid.keys()

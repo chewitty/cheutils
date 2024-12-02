@@ -22,14 +22,12 @@ from sqlalchemy.sql import text
 from sqlalchemy.event import listens_for
 from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import datestamp, safe_copy
-from cheutils.properties_util import AppProperties
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.decorator_timer import track_duration
 from cheutils.exceptions import DBToolException, DSWrapperException
+from cheutils.properties_util import AppProperties
 
-# Define project constants.
-APP_PROPS = AppProperties()
 DEFAULT_DS_CONFIG = 'ds-config.properties'
 LOGGER = LoguruWrapper().get_logger()
 
@@ -421,7 +419,7 @@ class DBTool(object):
                         raise
         except Exception as err:
             LOGGER.error('FAILURE: {}', err)
-            raise DBToolException(err).with_traceback(ex.__traceback__)
+            raise DBToolException(err).with_traceback(err.__traceback__)
         finally:
             LOGGER.debug('Finished attempt to executing a query on db')
 
@@ -454,30 +452,6 @@ class DBTool(object):
             raise DBToolException(err)
         finally:
             LOGGER.debug('Finished attempt to persist to db')
-
-    # Read dataframe from the specified table in the underlying DB repository
-    def read_from_db_for_geolevel(self, script, query_string='select * from #tempoutput'):
-        """
-        Execute the script to create to put the geolevel data into the temp table #tempoutput and
-        with a simple query of SELECT, get all the rows.
-        Parameters:
-            script(str): The script to execute
-            query_string: The query to read the ouput table of the script.
-        Returns:
-            (DataFrame): The ouput data as dataframe.
-        """
-        try:
-            with self.__get_connection() as connection:
-                connection.execute(script)
-                df = pd.read_sql(text(query_string), connection)
-                LOGGER.debug('Shape of dataframe = {}', df.shape)
-                connection.close()
-                return df
-        except Exception as err:
-            LOGGER.error('FAILURE: {}', err)
-            raise DBToolException(err)
-        finally:
-            LOGGER.debug('Finished attempt to read from db')
 
     def read_db_table(self, db_table='', index_col=None, coerce_float=False, parse_dates=None,
                       columns=None, force_parallelize=False):
@@ -1163,27 +1137,29 @@ class DSWrapper(object):
         """
         # log message on completion
         LOGGER.debug('Preparing DSWrapper ...')
-        DSWrapper.ds_props__ = APP_PROPS.load_custom_properties(DEFAULT_DS_CONFIG)
+        DSWrapper.ds_props__ = AppProperties().get_subscriber('data_handler').get_ds_props(ds_key='ds_main', ds_config_file_name=DEFAULT_DS_CONFIG)
         assert DSWrapper.ds_props__ is not None, 'Failure with processing datasource config file (ds-config.properties'
         def get_ds_properties(prop_key=None):
             """
             Parameters:
                 prop_key(str): the full property name, as in the properties file, for which a value is required
             Returns:
-                dict(str): a dict of string key-value pairs based on the specified key; the default is None.
+                list(dict): a list of dictionaries based on the specified key and configured datasources.
             """
             if prop_key is None:
                 return None
-            prop_value = DSWrapper.ds_props__.get(prop_key)
+            prop_value = DSWrapper.ds_props__.get_list_properties(prop_key=prop_key)
             if prop_value is None:
                 return None
-            prop_value = prop_value.data
-            properties = eval(prop_value)
-            return properties
+            ds_properties = []
+            for prop in prop_value:
+                ds_properties.append(prop)
+            return ds_properties
         loaded_configs = get_ds_properties('project.ds.supported')
-        LOGGER.debug('Found config details for the following DBs = {}', loaded_configs.keys())
         db_configs = {}
-        for key in loaded_configs.keys():
+        for loaded_config in loaded_configs:
+            key = loaded_config.keys()
+            LOGGER.debug('Found config for the following DB = {}', key)
             db_info = loaded_configs.get(key)
             assert db_info is not None, 'There may be an issue with the datasource configuration or properties file'
             # setup the DB parameters
@@ -1237,15 +1213,16 @@ class DSWrapper(object):
         """
         return self.dbtool_factory__.get_tool(ds_key, verbose=verbose)
 
-    '''
-    Clears the underlying datasource, which could be a table.
-    '''
-
-    @track_duration(name='clear_ds')
-    @debug_func(enable_debug=True, prefix='clear_ds')
-    def clear_datasource(self, ds_config=None):
+    def clear_table(self, ds_config=None):
+        """
+        Clears the underlying datasource, which could be a table.
+        :param ds_config: configuration dictionary for the datasource - e.g., DS_CONFIG = {'ds_key': 'mysql_pymsql', 'db_table': 'master_origins', 'unique_key': unique_key, }
+        :type ds_config:
+        :return:
+        :rtype:
+        """
         if ds_config is None:
-            'The datasource wrapper configuration must be specified'
+            msg = 'The datasource wrapper configuration must be specified'
             LOGGER.debug(msg)
             raise DSWrapperException(msg)
         # fetch all required properties from the ds_config dict
@@ -1265,12 +1242,8 @@ class DSWrapper(object):
             msg = 'An appropriate DB table name must be specified'
             LOGGER.debug(msg)
             raise DSWrapperException(msg)
-        replace_prop_key = 'db.to_tables.replace.' + ds_namespace + '.' + db_table
-        delete_prop_key = 'db.to_table.delete.' + ds_namespace + '.' + db_table
-        LOGGER.debug('Checking set flag = {}', replace_prop_key)
-        replace = APP_PROPS.get_bol(replace_prop_key)
-        LOGGER.debug('Checking filtered by parts = {}', delete_prop_key)
-        delete_subset = APP_PROPS.get_properties(delete_prop_key)
+        replace = AppProperties().get_subscriber('data_handler').get_replace_tb(ds_namespace=ds_namespace, tb_name=db_table)
+        delete_subset = AppProperties().get_subscriber('data_handler').get_properties(ds_namespace=ds_namespace, tb_name=db_table)
         db_tool = self.get_db_tool(ds_key=ds_key)
         if delete_subset is not None:
             filter_by = [prop_key + '=' + delete_subset.get(prop_key) for prop_key in delete_subset]

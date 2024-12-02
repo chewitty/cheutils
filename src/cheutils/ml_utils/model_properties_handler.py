@@ -1,6 +1,7 @@
-from cheutils.properties_util import AppProperties, AppPropertiesHandler, PropertiesException
+from cheutils.properties_util import AppProperties, AppPropertiesHandler
 from cheutils.decorator_singleton import singleton
 from cheutils.loggers import LoguruWrapper
+from cheutils.exceptions import PropertiesException
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -8,14 +9,18 @@ LOGGER = LoguruWrapper().get_logger()
 class ModelProperties(AppPropertiesHandler):
     __app_props: AppProperties
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, name: str=None,):
+        super().__init__(name=name)
         self.__model_properties = {}
         self.__app_props = AppProperties()
-        self.__app_props.subscribe(self)
 
     # overriding abstract method
     def reload(self):
+        """
+        Reloads the underlying application properties.
+        :return:
+        :rtype:
+        """
         for key in self.__model_properties.keys():
             self.__model_properties[key] = self._load(prop_key=key)
 
