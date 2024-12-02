@@ -26,7 +26,11 @@ class DataPrepProperties(AppPropertiesHandler):
     # overriding abstract method
     def reload(self):
         for key in self.__data_prep_properties.keys():
-            self.__data_prep_properties[key] = self._load(prop_key=key)
+            try:
+                self.__data_prep_properties[key] = self._load(prop_key=key)
+            except Exception as err:
+                LOGGER.warning('Problem reloading property: {}, {}', key, err)
+                pass
 
     def _load(self, prop_key: str=None):
         LOGGER.debug('Attempting to load data property: {}', prop_key)

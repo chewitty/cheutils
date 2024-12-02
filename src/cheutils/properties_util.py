@@ -500,3 +500,5 @@ class AppProperties(object):
         """
         for handler in self.handlers__.values():
             handler.reload()
+        # reset project namespace accordingly
+        LoguruWrapper().set_prefix(prefix=self.get_subscriber('proj_handler').get_proj_namespace())

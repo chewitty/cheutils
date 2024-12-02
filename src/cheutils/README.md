@@ -89,12 +89,12 @@ BOL_VAL = APP_PROPS.get_bol('model.find_optimal.grid_resolution') # e.g., some.c
 ```
 You access the LOGGER instance by simply calling `LOGGER.debug()` in a similar way to you will when using loguru or standard logging
 ```python
-LOGGER = cheutils.LOGGER.get_logger()
+LOGGER = cheutils.LoguruWrapper().get_logger()
 LOGGER.info('Some info you wish to log') # or debug() etc.
 ```
-You may also wish to change the logging context from the default, which is usually set to the configured project namespace property, by calling `set_prefix()` on the LOGGER instance ensures the log messages are scoped to that context thereafter - which can be helpful when reviewing the generated log file (`app-log.log`) - the default prefix is "app-log". You can set the logger prefix as follows:
+You may also wish to change the logging context from the default, which is usually set to the configured project namespace property, by calling `set_prefix()` to ensure the log messages are scoped to that context thereafter - which can be helpful when reviewing the generated log file (`app-log.log`) - the default prefix is "app-log". You can set the logger prefix as follows:
 ```python
-LOGGER.set_prefix(prefix='my_project')
+cheutils.LoguruWrapper().set_prefix(prefix='my_project')
 ```
 The `cheutils` module currently supports any configured estimator (see, the xgb_boost example in the sample properties file for how to configure any estimator).
 You can configure the active or main estimators for your project with an entry in the app-config.properties as below, but you add your own properties as well, provided the estimator has been fully configured as in the sample properties file:

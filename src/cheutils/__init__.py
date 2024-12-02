@@ -28,10 +28,8 @@ from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlit
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 
-APP_PROPS = AppProperties()
-LOGGER = LoguruWrapper()
-log_handler = {'sink': os.path.join(get_output_dir(), 'app-log.log'), 'serialize': False, 'backtrace': True,
+log_handler = {'sink': os.path.join(AppProperties().get_subscriber('proj_handler').get_proj_output(), 'app-log.log'), 'serialize': False, 'backtrace': True,
                'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}', 'level': 'TRACE',
                'rotation': '00:00', }
-LOGGER.addHandler(log_handler)
-LOGGER.set_prefix(prefix=APP_PROPS.get('project.namespace'))
+LoguruWrapper().addHandler(log_handler)
+LoguruWrapper().set_prefix(prefix=AppProperties().get_subscriber('proj_handler').get_proj_namespace())

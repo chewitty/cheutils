@@ -22,7 +22,11 @@ class ModelProperties(AppPropertiesHandler):
         :rtype:
         """
         for key in self.__model_properties.keys():
-            self.__model_properties[key] = self._load(prop_key=key)
+            try:
+                self.__model_properties[key] = self._load(prop_key=key)
+            except Exception as err:
+                LOGGER.warning('Problem reloading property: {}, {}', key, err)
+                pass
 
     def _load(self, prop_key: str=None):
         LOGGER.debug('Attempting to load model property: {}', prop_key)
