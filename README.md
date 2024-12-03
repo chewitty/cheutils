@@ -1,5 +1,3 @@
-from project_tree import LOGGER
-
 # cheutils
 
 A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
