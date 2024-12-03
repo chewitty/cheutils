@@ -385,7 +385,7 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     :type pot_leak_cols: list
     :param drop_missing: drop rows with missing data if True; default is False
     :type drop_missing: bool
-    :param clip_data: clip the data based on categories defined by the filterby key and whether to enforec positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
+    :param clip_data: clip the data based on categories defined by the filterby key and whether to enforce positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
     :type clip_data: dict
     :param include_target: include the target Series in the returned first item of the tuple if True; default is False
     :return: Processed dataframe and updated target Series

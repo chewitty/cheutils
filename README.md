@@ -29,7 +29,7 @@ The module supports application configuration via a properties file. As such, yo
 ##
 # Sample application properties file
 ##
-project.namespace=cheutils
+project.namespace=proj_namespace
 project.root.dir=./
 project.data.dir=./data/
 project.output.dir=./output/
@@ -37,8 +37,8 @@ project.output.dir=./output/
 project.properties.prop_handler={'module_name': 'ProjectTreeProperties', 'module_package': 'cheutils', }
 project.properties.data_handler={'module_name': 'DataPrepProperties', 'module_package': 'cheutils', }
 project.properties.model_handler={'module_name': 'ModelProperties', 'module_package': 'cheutils', }
-# SQLite DB
-project.sqlite3.db=cheutils_sqlite.db
+# SQLite DB - used for selected caching for efficiency
+project.sqlite3.db=proj_sqlite.db
 project.dataset.list=[X_train.csv, X_test.csv, y_train.csv, y_test.csv]
 project.models.supported={'xgb_boost': {'module_name': 'XGBRegressor', 'module_package': 'xgboost'}, \
 'random_forest': {'module_name': 'RandomForestRegressor', 'module_package': 'sklearn.ensemble'}, \
@@ -135,7 +135,7 @@ Given a default broad estimator hyperparameter configuration (usually in the pro
 grid using RandomSearchCV as in the following line. Note that, the pipeline can either be an sklearn pipeline or an estimator. 
 The general idea is that, to avoid worrying about trying to figure out the optimal set of hyperparameter values for a given estimator, you can do that automatically, by 
 adopting a two-step coarse-to-fine search, where you configure a broad hyperparameter space or grid based on the estimator's most important or impactful hyperparameters, and the use a random search to find a set of promising hyperparameters that 
-you can use to conduct a finer hyperparameter space search using other algorithms such as bayesean optimization (e.g., hyperopt or Scikit-Optimize, etc.)
+you can use to conduct a finer hyperparameter space search using other algorithms such as Bayesian optimization (e.g., hyperopt or Scikit-Optimize, etc.)
 ```python
 from cheutils import promising_params_grid, params_optimization, AppProperties, load_dataset
 from sklearn.pipeline import Pipeline
@@ -171,19 +171,18 @@ The `cheutils` module comes with custom transformers for some preprocessing - e.
 
 You can add a data preprocessing transformer to your pipeline as follows:
 ```python
-from cheutils import pre_process, DataPrepTransformer
+from cheutils import DataPrepTransformer
 date_cols = ['rental_date']
 int_cols = ['release_year', 'length', 'NC-17', 'PG', 'PG-13', 'R',
             'trailers', 'deleted_scenes', 'behind_scenes', 'commentaries', 'extra_fees']
 correlated_cols = ['rental_rate_2', 'length_2', 'amount_2']
 drop_missing = True # drop rows with missing data
-clip_data = None # no data clipping
+clip_data = None # no data clipping; but you could clip outliers based on category aggregates with something like clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'cat_col', }
 exp_tf = DataPrepTransformer(date_cols=date_cols, 
                              int_cols=int_cols, 
                              drop_missing=drop_missing, 
                              clip_data=clip_data,
-                             correlated_cols=correlated_cols,
-                             include_target=False,)
+                             correlated_cols=correlated_cols,)
 data_prep_pipeline_steps = [('data_prep_step', exp_tf)] # this can be added to a model pipeline
 ```
 You can also include feature selection by adding the following to the pipeline:
