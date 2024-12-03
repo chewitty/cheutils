@@ -1,5 +1,3 @@
-from movierental.notebook import model_option
-
 # cheutils
 
 A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.

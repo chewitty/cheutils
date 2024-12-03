@@ -19,8 +19,10 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
                                   save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db)
 from cheutils.properties_util import AppProperties
+from cheutils.ml_utils.model_properties_handler import ModelProperties
 
 LOGGER = LoguruWrapper().get_logger()
+
 # cache optimal num_params, keyed by model option
 OPTIMAL_GRID_RES = {}
 # Supported hyperopt algorithms
@@ -81,24 +83,25 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     :return: dictionary of promising hyperparameters
     :rtype: dict
     """
+    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     assert pipeline is not None, "A valid pipeline instance expected"
     if random_state is None:
-        random_state = AppProperties().get_subscriber('model_handler').get_random_seed()
+        random_state = __model_handler.get_random_seed()
     name = None
     if "name" in kwargs:
         name = kwargs.get("name")
         del kwargs["name"]
     # phase 1: Coarse search
-    params_grid = get_params_grid(AppProperties().get_subscriber('model_handler').get_model_option(), prefix=prefix)
+    params_grid = get_params_grid(__model_handler.get_model_option(), prefix=prefix)
     LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
-    num_params = AppProperties().get_subscriber('model_handler').get_grid_resolution() if (grid_resolution is None) else grid_resolution
+    num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
     # attempt to fetch promising grid from SQLite DB
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid), model_prefix=prefix, tb_name=AppProperties().get_subscriber('model_handler').get_model_option())
-    best_params = parse_grid_types(best_params, model_option=AppProperties().get_subscriber('model_handler').get_model_option(),
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid), model_prefix=prefix, tb_name=__model_handler.get_model_option())
+    best_params = parse_grid_types(best_params, model_option=__model_handler.get_model_option(),
                                    prefix=prefix) if best_params is not None else best_params
     if best_params is None:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
-                                       scoring=AppProperties().get_subscriber('model_handler').get_cross_val_scoring(), cv=AppProperties().get_subscriber('model_handler').get_cross_val_num_folds(), n_iter=AppProperties().get_subscriber('model_handler').get_n_iters(), n_jobs=AppProperties().get_subscriber('model_handler').get_n_jobs(),
+                                       scoring=__model_handler.get_cross_val_scoring(), cv=__model_handler.get_cross_val_num_folds(), n_iter=__model_handler.get_n_iters(), n_jobs=__model_handler.get_n_jobs(),
                                        random_state=random_state, verbose=2, error_score="raise", )
         if name is not None:
             show_pipeline(search_cv, name=name, save_to_file=True)
@@ -110,7 +113,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
         best_params = search_cv.best_params_
         # cache the promising grid to SQLite
         save_param_grid_to_sqlite_db(param_grid=best_params, model_prefix=prefix, grid_resolution=num_params,
-                                     grid_size=len(params_grid), tb_name=AppProperties().get_subscriber('model_handler').get_model_option(), )
+                                     grid_size=len(params_grid), tb_name=__model_handler.get_model_option(), )
     return best_params
 
 @track_duration(name='params_optimization')
@@ -143,6 +146,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
+    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     if mlflow_exp is not None:
         if mlflow_exp.get('log') is True:
             LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
@@ -160,24 +164,24 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
             if not (response.text == mlflow.__version__):
                 LOGGER.warning('The client-side version of MLflow is not aligned with the remote tracking server')
     if random_state is None:
-        random_state = AppProperties().get_subscriber('model_handler').get_random_seed()
+        random_state = __model_handler.get_random_seed()
     name = None
     if "name" in kwargs:
         name = kwargs.get("name")
         del kwargs["name"]
     LOGGER.debug('Promising hyperparameters = \n{}', str(promising_params_grid))
     # get the parameter boundaries from the range specified in properties file
-    params_bounds = get_params_pounds(AppProperties().get_subscriber('model_handler').get_model_option(), prefix=prefix)
+    params_bounds = get_params_pounds(__model_handler.get_model_option(), prefix=prefix)
     # fetch promising params grid from cache if possible
-    num_params = AppProperties().get_subscriber('model_handler').get_grid_resolution() if (grid_resolution is None) else grid_resolution
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds), model_prefix=prefix, tb_name=AppProperties().get_subscriber('model_handler').get_model_option())
-    best_params = parse_grid_types(best_params, model_option=AppProperties().get_subscriber('model_handler').get_model_option(),
+    num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds), model_prefix=prefix, tb_name=__model_handler.get_model_option())
+    best_params = parse_grid_types(best_params, model_option=__model_handler.get_model_option(),
                                    prefix=prefix) if best_params is not None else best_params
     best_params = best_params if promising_params_grid is None else promising_params_grid
     # fetch narrow params grid from cache if possible
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-    narrow_param_grid = get_narrow_grid_from_sqlite_db(tb_name=AppProperties().get_subscriber('model_handler').get_model_option(), cache_key=params_cache_key, )
-    narrow_param_grid = narrow_param_grid if with_narrower_grid else get_params_grid(AppProperties().get_subscriber('model_handler').get_model_option(), prefix=prefix)
+    narrow_param_grid = get_narrow_grid_from_sqlite_db(tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
+    narrow_param_grid = narrow_param_grid if with_narrower_grid else get_params_grid(__model_handler.get_model_option(), prefix=prefix)
     # phase 2: perform finer search
     # generate narrow grid as required
     if with_narrower_grid & (narrow_param_grid is None):
@@ -185,7 +189,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                   params_bounds=params_bounds)
     LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
     search_cv = None
-    if AppProperties().get_subscriber('model_handler').get_find_grid_resolution():
+    if __model_handler.get_find_grid_resolution():
         num_params = get_optimal_grid_resolution(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                  fine_search=fine_search, random_state=random_state)
     if 'hyperoptsk' == fine_search:
@@ -194,25 +198,25 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                params_bounds=params_bounds,
                                                                fine_search=fine_search,
                                                                random_state=random_state),
-                                   model_option=AppProperties().get_subscriber('model_handler').get_model_option(), max_evals=AppProperties().get_subscriber('model_handler').get_n_trials(),
-                                   algo=__get_hyperopt_algos(), cv=AppProperties().get_subscriber('model_handler').get_cross_val_num_folds(),
-                                   trial_timeout=AppProperties().get_subscriber('model_handler').get_trial_timeout(), random_state=random_state)
+                                   model_option=__model_handler.get_model_option(), max_evals=__model_handler.get_n_trials(),
+                                   algo=__get_hyperopt_algos(), cv=__model_handler.get_cross_val_num_folds(),
+                                   trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
     elif "hyperoptcv" == fine_search:
         search_cv = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(narrow_param_grid,
                                                                                      num_params=num_params,
                                                                                      params_bounds=params_bounds,
                                                                                      fine_search=fine_search,
                                                                                      random_state=random_state),
-                                     cv=cv, scoring=AppProperties().get_subscriber('model_handler').get_cross_val_scoring(), algo=__get_hyperopt_algos(),
-                                     max_evals=AppProperties().get_subscriber('model_handler').get_n_trials(), n_jobs=AppProperties().get_subscriber('model_handler').get_n_jobs(), mlflow_exp=mlflow_exp,
-                                     trial_timeout=AppProperties().get_subscriber('model_handler').get_trial_timeout(), random_state=random_state)
+                                     cv=cv, scoring=__model_handler.get_cross_val_scoring(), algo=__get_hyperopt_algos(),
+                                     max_evals=__model_handler.get_n_trials(), n_jobs=__model_handler.get_n_jobs(), mlflow_exp=mlflow_exp,
+                                     trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
     elif 'skoptimize' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(narrow_param_grid,
                                                                                    num_params=num_params,
                                                                                    params_bounds=params_bounds,
                                                                                    fine_search=fine_search,
                                                                                    random_state=random_state),
-                                  scoring=AppProperties().get_subscriber('model_handler').get_cross_val_scoring(), cv=cv, n_iter=5, n_jobs=AppProperties().get_subscriber('model_handler').get_n_jobs(),
+                                  scoring=__model_handler.get_cross_val_scoring(), cv=cv, n_iter=5, n_jobs=__model_handler.get_n_jobs(),
                                   random_state=random_state, verbose=10, )
     else:
         LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
@@ -246,15 +250,16 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
     :return:
     :rtype:
     """
+    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     if random_state is None:
-        random_state = AppProperties().get_subscriber('model_handler').get_random_seed()
-    num_params = OPTIMAL_GRID_RES.get(AppProperties().get_subscriber('model_handler').get_model_option())
-    with_cv = AppProperties().get_subscriber('model_handler').get_cross_val_num_folds() if AppProperties().get_subscriber('model_handler').get_grid_resolution_wth_cv() else None
+        random_state = __model_handler.get_random_seed()
+    num_params = OPTIMAL_GRID_RES.get(__model_handler.get_model_option())
+    with_cv = __model_handler.get_cross_val_num_folds() if __model_handler.get_grid_resolution_wth_cv() else None
     if num_params is None:
         scores = []
-        start = AppProperties().get_subscriber('model_handler').get_grid_resolution().get('start')
-        end = AppProperties().get_subscriber('model_handler').get_grid_resolution().get('end')
-        step = AppProperties().get_subscriber('model_handler').get_grid_resolution().get('step')
+        start = __model_handler.get_grid_resolution().get('start')
+        end = __model_handler.get_grid_resolution().get('end')
+        step = __model_handler.get_grid_resolution().get('step')
         param_ids = range(start, end, step)
         for n_params in param_ids:
             finder = None
@@ -265,24 +270,24 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
                                                                     params_bounds=params_bounds,
                                                                     fine_search=fine_search,
                                                                     random_state=random_state),
-                                        model_option=AppProperties().get_subscriber('model_handler').get_model_option(), max_evals=10, algo=__get_hyperopt_algos(), cv=with_cv,
-                                        trial_timeout=AppProperties().get_subscriber('model_handler').get_trial_timeout(), random_state=random_state)
+                                        model_option=__model_handler.get_model_option(), max_evals=10, algo=__get_hyperopt_algos(), cv=with_cv,
+                                        trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
             elif 'hyperoptcv' == fine_search:
                 finder = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(search_space,
                                                                                           num_params=n_params,
                                                                                           params_bounds=params_bounds,
                                                                                           fine_search=fine_search,
                                                                                           random_state=random_state),
-                                          cv=with_cv, scoring=AppProperties().get_subscriber('model_handler').get_cross_val_scoring(), algo=__get_hyperopt_algos(),
-                                          max_evals=10, n_jobs=AppProperties().get_subscriber('model_handler').get_n_jobs(),
-                                          trial_timeout=AppProperties().get_subscriber('model_handler').get_trial_timeout(), random_state=random_state)
+                                          cv=with_cv, scoring=__model_handler.get_cross_val_scoring(), algo=__get_hyperopt_algos(),
+                                          max_evals=10, n_jobs=__model_handler.get_n_jobs(),
+                                          trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
             elif 'skoptimize' == fine_search:
                 finder = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(search_space,
                                                                                         num_params=n_params,
                                                                                         params_bounds=params_bounds,
                                                                                         fine_search=fine_search,
                                                                                         random_state=random_state),
-                                       scoring=AppProperties().get_subscriber('model_handler').get_cross_val_scoring(), cv=with_cv, n_iter=5, n_jobs=AppProperties().get_subscriber('model_handler').get_n_jobs(),
+                                       scoring=__model_handler.get_cross_val_scoring(), cv=with_cv, n_iter=5, n_jobs=__model_handler.get_n_jobs(),
                                        random_state=random_state, verbose=10, )
             else:
                 LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
@@ -295,7 +300,7 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
         filename = 'optimal_num_params.xlsx'
         save_excel(opt_params_df, file_name=filename)
         if cache_value:
-            OPTIMAL_GRID_RES[AppProperties().get_subscriber('model_handler').get_model_option()] = num_params
+            OPTIMAL_GRID_RES[__model_handler.get_model_option()] = num_params
     LOGGER.debug('Optimal grid resolution = {}', num_params)
     return num_params
 
@@ -311,9 +316,10 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     :return:
     :rtype:
     """
+    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     params_bounds = {} if params_bounds is None else params_bounds
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-    narrower_grid = get_narrow_grid_from_sqlite_db(tb_name=AppProperties().get_subscriber('model_handler').get_model_option(), cache_key=params_cache_key, )
+    narrower_grid = get_narrow_grid_from_sqlite_db(tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
     if narrower_grid is not None:
         LOGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
         return narrower_grid
@@ -352,7 +358,7 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
         else:
             param_grid[param] = [value]
     #NARROW_PARAM_GRIDS[params_cache_key] = param_grid
-    save_narrow_grid_to_sqlite_db(param_grid, tb_name=AppProperties().get_subscriber('model_handler').get_model_option(), cache_key=params_cache_key, )
+    save_narrow_grid_to_sqlite_db(param_grid, tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
     return param_grid
 
 def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
@@ -469,9 +475,10 @@ def __get_hyperopt_algos():
     :return: an appropriate hyperopt algorithm(s) - based on what is configured (i.e., the 'model.hyperopt.algos' property)
     :rtype:
     """
+    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     p_suggest = []
-    if AppProperties().get_subscriber('model_handler').get_hyperopt_algos() is not None:
-        for key, value in AppProperties().get_subscriber('model_handler').get_hyperopt_algos().items():
+    if __model_handler.get_hyperopt_algos() is not None:
+        for key, value in __model_handler.get_hyperopt_algos().items():
             algo = SUPPORTED_ALGOS.get(key)
             if algo is not None:
                 p_suggest.append((value, SUPPORTED_ALGOS.get(key)))

@@ -16,6 +16,7 @@ hyperopt
 scikit-optimize
 fast_ml
 mlflow
+dask
 
 [datasource]
 dask[dataframe]

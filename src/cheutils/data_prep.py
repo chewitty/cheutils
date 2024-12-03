@@ -313,7 +313,8 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
 class SelectiveColumnTransformer(ColumnTransformer):
     def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose_feature_names_out=False, verbose=False, n_jobs=None, **kwargs):
-        super().__init__(transformers=AppProperties().get_subscriber('data_handler').get_selective_column_transformers(),
+        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        super().__init__(transformers=__data_handler.get_selective_column_transformers(),
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=verbose_feature_names_out,
                          verbose=verbose, n_jobs=n_jobs, **kwargs)

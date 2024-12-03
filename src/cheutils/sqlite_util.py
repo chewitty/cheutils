@@ -6,6 +6,7 @@ from cheutils.properties_util import AppProperties
 from cheutils.project_tree import get_data_dir
 from cheutils.exceptions import SQLiteUtilException
 from cheutils.loggers import LoguruWrapper
+from cheutils.data_prep import DataPrepProperties
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -32,7 +33,8 @@ def save_param_grid_to_sqlite_db(param_grid: dict, tb_name: str='promising_grids
     assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
     conn = None
     cursor = None
-    sqlite_db = os.path.join(get_data_dir(), AppProperties().get_subscriber('data_handler').get_sqlite3_db())
+    __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+    sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     underlying_tb_name = tb_name + '_' + str(grid_size)
     try:
         data_grid = {}
@@ -90,7 +92,8 @@ def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolutio
     assert grid_size > 0, 'A valid grid size (>0) - i.e., len(param_grid) expected'
     conn = None
     cursor = None
-    sqlite_db = os.path.join(get_data_dir(), AppProperties().get_subscriber('data_handler').get_sqlite3_db())
+    __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+    sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     try:
         # Connect to the SQLite database (or create it if it doesn't exist)
         conn = sqlite3.connect(sqlite_db)
@@ -147,7 +150,8 @@ def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key
     assert cache_key is not None and len(cache_key) > 0, 'Unique lookup key must be provided'
     conn = None
     cursor = None
-    sqlite_db = os.path.join(get_data_dir(), AppProperties().get_subscriber('data_handler').get_sqlite3_db())
+    __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+    sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     underlying_tb_name = tb_name + '_narrow_grids'
     try:
         data_grid = {}
@@ -203,7 +207,8 @@ def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model
     assert cache_key is not None and len(cache_key) > 0, 'Unique lookup key must be provided'
     conn = None
     cursor = None
-    sqlite_db = os.path.join(get_data_dir(), AppProperties().get_subscriber('data_handler').get_sqlite3_db())
+    __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+    sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     try:
         # Connect to the SQLite database (or create it if it doesn't exist)
         conn = sqlite3.connect(sqlite_db)

@@ -15,8 +15,15 @@ pip install --upgrade cheutils
 twine upload --repository testpypi dist/*
 pip install -i https://test.pypi.org/simple/ cheutils==2.1.16
 
+# Run twine check on the sdist and wheel: will report any problems rendering your README
+twine check dist/*
+
 # to install on pyprod
 twine upload dist/*
+
+# Update local packages for distribution
+pip install --user --upgrade setuptools wheel
+pip install --user --upgrade twine
 
 # build custom image using docker compose
 docker compose build
@@ -27,10 +34,14 @@ docker compose up -d
 # undeploy container using docker compose
 docker compose down
 
-# running mlflow project
+# running mlflow server
 mlflow server --host localhost --port 8080
 
 # serving mlflow models
 mlflow models serve -m models:/best_model/1 --port 5002 --env-manager local
+
+# Turning memory compression on/off
+Disable-MMAgent -MemoryCompression
+Enable-MMAgent -MemoryCompression
 
 

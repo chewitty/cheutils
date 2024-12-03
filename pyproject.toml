@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cheutils"
-version = "2.7.15"
+version = "2.7.16"
 authors = [
   { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
 ]
@@ -31,7 +31,8 @@ dependencies = [
     "hyperopt",
     "scikit-optimize",
     "fast_ml",
-    "mlflow"
+    "mlflow",
+    "dask"
 ]
 requires-python = ">=3.9"
 classifiers = [

@@ -9,6 +9,7 @@ from sklearn.utils import estimator_html_repr
 from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import label, datestamp
 from cheutils.properties_util import AppProperties
+from cheutils.project_tree_handler import ProjectTreeProperties
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -18,7 +19,8 @@ def get_root_dir():
     :return: the path to the root directory.
     :rtype:
     """
-    return AppProperties().get_subscriber('proj_handler').get_proj_root()
+    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    return __proj_handler.get_proj_root()
 
 
 def get_data_dir():
@@ -27,7 +29,8 @@ def get_data_dir():
     :return: the path to the data directory.
     :rtype:
     """
-    return AppProperties().get_subscriber('proj_handler').get_proj_data()
+    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    return __proj_handler.get_proj_data()
 
 
 def get_output_dir():
@@ -36,7 +39,8 @@ def get_output_dir():
     :return: the path to the output directory.
     :rtype:
     """
-    return AppProperties().get_subscriber('proj_handler').get_proj_output()
+    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    return __proj_handler.get_proj_output()
 
 def get_namespace():
     """
@@ -44,7 +48,8 @@ def get_namespace():
     :return:
     :rtype:
     """
-    return AppProperties().get_subscriber('proj_handler').get_proj_namespace()
+    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    return __proj_handler.get_proj_namespace()
 
 def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = None, ):
     """
