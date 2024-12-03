@@ -128,7 +128,7 @@ estimator = get_estimator(model_option='xgb_boost') # the appropriate porperty c
 estimator = get_estimator(**get_params_grid(model_option='xgb_boost'))
 # You can fit the estimator as follows per usual:
 datasets = AppProperties().get_list('project.dataset.list')
-X_train, y_train, X_val, y_val, X_test, y_test = [load_dataset(file_name=file_name, is_csv=False) for file_name in datasets]
+X_train, y_train, X_val, y_val, X_test, y_test = [load_dataset(file_name=file_name, is_csv=True) for file_name in datasets]
 estimator.fit(X_train, y_train)
 ```
 Given a default broad estimator hyperparameter configuration (usually in the properties file), you can generate a promising parameter 
