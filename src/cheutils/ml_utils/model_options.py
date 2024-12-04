@@ -26,7 +26,14 @@ def get_estimator(**model_params):
     model_info = __model_handler.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
+    model = None
     try:
+        # default parameters are those that are not necessarily included in the configured list for optimization
+        default_params = model_info.get('default_params')
+        if default_params is not None:
+            for key, value in default_params.items():
+                if key not in cur_model_params:
+                    cur_model_params[key] = value
         model = model_class(**cur_model_params)
     except TypeError as err:
         LOGGER.debug('Failure encountered: Unspecified or unsupported estimator')

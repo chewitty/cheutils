@@ -33,18 +33,26 @@ project.namespace=proj_namespace
 project.root.dir=./
 project.data.dir=./data/
 project.output.dir=./output/
-# property handlers
+# properties handlers
 project.properties.prop_handler={'module_name': 'ProjectTreeProperties', 'module_package': 'cheutils', }
 project.properties.data_handler={'module_name': 'DataPrepProperties', 'module_package': 'cheutils', }
 project.properties.model_handler={'module_name': 'ModelProperties', 'module_package': 'cheutils', }
 # SQLite DB - used for selected caching for efficiency
 project.sqlite3.db=proj_sqlite.db
 project.dataset.list=[X_train.csv, X_test.csv, y_train.csv, y_test.csv]
+# estimator configuration: default parameters are those not necessarily included for any tuning or optimization
+# but are useful for instantiating instances of the estimator; all others in the estimator params_grid are
+# candidates for any optimization. If no default parameters are needed simply ignore or set default_params value to None
 project.models.supported={'xgb_boost': {'module_name': 'XGBRegressor', 'module_package': 'xgboost'}, \
 'random_forest': {'module_name': 'RandomForestRegressor', 'module_package': 'sklearn.ensemble'}, \
 'lasso': {'module_name': 'Lasso', 'module_package': 'sklearn.linear_model'}, }
+# selected estimator parameter grid options - these are included in any tuning or model optimization
+model.params_grid.xgb_boost={'learning_rate': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 10}, 'subsample': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 10}, 'min_child_weight': {'type': float, 'start': 0.1, 'end': 1.0, 'num': 10}, 'n_estimators': {'type': int, 'start': 10, 'end': 400, 'num': 10}, 'max_depth': {'type': int, 'start': 3, 'end': 17, 'num': 5}, 'colsample_bytree': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, 'gamma': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, 'reg_alpha': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, }
+model.params_grid.random_forest={'min_samples_leaf': {'type': int, 'start': 1, 'end': 60, 'num': 5}, 'max_features': {'type': int, 'start': 5, 'end': 1001, 'num': 10}, 'max_depth': {'type': int, 'start': 5, 'end': 31, 'num': 6}, 'n_estimators': {'type': int, 'start': 5, 'end': 201, 'num': 10}, 'min_samples_split': {'type': int, 'start': 2, 'end': 21, 'num': 5}, 'max_leaf_nodes': {'type': int, 'start': 5, 'end': 401, 'num': 10}, }
 model.baseline.model_option=lasso
 model.active.model_option=xgb_boost
+# hyperparameter search algorith options supported: hyperopt with cross-validation and Scikit-Optimize
+project.hyperparam.searches=['hyperoptcv', 'skoptimize']
 model.active.n_iters=200
 model.active.n_trials=10
 model.narrow_grid.scaling_factor=0.20
@@ -56,12 +64,9 @@ model.active.grid_resolution=7
 model.cross_val.num_folds=3
 model.active.n_jobs=-1
 model.cross_val.scoring=neg_mean_squared_error
-model.metric.target.objective=3.0
 model.active.random_seed=100
 model.active.trial_timeout=60
 model.hyperopt.algos={'rand.suggest': 0.05, 'tpe.suggest': 0.75, 'anneal.suggest': 0.20, }
-model.params_grid.xgb_boost={'learning_rate': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 10}, 'subsample': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 10}, 'min_child_weight': {'type': float, 'start': 0.1, 'end': 1.0, 'num': 10}, 'n_estimators': {'type': int, 'start': 10, 'end': 400, 'num': 10}, 'max_depth': {'type': int, 'start': 3, 'end': 17, 'num': 5}, 'colsample_bytree': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, 'gamma': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, 'reg_alpha': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, }
-model.params_grid.random_forest={'min_samples_leaf': {'type': int, 'start': 1, 'end': 60, 'num': 5}, 'max_features': {'type': int, 'start': 5, 'end': 1001, 'num': 10}, 'max_depth': {'type': int, 'start': 5, 'end': 31, 'num': 6}, 'n_estimators': {'type': int, 'start': 5, 'end': 201, 'num': 10}, 'min_samples_split': {'type': int, 'start': 2, 'end': 21, 'num': 5}, 'max_leaf_nodes': {'type': int, 'start': 5, 'end': 401, 'num': 10}, }
 # transformers
 model.selective_column.transformers=[{'name': 'scaler_tf', 'transformer_name': 'StandardScaler', 'transformer_package': 'sklearn.preprocessing', 'transformer_params': None, 'columns': ['col1_label', 'col2_label']}, ]
 ```
