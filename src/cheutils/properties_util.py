@@ -90,8 +90,9 @@ class AppProperties(object):
             raise ex
 
     def __str__(self):
-        path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_data_dir(), APP_CONFIG)
-        info = 'AppProperties created, using properties file = ' + path_to_app_config
+
+        path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_proj_data(), APP_CONFIG)
+        info = 'AppProperties based on properties file = ' + path_to_app_config
         LOGGER.info(info)
         return info
 
@@ -404,7 +405,7 @@ class AppProperties(object):
                 LOGGER.info('Using custom config = {}', path_to_app_config)
                 break
         if not found_resource:
-            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_root_dir(), prop_file_name)
+            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_proj_root(), prop_file_name)
             LOGGER.warning('Will attempt to load custom config = {}', path_to_app_config)
         try:
             custom_props = Properties()
@@ -456,7 +457,7 @@ class AppProperties(object):
                 LOGGER.info('Using project-specific application config = {}', path_to_app_config)
                 break
         if not found_resource:
-            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_root_dir(), APP_CONFIG)
+            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_proj_root(), APP_CONFIG)
             LOGGER.warning('Attempting to use global application config = {}', path_to_app_config)
         try:
             self.app_props__ = Properties()

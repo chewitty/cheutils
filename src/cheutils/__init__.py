@@ -31,6 +31,6 @@ from .check import check_logger, check_exception, sample_hyperopt_space
 __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
 log_handler = {'sink': os.path.join(__proj_handler.get_proj_output(), 'app-log.log'), 'serialize': False, 'backtrace': True,
                'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}', 'level': 'TRACE',
-               'rotation': '00:00', }
+               'rotation': '00:00', 'colorize': True, 'enqueue': True, }
 LoguruWrapper().addHandler(log_handler)
 LoguruWrapper().set_prefix(prefix=__proj_handler.get_proj_namespace())

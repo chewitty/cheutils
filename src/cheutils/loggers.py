@@ -27,7 +27,7 @@ class LoguruWrapper(object):
         # In addition, the logger is pre-configured for convenience with a default handler which writes messages
         # to sys.stderr. You should remove() it first if you plan to add() another handler logging messages to the
         # console, otherwise you may end up with duplicated logs.
-        LoguruWrapper.logger__.remove()
+        LoguruWrapper.logger__.remove(0)
         # configure any handlers
         if 'config' in kwargs.keys() and kwargs['config']:
             logger_config = kwargs['config']
@@ -64,7 +64,7 @@ class LoguruWrapper(object):
     def addHandler(self, handler: dict):
         if handler is not None:
             LoguruWrapper.config__['handlers'].append(handler)
-            LoguruWrapper.logger__.configure(**LoguruWrapper.config__)
+            #LoguruWrapper.logger__.configure(**LoguruWrapper.config__)
 
     def get_logger(self):
         return self.logger__

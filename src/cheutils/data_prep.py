@@ -46,9 +46,8 @@ class DataPrepProperties(AppPropertiesHandler):
 
     def _load_selective_column_transformers(self):
         key = 'model.selective_column.transformers'
-        #self.__data_prep_properties['selective_column_transformers'] = self.__app_props.get_list_properties(key)
         transformers = self.__app_props.get_list_properties(key)
-        if (transformers is not None) or not (not transformers):
+        if (transformers is not None) and not (not transformers):
             LOGGER.debug('Preparing configured column transformers: \n{}', transformers)
             col_transformers = []
             for item in transformers:
