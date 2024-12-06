@@ -1,4 +1,6 @@
 import importlib
+from unittest.mock import inplace
+
 import pandas as pd
 import numpy as np
 import geolib.geohash as gh
@@ -6,11 +8,13 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
+from streamlit import columns
+
 from cheutils.decorator_singleton import singleton
 from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
-from cheutils.exceptions import PropertiesException
+from cheutils.exceptions import PropertiesException, FeatureGenException
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -311,17 +315,19 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
 
 class SelectiveColumnTransformer(ColumnTransformer):
     def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
-                 verbose_feature_names_out=False, verbose=False, n_jobs=None, **kwargs):
+                 verbose=False, n_jobs=None, **kwargs):
+        # if configuring more than one column transformer make sure verbose_feature_names_out=True
+        # to ensure the prefixes ensure uniqueness in the feature names
         __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
-        super().__init__(transformers=__data_handler.get_selective_column_transformers(),
+        conf_transformers = __data_handler.get_selective_column_transformers()
+        super().__init__(transformers=conf_transformers,
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=verbose_feature_names_out,
+                         verbose_feature_names_out=True if len(conf_transformers) > 1 else False,
                          verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.feature_names = None
+        self.num_transformers = len(conf_transformers)
 
     def fit(self, X, y=None, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.feature_names = list(X.columns)
         super().fit(X, y, **fit_params)
         return self
 
@@ -332,7 +338,6 @@ class SelectiveColumnTransformer(ColumnTransformer):
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.feature_names = list(X.columns)
         new_X = self.__do_transform(X, y, **fit_params)
         LOGGER.debug('SelectiveColumnTransformer: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         return new_X
@@ -342,10 +347,27 @@ class SelectiveColumnTransformer(ColumnTransformer):
             transformed_X = super().transform(X, **fit_params)
         else:
             transformed_X = super().fit_transform(X, y, **fit_params)
-        if transformed_X.shape[1] > len(self.feature_names):
-            new_X = pd.DataFrame(transformed_X[:, :-1], columns=self.feature_names)
+        feature_names_out = self.get_feature_names_out().tolist()
+        if self.num_transformers > 1:
+            feature_names_out.reverse()
+            # sort out any potential duplicates - noting how column transformers concatenate transformed and
+            # passthrough columns
+            feature_names = [feature_name.split('__')[-1] for feature_name in feature_names_out]
+            duplicate_feature_idxs = []
+            desired_feature_names_s = set()
+            desired_feature_names = []
+            for idx, feature_name in enumerate(feature_names):
+                if feature_name not in desired_feature_names_s:
+                    desired_feature_names_s.add(feature_name)
+                    desired_feature_names.append(feature_name)
+                else:
+                    duplicate_feature_idxs.append(idx)
+            desired_feature_names.reverse()
+            duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
+            transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
         else:
-            new_X = pd.DataFrame(transformed_X, columns=self.feature_names)
+            desired_feature_names = feature_names_out
+        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
         return new_X
 
 """
@@ -355,7 +377,7 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
                 masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
                 calc_features: dict=None, gen_target: dict=None, correlated_cols: list=None,
                 pot_leak_cols: list=None, drop_missing: bool=False, clip_data: dict=None,
-                include_target: bool=False,):
+                gen_cat_col: dict=None, include_target: bool=False,):
     """
     Pre-process dataset by handling date conversions, type casting of columns, clipping data,
     generating special features, calculating new features, masking columns, dropping correlated
@@ -386,6 +408,7 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     :type drop_missing: bool
     :param clip_data: clip the data based on categories defined by the filterby key and whether to enforce positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
     :type clip_data: dict
+    :param gen_cat_col: dictionary specifying a categorical column label to be generated from a numeric column, with corresponding bins and labels - e.g., {'cat_col': 'num_col_label', 'bins': [1, 2, 3, 4, 5], 'labels': ['A', 'B', 'C', 'D', 'E']})
     :param include_target: include the target Series in the returned first item of the tuple if True; default is False
     :return: Processed dataframe and updated target Series
     :rtype: tuple(pd.DataFrame, pd.Series or None)
@@ -427,7 +450,15 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
         for col in float_cols:
             if col in new_X.columns:
                 new_X[col] = new_X[col].astype(float)
-    # process any data clipping
+    # generate any categorical column
+    if gen_cat_col is not None:
+        num_col = gen_cat_col.get('num_col')
+        if num_col in new_X.columns:
+            cat_col = gen_cat_col.get('cat_col')
+            bins = gen_cat_col.get('bins')
+            labels = gen_cat_col.get('labels')
+            new_X[cat_col] = pd.cut(new_X[num_col], bins=bins, labels=labels)
+    # process any data clipping; could also use the generated categories above to apply clipping
     if clip_data:
         rel_cols = clip_data.get('rel_cols')
         filterby = clip_data.get('filterby')
@@ -495,29 +526,67 @@ def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, i
     :rtype:
     """
     assert X is not None, 'A valid DataFrame expected as input'
-    new_X = safe_copy(X)
+    new_X = X
     new_y = safe_copy(y)
     try:
         if gen_target is not None:
-            tmp_X = safe_copy(new_X)
-            if new_y is not None:
-                tmp_X[new_y.name] = new_y
-            target_col = gen_target.get('target_col')
-            target_gen_func = gen_target.get('target_gen_func')
-            new_y = tmp_X.apply(target_gen_func, axis=1)
-            new_y.name = target_col
-            if include_target:
-                new_X[target_col] = safe_copy(new_y)
-            del tmp_X
+            target_gen_col = {gen_target.get('target_col'): (gen_target.get('target_gen_func'), gen_target.get('alter_val'))}
+            new_X = generate_features(new_X, new_y, gen_cols=target_gen_col, return_y=include_target,
+                                      target_col=gen_target.get('target_col'), )
+            new_y = new_X[gen_target.get('target_col')]
     except Exception as warnEx:
         LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
         pass
     return new_X, new_y
 
+def generate_features(X: pd.DataFrame, y: pd.Series=None, gen_cols: dict=None, return_y: bool=False, target_col:str=None, **kwargs) -> pd.DataFrame:
+    """
+    Generate the target variable from available data in X, and y.
+    :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
+    :type X:
+    :param y: part or all of the raw target variable, may contribute to generating the actual target
+    :type y:
+    :param gen_cols: dictionary of new feature column labels and their corresponding value generation functions
+        and default values - e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'feat_col': (val_gen_func, alter_val)}
+    :type gen_cols: dict
+    :param return_y: if True, add back a column with y or a modified version to the returned dataframe
+    :param target_col: the column label of the target column - either as a hint or may be encountered as part of any generation function.
+    :param kwargs:
+    :type kwargs:
+    :return: a dataframe with the generated features
+    :rtype:
+    """
+    assert X is not None, 'A valid DataFrame expected as input'
+    assert gen_cols is not None and not (not gen_cols), 'A valid dictionary of new feature column labels and their corresponding value generation functions and optional default values expected as input'
+    new_X = safe_copy(X)
+    # add back the target column, in case it is needed
+    if y is not None:
+        if isinstance(y, pd.Series):
+            new_X[y.name] = safe_copy(y)
+        else:
+            if target_col is not None and not (not target_col):
+                new_X[target_col] = safe_copy(y)
+    try:
+        for col, val_gen_func in gen_cols.items():
+            new_X[col] = new_X.apply(val_gen_func[0], axis=1)
+            if val_gen_func[1] is not None:
+                new_X[col].fillna(val_gen_func[1], inplace=True)
+        # drop the target column again
+        if not return_y:
+            if isinstance(y, pd.Series):
+                new_X.drop(columns=[y.name], inplace=True)
+            else:
+                if target_col is not None and not (not target_col):
+                    new_X.drop(columns=[target_col], inplace=True)
+        return new_X
+    except Exception as err:
+        LOGGER.error('Something went wrong with feature generation, skipping: {}', err)
+        raise FeatureGenException(f'Something went wrong with feature generation, skipping: {err}')
+
 class DataPrepTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
-                 calc_features: dict=None, gen_target: dict=None, correlated_cols: list=None,
+                 calc_features: dict=None, gen_target: dict=None, correlated_cols: list=None, gen_cat_col: dict=None,
                  pot_leak_cols: list=None, drop_missing: bool=False, clip_data: dict=None, include_target: bool=False, **kwargs):
         """
         Preprocessing dataframe columns to ensure consistent data types and formatting, and optionally extracting any special features described by dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }.
@@ -533,11 +602,12 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :type special_features:
         :param drop_feats_cols: drop special_features cols if True
         :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': col_gen_func1, 'col_label2': col_gen_func2}
-        :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
+        :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func, 'other_val': 0}
         :param correlated_cols: columns that are moderately to highly correlated and should be dropped
+        :param gen_cat_col: dictionary specifying a categorical column label to be generated from a numeric column, with corresponding bins and labels - e.g., {'cat_col': 'num_col_label', 'bins': [1, 2, 3, 4, 5], 'labels': ['A', 'B', 'C', 'D', 'E']})
         :param pot_leak_cols: columns that could potentially introduce data leakage and should be dropped
         :param drop_missing: drop rows with missing data if True; default is False
-        :param clip_data: clip the data based on categories defined by the filterby key and whether to enforec positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
+        :param clip_data: clip outliers from the data based on categories defined by the filterby key and whether to enforce positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
         :param include_target: include the target Series in the returned first item of the tuple if True (usually during exploratory analysis only); default is False (when as part of model pipeline)
         :param kwargs:
         :type kwargs:
@@ -551,6 +621,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         self.gen_target = gen_target
         self.calc_features = calc_features
         self.correlated_cols = correlated_cols
+        self.gen_cat_col = gen_cat_col
         self.pot_leak_cols = pot_leak_cols
         self.drop_missing = drop_missing
         self.clip_data = clip_data
@@ -584,6 +655,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                                    masked_cols=self.masked_cols, special_features=self.special_features,
                                    drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
                                    calc_features=self.calc_features, correlated_cols=self.correlated_cols,
+                                   gen_cat_col=self.gen_cat_col,
                                    pot_leak_cols=self.pot_leak_cols, drop_missing=self.drop_missing,
                                    clip_data=self.clip_data, include_target=self.include_target,)
         return new_X, new_y
@@ -599,10 +671,51 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             'gen_target': self.gen_target,
             'calc_features': self.calc_features,
             'correlated_cols': self.correlated_cols,
+            'gen_cat_col': self.gen_cat_col,
             'pot_leak_cols': self.pot_leak_cols,
             'drop_missing': self.drop_missing,
             'clip_data': self.clip_data,
             'include_target': self.include_target,
+        }
+
+class FeatureGenTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, gen_cols: dict=None, target_col: str=None, **kwargs):
+        """
+        Generates features from existing columns in the dataframe based on specified functions.
+        :param gen_cols: dictionary of new feature column labels and their corresponding value generation functions
+        and alternative values (to fillna) - e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'feat_col': (val_gen_func, alter_val)}
+        :type dict:
+        :param target_col: the column label of the target column - either as a hint or may be encountered as part of any generation function.
+        :param kwargs:
+        :type kwargs:
+        """
+        assert gen_cols is not None and not (not gen_cols), 'A valid dictionary of new feature column labels and their corresponding value generation functions and optional default values expected as input'
+        self.gen_cols = gen_cols
+        self.target_col = target_col
+
+    def fit(self, X, y=None):
+        LOGGER.debug('FeatureGenTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return self
+
+    def transform(self, X):
+        LOGGER.debug('FeatureGenTransformer: Transforming dataset, shape = {}', X.shape)
+        new_X = self.__do_transform(X)
+        LOGGER.debug('FeatureGenTransformer: Transforming dataset, out shape = {}', new_X.shape)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('FeatureGenTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y)
+        LOGGER.debug('FeatureGenTransformer: Fit-transformed dataset, out shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        new_X = generate_features(X, y, gen_cols=self.gen_cols, target_col=self.target_col, **fit_params)
+        return new_X
+
+    def get_params(self, deep=True):
+        return {
+            'gen_cols': self.gen_cols,
         }
 
 class SelectiveFunctionTransformer(FunctionTransformer):
@@ -701,7 +814,6 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
     def __do_transform(self, X, y=None, **fit_params):
         gen_geohashes = GeospatialTransformer.__generate_geohashes(X, y, self.geo_data_cols, agg_func=self.agg_func, **fit_params)
         new_X = safe_copy(X)
-        #new_X[self.to_col] = gen_geohashes.apply(lambda x: self.expected_spatial_features.loc[x[self.to_col]], axis=1)
         new_X[self.to_col] = gen_geohashes.apply(lambda x: GeospatialTransformer.__get_feature_value(self.expected_spatial_features, x[self.to_col]), axis=1)
         if self.drop_geo_cols:
             to_drop = [self.lat_col, self.long_col]

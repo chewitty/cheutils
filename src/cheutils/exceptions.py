@@ -27,3 +27,7 @@ class DSWrapperException(CheutilsException):
 class SQLiteUtilException(CheutilsException):
     def __init__(self, *args):
         super().__init__(*args)
+
+class FeatureGenException(CheutilsException):
+    def __init__(self, *args):
+        super().__init__(*args)
