@@ -1,8 +1,8 @@
 # cheutils
 
-A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
+A package with a set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 
-### Features
+## Features
 - Managing properties files or project configuration, based on jproperties. The application configuration is expected to be available in a properties file named `app-config.properties`, which can be placed anywhere in the project root or any project subfolder.
 - Convenience methods such as `get_estimator()` to get a handle on any configured estimator with a specified hyperparameters dictionary, `get_params_grid()` or `get_param_defaults()` relating to obtaining model hyperparameters in the `app-config.properties` file.
 - Convenience methods for conducting hyperparameter optimization such as `params_optimization()`, `promising_params_grid()` for obtaining a set of promising hyperparameters using RandomSearchCV and a set of broadly specified or configured hyperparameters in the `app-config.properties`; a combination of `promising_params_grid()` followed by `params_optimization()` constitutes a coarse-to-fine search.
@@ -11,15 +11,15 @@ A set of basic reusable utilities and tools to facilitate quickly getting up and
 - A debug or logging, timer, and singleton decorators - for enabling logging and method timing, as well as creating singleton instances.
 - Convenience methods available via the `DSWrapper` for managing datasource configuration or properties files - e.g. `ds-config.properties` - offering a set of generic datasource access methods such as `apply_to_datasource()` to persist data to any configured datasource or `read_from_datasource()` to read data from any configured datasources.
 - A set of custom `scikit-learn` transformers for preprocessing data such as `DataPrepTransformer` which can be added to a data pipeline for pre-process dataset - e.g., handling date conversions, type casting of columns, clipping data, generating special features from rows of text strings, generating calculated features, masking columns, dropping correlated or potential data leakage columns, and generating target variables from other features as needed (separet from target encoding). A `GeospatialTransformer` for generating geohash features from latitude and longitudes; a `SelectiveFunctionTransformer` and `SelectiveColumnTransformer` for selectively transforming dataframe columns; a `DateFeaturesTransformer` for generating date-related features for feature engineering, and `FeatureSelectionTransformer` for feature selection using configured estimators such as `Lasso` or `LinearRegression`
-- A set of ther generic or common utilities for summarizing dataframes - e.g., using `summarize()` or to winsorize using `winsorize_it()`
+- A set of generic or common utilities for summarizing dataframes and others - e.g., using `summarize()` or to winsorize using `winsorize_it()`
 - A set of convenience properties handlers to accessing generic configured properties relating to the project tree, data preparation, or model development and execution such as `ProjectTreeProperties`, `DataPrepProperties`, and `ModelProperties`. These handlers offer a convenient feature for reloading properties as needed, thereby refreshing properties without having to re-start the running VM (really only useful in development). However you may access any configured properties in the usual way via the `AppProperties` object.
 
-### Usage
+## Usage
 You can install this module as follows:
 ```commandline
 pip install cheutils
 ```
-#### OPTIONAL: if you want the latest release:
+OPTIONAL: if you want the latest release:
 ```commandline
 pip install --upgrade cheutils
 ```
@@ -67,8 +67,9 @@ model.cross_val.scoring=neg_mean_squared_error
 model.active.random_seed=100
 model.active.trial_timeout=60
 model.hyperopt.algos={'rand.suggest': 0.05, 'tpe.suggest': 0.75, 'anneal.suggest': 0.20, }
-# transformers
-model.selective_column.transformers=[{'name': 'scaler_tf', 'transformer_name': 'StandardScaler', 'transformer_package': 'sklearn.preprocessing', 'transformer_params': None, 'columns': ['col1_label', 'col2_label']}, ]
+# transformers - defined as a dictionary of pipelines containing dictionaries of transformers
+# note that each pipeline is mapped to a set of columns, and all transformers in a pipeline act on the set of columns
+model.selective_column.transformers=[{'pipeline_name': 'scalers_pipeline', 'transformers': [{'name': 'scaler_tf', 'module': 'StandardScaler', 'package': 'sklearn.preprocessing', 'params': None, }, ], 'columns': ['col1_label', 'col2_label']}, ]
 ```
 A sample datasource configuration properties file may contain something like the following:
 ```properties
@@ -104,7 +105,7 @@ data_dir = get_data_dir()  # also returns the path to the project data folder, w
 # You can also retrieve other properties as follows:
 datasets = APP_PROPS.get_list('project.dataset.list') # e.g., some.configured.list=[1, 2, 3] or ['1', '2', '3']; see dataset configured in app-config.properties
 hyperopt_algos = APP_PROPS.get_dic_properties('model.hyperopt.algos') # e.g., some.configured.dict={'val1': 10, 'val2': 'value'}
-sel_transformers = APP_PROPS.get_list_properties('model.selective_column.transformers') # e.g., configured transformers in the sample properties file above
+sel_transformers = APP_PROPS.get_list_properties('model.selective_column.transformers') # e.g., configured pipelines of transformers in the sample properties file above
 find_opt_grid_res = APP_PROPS.get_bol('model.find_optimal.grid_resolution') # e.g., some.configured.bol=True
 ```
 You access the LOGGER instance and use it in a similar way to you will when using a logging module like `loguru` or standard logging
@@ -239,6 +240,21 @@ r_squared = r2_score(y_train, y_train_pred)
 LOGGER.debug('Training baseline mse = {:.2f}'.format(mse_score))
 LOGGER.debug('Training baseline r_squared = {:.2f}'.format(r_squared))
 ```
-### Community
-Contributions are welcomed from others looking to collaborate to improve the model. For now, simply reach out via email to express your interest.
+
+## Community
+
+Contributions are welcomed from contributors, all experience levels, anyone looking to collaborate to improve the package or to be helpful. 
+We rely on a scikit-learn's [`Development Guide`](https://scikit-learn.org/stable/developers/index.html), which contains lots of best practices and detailed information about contributing code, documentation, tests, and more. 
+
+### Source code
+You can check the latest sources with the command:
+```commandline
+git clone https://github.com/chewitty/cheutils.git
+```
+### Communication
+- Author email: ferdinand.che@gmail.com
+
+### Citation
+
+If you use `cheutils` in a media/research publication, we would appreciate citations to this repository.
 

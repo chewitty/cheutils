@@ -178,24 +178,9 @@ class AppProperties(object):
         prop_value = prop_item.data
         if prop_value is None:
             return None
-        result_list = []
-        sec_char = prop_value[1]
-        if sec_char == '{':
-            tmp_list = [x.strip() + '}' for x in prop_value[1:-1].split('},')] # str starts with { and ends in }
-        else:
-            tmp_list = [x.strip() + ']' for x in prop_value[1:-1].split('],')]  # str starts with [ and ends in ]
-        for item in tmp_list:
-            if item.startswith('{'):
-                item = item + str('}' if not item.endswith('}') else '')
-                try:
-                    result_list.append(literal_eval(item))
-                except (ValueError, SyntaxError) as e:
-                    LOGGER.error(f'Skipping invalid item: {item}, error: {e}')
-                    # Optionally, you can choose to handle or transform invalid items
-                    continue
-            elif item.startswith('['):
-                item = item + str(']' if not item.endswith(']') else '')
-                result_list.extend([literal_eval(i.strip()) for i in item.split('],')])
+        internal_item = prop_value[1:-1].rstrip('\,')
+        internal_item = eval(internal_item)
+        result_list = list(internal_item)
         return result_list
 
     def is_set(self, prop_key=None):

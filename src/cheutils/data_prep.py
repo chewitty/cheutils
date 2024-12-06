@@ -1,6 +1,4 @@
 import importlib
-from unittest.mock import inplace
-
 import pandas as pd
 import numpy as np
 import geolib.geohash as gh
@@ -8,8 +6,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
-from streamlit import columns
-
+from sklearn.pipeline import Pipeline
 from cheutils.decorator_singleton import singleton
 from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
 from cheutils.loggers import LoguruWrapper
@@ -50,23 +47,32 @@ class DataPrepProperties(AppPropertiesHandler):
 
     def _load_selective_column_transformers(self):
         key = 'model.selective_column.transformers'
-        transformers = self.__app_props.get_list_properties(key)
-        if (transformers is not None) and not (not transformers):
-            LOGGER.debug('Preparing configured column transformers: \n{}', transformers)
+        conf_pipelines = self.__app_props.get_list_properties(key)
+        if (conf_pipelines is not None) and not (not conf_pipelines):
+            LOGGER.debug('Preparing configured column transformer pipelines: \n{}', conf_pipelines)
             col_transformers = []
-            for item in transformers:
-                name = item.get('name')
-                tf_params = item.get('transformer_params')
-                tf_params = {} if tf_params is None else tf_params
-                cols = list(item.get('columns'))
-                tf_class = getattr(importlib.import_module(item.get('transformer_package')),
-                                   item.get('transformer_name'))
-                try:
-                    tf = tf_class(**tf_params)
-                    col_transformers.append((name, tf, cols))
-                    self.__data_prep_properties['selective_column_transformers'] = col_transformers
-                except TypeError as err:
-                    LOGGER.error('Problem encountered instantiating transformer: {}, {}', name, err)
+            for pipeline in conf_pipelines:
+                if pipeline is None:
+                    break
+                pipe_name = pipeline.get('pipeline_name')
+                pipeline_tfs = pipeline.get('transformers') # list of transformers
+                pipeline_cols = pipeline.get('columns') # columns mapped to the pipeline
+                pipeline_steps = []
+                for item in pipeline_tfs:
+                    tf_name = item.get('name')
+                    tf_module = item.get('module')
+                    tf_package = item.get('package')
+                    tf_params = item.get('params')
+                    tf_params = {} if tf_params is None or (not tf_params) else tf_params
+                    tf_class = getattr(importlib.import_module(tf_package), tf_module)
+                    try:
+                        tf = tf_class(**tf_params)
+                        pipeline_steps.append((tf_name, tf))
+                    except TypeError as err:
+                        LOGGER.error('Problem encountered instantiating transformer: {}, {}', tf_name, err)
+                col_pipeline: Pipeline = Pipeline(steps=pipeline_steps)
+                col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
+            self.__data_prep_properties['selective_column_transformers'] = col_transformers
 
     def _load_sqlite3_db(self):
         key = 'project.sqlite3.db'
