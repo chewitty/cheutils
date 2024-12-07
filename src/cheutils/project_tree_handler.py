@@ -29,8 +29,7 @@ class ProjectTreeProperties(AppPropertiesHandler):
 
     def __getattr__(self, item):
         msg = f'Attempting to load unspecified project tree property: {item}'
-        LOGGER.error(msg)
-        raise PropertiesException(msg)
+        LOGGER.warning(msg)
 
     def _load_unspecified(self):
         raise PropertiesException('Attempting to load unspecified project tree property')

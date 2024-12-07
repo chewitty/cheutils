@@ -34,8 +34,7 @@ class ModelProperties(AppPropertiesHandler):
 
     def __getattr__(self, item):
         msg = f'Attempting to load unspecified model property: {item}'
-        LOGGER.error(msg)
-        raise PropertiesException(msg)
+        LOGGER.warning(msg)
 
     def _load_params(self, prop_key: str=None, params: dict=None):
         LOGGER.debug('Attempting to load model property: {}, {}', prop_key, params)

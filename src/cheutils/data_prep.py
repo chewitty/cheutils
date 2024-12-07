@@ -40,8 +40,7 @@ class DataPrepProperties(AppPropertiesHandler):
 
     def __getattr__(self, item):
         msg = f'Attempting to load unspecified data property: {item}'
-        LOGGER.error(msg)
-        raise PropertiesException(msg)
+        LOGGER.warning(msg)
 
     def _load_unspecified(self):
         raise PropertiesException('Attempting to load unspecified data property')
@@ -58,6 +57,8 @@ class DataPrepProperties(AppPropertiesHandler):
                 pipe_name = pipeline.get('pipeline_name')
                 pipeline_tfs = pipeline.get('transformers') # list of transformers
                 pipeline_cols = pipeline.get('columns') # columns mapped to the pipeline
+                if pipeline_cols is None or (not pipeline_cols):
+                    break
                 pipeline_steps = []
                 for item in pipeline_tfs:
                     tf_name = item.get('name')
