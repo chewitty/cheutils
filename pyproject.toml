@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cheutils"
-version = "2.7.22"
+version = "2.7.23"
 authors = [
   { name="Ferdinand Che", email="ferdinand.che@gmail.com" },
 ]
@@ -32,7 +32,7 @@ dependencies = [
     "scikit-optimize",
     "fast_ml",
     "mlflow",
-    "dask"
+    "dask",
 ]
 requires-python = ">=3.9"
 classifiers = [
