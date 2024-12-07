@@ -25,15 +25,15 @@ project.root.dir=./
 project.data.dir=./data/
 project.output.dir=./output/
 # property handlers
-project.properties.proj_handler={'module_name': 'ProjectTreeProperties', 'module_package': 'cheutils', }
-project.properties.data_handler={'module_name': 'DataPrepProperties', 'module_package': 'cheutils', }
-project.properties.model_handler={'module_name': 'ModelProperties', 'module_package': 'cheutils', }
+project.properties.proj_handler={'name': 'ProjectTreeProperties', 'package': 'cheutils', }
+project.properties.data_handler={'name': 'DataPrepProperties', 'package': 'cheutils', }
+project.properties.model_handler={'name': 'ModelProperties', 'package': 'cheutils', }
 # SQLite DB
 project.sqlite3.db=cheutils_sqlite.db
 project.dataset.list=[X_train.csv, X_test.csv, y_train.csv, y_test.csv]
-project.models.supported={'xgb_boost': {'module_name': 'XGBRegressor', 'module_package': 'xgboost'}, \
-'random_forest': {'module_name': 'RandomForestRegressor', 'module_package': 'sklearn.ensemble'}, \
-'lasso': {'module_name': 'Lasso', 'module_package': 'sklearn.linear_model'}, }
+project.models.supported={'xgb_boost': {'name': 'XGBRegressor', 'package': 'xgboost'}, \
+'random_forest': {'name': 'RandomForestRegressor', 'package': 'sklearn.ensemble'}, \
+'lasso': {'name': 'Lasso', 'package': 'sklearn.linear_model'}, }
 model.baseline.model_option=lasso
 model.active.model_option=xgb_boost
 model.active.n_iters=200

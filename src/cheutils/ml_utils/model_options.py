@@ -25,7 +25,7 @@ def get_estimator(**model_params):
     __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     model_info = __model_handler.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
-    model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
+    model_class = getattr(importlib.import_module(model_info.get('package')), model_info.get('name'))
     model = None
     try:
         # default parameters are those that are not necessarily included in the configured list for optimization
@@ -53,7 +53,7 @@ def get_hyperopt_estimator(model_option, **model_params):
     __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     model_info = __model_handler.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
-    model_class = getattr(importlib.import_module(model_info.get('module_package')), model_info.get('module_name'))
+    model_class = getattr(importlib.import_module(model_info.get('package')), model_info.get('name'))
     try:
         model = model_class(model_option, **model_params)
     except TypeError as err:

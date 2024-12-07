@@ -413,8 +413,8 @@ class AppProperties(object):
         if handler_prop is None:
             LOGGER.error('No properties found for handler = {}', handler)
             raise PropertiesException(f'No properties found for handler = {handler}')
-        handler_module = handler_prop.get('module_name')
-        handler_package = handler_prop.get('module_package')
+        handler_module = handler_prop.get('name')
+        handler_package = handler_prop.get('package')
         handler_class = getattr(importlib.import_module(handler_package), handler_module)
         try:
             prop_handler = handler_class(handler)
