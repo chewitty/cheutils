@@ -845,6 +845,7 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
             # generate expected values based on category aggregates
             self.target_encoder = TargetEncoder(cols=[self.to_col], return_df=True, )
             # fit the encoder
-            self.target_encoder.fit(new_X, y.values if y is not None else None)
+            new_y = safe_copy(y)
+            self.target_encoder.fit(new_X, new_y)
             self.fitted = True
         return self
