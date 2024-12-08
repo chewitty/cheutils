@@ -1,14 +1,13 @@
 import datetime
 import os
+import pandas as pd
 import importlib
 from jproperties import Properties
-from ast import literal_eval
 from abc import ABC, abstractmethod
 from cheutils.decorator_debug import debug_func
 from cheutils.decorator_singleton import singleton
 from cheutils.exceptions import PropertiesException
 from cheutils.loggers import LoguruWrapper
-from cheutils.common_utils import properties_to_frame
 
 # Define project constants.
 APP_CONFIG = 'app-config.properties'
@@ -477,6 +476,19 @@ class AppProperties(object):
         if handler is not None:
             popped_handler = self.handlers__.pop(handler.get_name(), None)
             LOGGER.debug('Removed handler = {}', popped_handler)
+
+    @staticmethod
+    def properties_to_frame(props: dict):
+        """
+        Dump the properties in the specified dict as a dataframe of key, value columns
+        :param props:
+        :type props:
+        :return:
+        :rtype:
+        """
+        assert props is not None, 'A valid properties dictionary is required'
+        props_df = pd.DataFrame(data={'key': props.keys(), 'value': props.values()}, columns=['key', 'value'])
+        return props_df
 
     def __notify_handlers(self):
         """

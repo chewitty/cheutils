@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: cheutils
-Version: 2.7.23
+Version: 2.7.24
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Maintainer-email: Ferdinand Che <ferdinand.che@gmail.com>
@@ -117,6 +117,8 @@ model.hyperopt.algos={'rand.suggest': 0.05, 'tpe.suggest': 0.75, 'anneal.suggest
 # transformers - defined as a dictionary of pipelines containing dictionaries of transformers
 # note that each pipeline is mapped to a set of columns, and all transformers in a pipeline act on the set of columns
 model.selective_column.transformers=[{'pipeline_name': 'scalers_pipeline', 'transformers': [{'name': 'scaler_tf', 'module': 'StandardScaler', 'package': 'sklearn.preprocessing', 'params': None, }, ], 'columns': ['col1_label', 'col2_label']}, ]
+# global winsorize default limits or specify desired property and use accordingly
+func.winsorize.limits=[0.05, 0.05]
 ```
 A sample datasource configuration properties file may contain something like the following:
 ```properties

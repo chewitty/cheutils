@@ -80,6 +80,11 @@ class DataPrepProperties(AppPropertiesHandler):
         key = 'project.sqlite3.db'
         self.__data_prep_properties['sqlite3_db'] = self.__app_props.get(key)
 
+    def _load_winsorize_limits(self):
+        key = 'func.winsorize.limits'
+        limits = self.__app_props.get_list(key)
+        self.__data_prep_properties['winsorize_limits'] = [float(item) for item in limits if limits is not None]
+
     def _load_ds_props(self, ds_config_file_name: str=None):
         LOGGER.debug('Attempting to load datasource properties: {}', ds_config_file_name)
         return getattr(self.__app_props, 'load_custom_properties', lambda: 'unspecified')(ds_config_file_name)
@@ -105,6 +110,12 @@ class DataPrepProperties(AppPropertiesHandler):
         if value is None:
             self._load_sqlite3_db()
         return self.__data_prep_properties.get('sqlite3_db')
+
+    def get_winsorize_limits(self):
+        value = self.__data_prep_properties.get('winsorize_limits')
+        if value is None:
+            self._load_winsorize_limits()
+        return self.__data_prep_properties.get('winsorize_limits')
 
     def get_ds_config(self, ds_key: str, ds_config_file_name: str):
         assert ds_key is not None and not (not ds_key), 'A valid datasource key or name required'

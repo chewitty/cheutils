@@ -11,6 +11,7 @@ from scipy.stats.mstats import winsorize
 from fast_ml import eda
 from fast_ml.utilities import display_all
 from cheutils.loggers import LoguruWrapper
+from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -203,19 +204,6 @@ def get_func_def(func):
     """
     return inspect.getsource(func)
 
-
-def properties_to_frame(props: dict):
-    """
-    Dump the properties in the specified dict as a dataframe of key, value columns
-    :param props:
-    :type props:
-    :return:
-    :rtype:
-    """
-    assert props is not None, 'A valid properties dictionary is required'
-    props_df = pd.DataFrame(data={'key': props.keys(), 'value': props.values()}, columns=['key', 'value'])
-    return props_df
-
 def get_quantiles(df: pd.DataFrame, rel_col: str, q_probs: list = None, ignore_nan: bool=True):
     """
     Return the calculated quantiles from the specified column in the dataframe.
@@ -372,7 +360,7 @@ def safe_copy(data_in: Union[pd.DataFrame, pd.Series, list, np.ndarray, Any]):
         new_data = data_in.copy() if (data_in is not None) else None
     return new_data
 
-def winsorize_it(data_in: Union[pd.Series, list, np.ndarray], limits: list = [0.05, 0.05], **kwargs):
+def winsorize_it(data_in: Union[pd.Series, list, np.ndarray], limits: list = None, **kwargs):
     """
     Apply winsorize to the input data - i.e., replaces extreme values (outliers) at both ends of the data with the
     nearest values within the dataset. It doesn't discard data but instead adjusts the most extreme values to reduce
@@ -387,16 +375,18 @@ def winsorize_it(data_in: Union[pd.Series, list, np.ndarray], limits: list = [0.
     :return: Returns a Winsorized version of the input data.
     :rtype:
     """
+    if limits is None:
+        con_limits = AppProperties().get_subscriber('data_handler').get_winsorize_limits()
+        limits = [0.05, 0.05] if con_limits is None or (not con_limits) else con_limits
     assert data_in is not None, 'Input data expected'
     assert len(limits) == 2, 'Limits must be a list of two values'
     assert limits[0] >= 0.0, 'Lower limit must be greater than or equal to zero'
     assert limits[1] <= 1.0, 'Upper limit must be less than or equal to 1; much better to use a small proportion - e.g., 0.05'
-    assert limits[0] <= limits[1], 'Lower limit must be less than or equal to upper limit'
     data_out = None
     if isinstance(data_in, pd.Series):
-        data_out = mstats.winsorize(data_in, limits=limits, **kwargs)
+        data_out = winsorize(data_in, limits=limits, **kwargs)
     elif isinstance(data_in, (list, np.ndarray)):
-        data_out = mstats.winsorize(np.array(data_in), limits=limits, **kwargs)
+        data_out = winsorize(np.array(data_in), limits=limits, **kwargs)
     return data_out
 
 def trim_both(data_in: Union[pd.Series, list, np.ndarray], proportiontocut: float = 0.05, **kwargs):
