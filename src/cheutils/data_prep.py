@@ -744,7 +744,7 @@ class FeatureGenTransformer(BaseEstimator, TransformerMixin):
 class SelectiveFunctionTransformer(FunctionTransformer):
     def __init__(self, rel_cols: list, **kwargs):
         super().__init__(**kwargs)
-        self.rel_cols = [col for col in rel_cols if col is not None and not (not col)]
+        self.rel_cols = rel_cols
 
     def fit(self, X, y=None):
         LOGGER.debug('SelectiveFunctionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)

@@ -159,6 +159,7 @@ class AppProperties(object):
             return None
         tmp_list = prop_value.replace('\'', '').replace('\"', '').strip('][').split(',')
         result_list = list([x.strip() for x in tmp_list])
+        result_list = list(filter(None, result_list))
         return result_list
 
     def get_list_properties(self, prop_key=None):
