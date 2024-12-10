@@ -83,7 +83,8 @@ class DataPrepProperties(AppPropertiesHandler):
     def _load_winsorize_limits(self):
         key = 'func.winsorize.limits'
         limits = self.__app_props.get_list(key)
-        self.__data_prep_properties['winsorize_limits'] = [float(item) for item in limits if limits is not None]
+        if limits is not None and not (not limits):
+            self.__data_prep_properties['winsorize_limits'] = [float(item) for item in limits if limits is not None]
 
     def _load_ds_props(self, ds_config_file_name: str=None):
         LOGGER.debug('Attempting to load datasource properties: {}', ds_config_file_name)

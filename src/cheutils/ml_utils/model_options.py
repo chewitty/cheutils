@@ -26,19 +26,26 @@ def get_estimator(**model_params):
     model_info = __model_handler.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('package')), model_info.get('name'))
-    model = None
     try:
+        # clean incoming grid of any prefixes
+        clean_model_params = {}
+        for param_key, param_val in cur_model_params.items():
+            if '__' in param_key:
+                conf_param_key = param_key.split('__')[1]
+                clean_model_params[conf_param_key] = param_val
+            else:
+                clean_model_params[param_key] = param_val
         # default parameters are those that are not necessarily included in the configured list for optimization
         default_params = model_info.get('default_params')
         if default_params is not None:
             for key, value in default_params.items():
-                if key not in cur_model_params:
-                    cur_model_params[key] = value
-        model = model_class(**cur_model_params)
+                if key not in clean_model_params:
+                    clean_model_params[key] = value
+        model = model_class(**clean_model_params)
+        return model
     except TypeError as err:
         LOGGER.debug('Failure encountered: Unspecified or unsupported estimator')
         raise KeyError('Unspecified or unsupported estimator')
-    return model
 
 def get_hyperopt_estimator(model_option, **model_params):
     """
