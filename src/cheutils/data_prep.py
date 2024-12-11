@@ -58,7 +58,7 @@ class DataPrepProperties(AppPropertiesHandler):
                 pipeline_tfs = pipeline.get('transformers') # list of transformers
                 pipeline_cols = pipeline.get('columns') # columns mapped to the pipeline
                 if pipeline_cols is None or (not pipeline_cols):
-                    break
+                    continue
                 pipeline_steps = []
                 for item in pipeline_tfs:
                     tf_name = item.get('name')
