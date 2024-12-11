@@ -773,6 +773,7 @@ class SelectiveFunctionTransformer(FunctionTransformer):
             if isinstance(fitted_X, np.ndarray):
                 fitted_X = pd.DataFrame(fitted_X, columns=[col])
             new_X[col] = fitted_X[col].values if isinstance(fitted_X, pd.DataFrame) else fitted_X
+        new_X.fillna(0, inplace=True)
         return new_X
 
     def __inverse_transform(self, X):
