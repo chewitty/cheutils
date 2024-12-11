@@ -789,7 +789,8 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
     """
     Transforms latitude-longitude point to a geohashed fixed neighborhood.
     """
-    def __init__(self, lat_col: str, long_col: str, to_col: str, drop_geo_cols: bool=True, precision: int=6, **kwargs):
+    def __init__(self, lat_col: str, long_col: str, to_col: str, drop_geo_cols: bool=True,
+                 precision: int=6, smoothing: float=10.0, min_samples_leaf: int=10, **kwargs):
         """
         Transforms latitude-longitude point to a geohashed fixed neighborhood.
         :param lat_col: the column labels for desired latitude column
@@ -799,6 +800,8 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
         :param to_col: the new generated column label for the geohashed fixed neighborhood
         :param drop_geo_cols: drops the latitude and longitude columns
         :param precision: geohash precision - default is 6
+        :param smoothing: smoothing effect to balance categorical average vs prior - higher value means stronger regularization.
+        :param min_samples_leaf: used for regularization the weighted average between category mean and global mean is taken
         :param kwargs:
         :type kwargs:
         """
@@ -811,6 +814,8 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
         self.to_col = to_col
         self.drop_geo_cols = drop_geo_cols
         self.precision = precision
+        self.smoothing = smoothing
+        self.min_samples_leaf = min_samples_leaf
         self.target_encoder: TargetEncoder
         self.fitted = False
 
@@ -856,7 +861,8 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
         if not self.fitted:
             new_X = self.__generate_geohashes(X, **fit_params)
             # generate expected values based on category aggregates
-            self.target_encoder = TargetEncoder(cols=[self.to_col], return_df=True, )
+            self.target_encoder = TargetEncoder(cols=[self.to_col], return_df=True,
+                                                smoothing=self.smoothing, min_samples_leaf=self.min_samples_leaf, )
             # fit the encoder
             new_y = safe_copy(y)
             self.target_encoder.fit(new_X, new_y)
