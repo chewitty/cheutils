@@ -6,7 +6,6 @@ import dask.dataframe as dd
 import pandas as pd
 import pyodbc
 import pymysql
-import MySQLdb
 import pymssql
 import psycopg2
 from urllib.parse import quote_plus, unquote_plus
@@ -85,11 +84,6 @@ class DBTool(object):
                     def do_pymysql_connect(*args, **kwargs):
                         # LOGGER.debug('Arguments: {}, {}', args, kwargs)
                         return self.__pymysql_creator(*args, **kwargs)
-                elif 'mysqldb' in self.ds_config_.get('drivername'):
-                    @listens_for(self.sql_engine_, 'do_connect')
-                    def do_mysqlclient_connect(*args, **kwargs):
-                        LOGGER.debug('Arguments: {}', kwargs)
-                        return self.__mysqlclient_creator(*args, **kwargs)
                 elif 'mysqlconnector' in self.ds_config_.get('drivername'):
                     @listens_for(self.sql_engine_, 'do_connect')
                     def do_mysqlconnector_connect(*args, **kwargs):
@@ -149,15 +143,7 @@ class DBTool(object):
         return info
 
     def __pyodbc_creator(self, *args, **kwargs):
-        try:
-            return self.__create_pyodbc_connection()
-        except pyodbc.Error as ex:
-            try:
-                return self.__mysqlclient_creator()
-            except DBToolException as err:
-                raise
-            except Exception as donotignore:
-                raise donotignore
+        return self.__create_pyodbc_connection()
 
     def __mssql_pyodbc_creator(self, *args, **kwargs):
         try:
@@ -201,16 +187,10 @@ class DBTool(object):
     def __pymysql_creator(self, *args, **kwargs):
         try:
             return self.__create_pymysql_connection()
-        except pymysql.Error as mysqldb_err:
-            try:
-                # fall back on another variant
-                return self.__create_mysqlclient_connection()
-            except DBToolException as err:
-                raise
-            except Exception as err:
-                tb = err.__traceback__
-                LOGGER.error('An error occured while connecting to the database: {}', err)
-                raise DBToolException(err).with_traceback(tb)
+        except pymysql.Error as psmysql_err:
+            tb = psmysql_err.__traceback__
+            LOGGER.error('An error occured while connecting to the database: {}', psmysql_err)
+            raise DBToolException(psmysql_err).with_traceback(tb)
 
     def __mysqlclient_creator(self, *args, **kwargs):
         try:
@@ -336,28 +316,6 @@ class DBTool(object):
         except Exception as err:
             tb = err.__traceback__
             LOGGER.error('Failure to establish pymysql connection = {}', err)
-            raise DBToolException(err).with_traceback(tb)
-
-    def __create_mysqlclient_connection(self, autocommit=True):
-        """
-        Creates a direct connection to the DB using the mysqldb client
-        :return: Connection to the underlying DB
-        """
-        LOGGER.debug('Obtaining connection to DB using MySQLdb... autocommit = {}', autocommit)
-        try:
-            charset = self.ds_config_.get('query').get('encoding')
-            charset = charset if charset is not None else 'utf8mb4'
-            conn = MySQLdb.connect(host=self.ds_config_.get('host'),
-                                   port=self.ds_config_.get('port'),
-                                   database=self.ds_config_.get('database'),
-                                   user=self.ds_config_.get('username'),
-                                   password=unquote_plus(self.ds_config_.get('password')),
-                                   charset=charset,
-                                   autocommit=autocommit, )
-            return conn
-        except Exception as err:
-            tb = err.__traceback__
-            LOGGER.error('Failure to establish mysqldb connection {}', err)
             raise DBToolException(err).with_traceback(tb)
 
     def __create_mysqlconnector_connection(self, autocommit=True):
