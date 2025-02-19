@@ -12,14 +12,14 @@ from hyperopt.pyll import scope
 from cheutils.common_utils import safe_copy
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
-from cheutils.ml_utils.bayesian_search import HyperoptSearch, HyperoptSearchCV
-from cheutils.ml_utils.model_options import get_params_grid, get_params_pounds, parse_grid_types
-from cheutils.ml_utils.pipeline_details import show_pipeline
+from cheutils.ml.bayesian_search import HyperoptSearch, HyperoptSearchCV
+from cheutils.ml.model_options import get_params_grid, get_params_pounds, parse_grid_types
+from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
                                   save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db)
 from cheutils.properties_util import AppProperties
-from cheutils.ml_utils.model_properties_handler import ModelProperties
+from cheutils.ml.model_properties_handler import ModelProperties
 
 LOGGER = LoguruWrapper().get_logger()
 

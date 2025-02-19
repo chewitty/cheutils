@@ -8,7 +8,7 @@ from sklearn.model_selection import cross_val_score
 from hpsklearn import HyperoptEstimator
 
 from cheutils.common_base import CheutilsBase
-from cheutils.ml_utils.model_options import get_hyperopt_estimator, get_estimator
+from cheutils.ml.model_options import get_hyperopt_estimator, get_estimator
 from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()

@@ -63,7 +63,7 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
     path_to_dataset = os.path.join(get_data_dir(), file_name)
     dataset_df = None
     if is_csv:
-        dataset_df = pd.read_csv(path_to_dataset)
+        dataset_df = pd.read_csv(path_to_dataset, parse_dates=date_cols)
     else:
         dataset_df = pd.read_excel(path_to_dataset, parse_dates=date_cols)
     LOGGER.info('Loaded dataset shape = {}', dataset_df.shape)

@@ -2,7 +2,7 @@ import numpy as np
 import importlib
 from cheutils.properties_util import AppProperties
 from cheutils.loggers import LoguruWrapper
-from cheutils.ml_utils.model_properties_handler import ModelProperties
+from cheutils.ml.model_properties_handler import ModelProperties
 
 LOGGER = LoguruWrapper().get_logger()
 

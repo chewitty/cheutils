@@ -12,14 +12,14 @@ from .common_base import CheutilsBase
 from .progress_tracking import create_timer, timer_stats, progress
 from .decorator_timer import track_duration
 from .decorator_debug import debug_func
-from .ml_utils import (get_estimator, exclude_nulls,
-                       get_hyperopt_estimator, show_pipeline, plot_pie, plot_reg_predictions,
-                       plot_reg_residuals_dist, plot_reg_predictions_dist, plot_reg_residuals, plot_hyperparameter,
-                       get_optimal_grid_resolution, get_params_grid, get_params_pounds, get_param_defaults,
-                       get_narrow_param_grid, HyperoptSearch, HyperoptSearchCV, ModelProperties,
-                       promising_params_grid, params_optimization, plot_no_skill_line,
-                       plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
-                       print_classification_report, recreate_labels)
+from .ml import (get_estimator, exclude_nulls,
+                 get_hyperopt_estimator, show_pipeline, plot_pie, plot_reg_predictions,
+                 plot_reg_residuals_dist, plot_reg_predictions_dist, plot_reg_residuals, plot_hyperparameter,
+                 get_optimal_grid_resolution, get_params_grid, get_params_pounds, get_param_defaults,
+                 get_narrow_param_grid, HyperoptSearch, HyperoptSearchCV, ModelProperties,
+                 promising_params_grid, params_optimization, plot_no_skill_line,
+                 plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
+                 print_classification_report, recreate_labels, rmsle)
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (FeatureSelectionTransformer, DateFeaturesTransformer, generate_features, FeatureGenTransformer,
                         DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer,
@@ -27,6 +27,7 @@ from .data_prep import (FeatureSelectionTransformer, DateFeaturesTransformer, ge
 from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
+from .target_encoder import mean_target_encoding, train_mean_target_encoding, test_mean_target_encoding
 
 __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
 log_handler = {'sink': os.path.join(__proj_handler.get_proj_output(), 'app-log.log'), 'serialize': False, 'backtrace': True,
