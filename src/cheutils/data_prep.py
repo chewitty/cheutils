@@ -77,6 +77,35 @@ class DataPrepProperties(AppPropertiesHandler):
                 col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
             self.__data_prep_properties['selective_column_transformers'] = col_transformers
 
+    def _load_target_encoder(self):
+        key = 'model.target.encoder'
+        conf_pipeline = self.__app_props.get_dict_properties(key)
+        if (conf_pipeline is not None) and not (not conf_pipeline):
+            LOGGER.debug('Preparing configured target encoder pipeline: \n{}', conf_pipeline)
+            target_encs = [] # tg_encoders
+            pipe_name = conf_pipeline.get('pipeline_name')
+            pipeline_tg_enc = conf_pipeline.get('target_encoder') # a single target encoder
+            pipeline_cols = conf_pipeline.get('columns') # columns mapped to the pipeline
+            if pipeline_cols is None or (not pipeline_cols):
+                pipeline_cols = []
+            pipeline_steps = []
+            if pipeline_tg_enc is not None:
+                tf_name = pipeline_tg_enc.get('name')
+                tf_module = pipeline_tg_enc.get('module')
+                tf_package = pipeline_tg_enc.get('package')
+                tf_params = pipeline_tg_enc.get('params')
+                tf_params = {} if tf_params is None or (not tf_params) else tf_params
+                tf_class = getattr(importlib.import_module(tf_package), tf_module)
+                tf_obj = None
+                try:
+                    tf_obj = tf_class(**tf_params)
+                    pipeline_steps.append((tf_name, tf_obj))
+                except TypeError as err:
+                    LOGGER.error('Problem encountered instantiating target encoder: {}, {}', tf_name, err)
+                tg_enc_pipeline: Pipeline = Pipeline(steps=pipeline_steps)
+                target_encs.append((pipe_name, tg_enc_pipeline, pipeline_cols))
+            self.__data_prep_properties['target_encoder'] = target_encs
+
     def _load_sqlite3_db(self):
         key = 'project.sqlite3.db'
         self.__data_prep_properties['sqlite3_db'] = self.__app_props.get(key)
@@ -106,6 +135,12 @@ class DataPrepProperties(AppPropertiesHandler):
         if value is None:
             self._load_selective_column_transformers()
         return self.__data_prep_properties.get('selective_column_transformers')
+
+    def get_target_encoder(self):
+        value = self.__data_prep_properties.get('target_encoder')
+        if value is None:
+            self._load_target_encoder()
+        return self.__data_prep_properties.get('target_encoder')
 
     def get_sqlite3_db(self):
         value = self.__data_prep_properties.get('sqlite3_db')
@@ -792,7 +827,7 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
     Transforms latitude-longitude point to a geohashed fixed neighborhood.
     """
     def __init__(self, lat_col: str, long_col: str, to_col: str, drop_geo_cols: bool=True,
-                 precision: int=6, smoothing: float=10.0, min_samples_leaf: int=10, **kwargs):
+                 precision: int=6, smoothing: float=5.0, min_samples_leaf: int=10, **kwargs):
         """
         Transforms latitude-longitude point to a geohashed fixed neighborhood.
         :param lat_col: the column labels for desired latitude column
@@ -870,3 +905,68 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
             self.target_encoder.fit(new_X, new_y)
             self.fitted = True
         return self
+
+class CategoricalTargetEncoder(ColumnTransformer):
+    def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        # if configuring more than one column transformer make sure verbose_feature_names_out=True
+        # to ensure the prefixes ensure uniqueness in the feature names
+        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        conf_target_encs = __data_handler.get_target_encoder() # a list with a single tuple (with target encoder pipeline)
+        super().__init__(transformers=conf_target_encs,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True if len(conf_target_encs) > 1 else False,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        self.num_transformers = len(conf_target_encs)
+        self.feature_names = conf_target_encs[0][2]
+        self.fitted = False
+
+    def fit(self, X, y=None, **fit_params):
+        LOGGER.debug('CategoricalTargetEncoder: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        super().fit(X, y, **fit_params)
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('CategoricalTargetEncoder: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('CategoricalTargetEncoder: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('CategoricalTargetEncoder: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if y is None or self.fitted:
+            transformed_X = super().transform(X, **fit_params)
+        else:
+            transformed_X = super().fit_transform(X, y, **fit_params)
+        feature_names_out = super().get_feature_names_out().tolist()
+        if self.num_transformers > 1:
+            feature_names_out.reverse()
+            # sort out any potential duplicates - noting how column transformers concatenate transformed and
+            # passthrough columns
+            feature_names = [feature_name.split('__')[-1] for feature_name in feature_names_out]
+            duplicate_feature_idxs = []
+            desired_feature_names_s = set()
+            desired_feature_names = []
+            for idx, feature_name in enumerate(feature_names):
+                if feature_name not in desired_feature_names_s:
+                    desired_feature_names_s.add(feature_name)
+                    desired_feature_names.append(feature_name)
+                else:
+                    duplicate_feature_idxs.append(idx)
+            desired_feature_names.reverse()
+            duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
+            transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
+        else:
+            desired_feature_names = feature_names_out
+        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
+        # re-order columns, so the altered columns appear at the end
+        for feature_name in self.feature_names:
+            if feature_name in desired_feature_names:
+                desired_feature_names.remove(feature_name)
+        desired_feature_names.extend(self.feature_names)
+        return new_X[desired_feature_names]

@@ -22,7 +22,7 @@ from .ml import (get_estimator, exclude_nulls,
                  print_classification_report, recreate_labels, rmsle)
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (FeatureSelectionTransformer, DateFeaturesTransformer, generate_features, FeatureGenTransformer,
-                        DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer,
+                        DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer, CategoricalTargetEncoder,
                         DataPrepTransformer, pre_process, generate_target, SelectiveFunctionTransformer, DataPrepProperties)
 from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db
 from .loggers import LoguruWrapper
