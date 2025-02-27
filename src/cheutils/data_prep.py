@@ -77,6 +77,37 @@ class DataPrepProperties(AppPropertiesHandler):
                 col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
             self.__data_prep_properties['selective_column_transformers'] = col_transformers
 
+    def _load_binarizer_column_transformers(self):
+        key = 'model.binarizer_column.transformers'
+        conf_pipelines = self.__app_props.get_list_properties(key)
+        if (conf_pipelines is not None) and not (not conf_pipelines):
+            LOGGER.debug('Preparing configured binarizer transformer pipelines: \n{}', conf_pipelines)
+            col_transformers = []
+            for pipeline in conf_pipelines:
+                if pipeline is None:
+                    break
+                pipe_name = pipeline.get('pipeline_name')
+                pipeline_tfs = pipeline.get('transformers') # list of transformers
+                pipeline_cols = pipeline.get('columns') # columns mapped to the pipeline
+                if pipeline_cols is None or (not pipeline_cols):
+                    continue
+                pipeline_steps = []
+                for item in pipeline_tfs:
+                    tf_name = item.get('name')
+                    tf_module = item.get('module')
+                    tf_package = item.get('package')
+                    tf_params = item.get('params')
+                    tf_params = {} if tf_params is None or (not tf_params) else tf_params
+                    tf_class = getattr(importlib.import_module(tf_package), tf_module)
+                    try:
+                        tf = tf_class(**tf_params)
+                        pipeline_steps.append((tf_name, tf))
+                    except TypeError as err:
+                        LOGGER.error('Problem encountered instantiating transformer: {}, {}', tf_name, err)
+                col_pipeline: Pipeline = Pipeline(steps=pipeline_steps)
+                col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
+            self.__data_prep_properties['binarizer_column_transformers'] = col_transformers
+
     def _load_target_encoder(self):
         key = 'model.target.encoder'
         conf_pipeline = self.__app_props.get_dict_properties(key)
@@ -136,6 +167,12 @@ class DataPrepProperties(AppPropertiesHandler):
             self._load_selective_column_transformers()
         return self.__data_prep_properties.get('selective_column_transformers')
 
+    def get_binarizer_column_transformers(self):
+        value = self.__data_prep_properties.get('binarizer_column_transformers')
+        if value is None:
+            self._load_binarizer_column_transformers()
+        return self.__data_prep_properties.get('binarizer_column_transformers')
+
     def get_target_encoder(self):
         value = self.__data_prep_properties.get('target_encoder')
         if value is None:
@@ -182,12 +219,12 @@ class DataPrepProperties(AppPropertiesHandler):
 
 class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
     """
-    Transforms datetimes, generating additional prefixed 'dow', 'wk', 'qtr', 'wkend' features for all relevant columns
+    Transforms datetimes, generating additional prefixed 'dow', 'wk', 'month', 'qtr', 'wkend' features for all relevant columns
     (specified) in the dataframe; drops the datetime column by default but can be retained as desired.
     """
     def __init__(self, rel_cols: list, prefixes: list, drop_rel_cols: list=None, **kwargs):
         """
-        Transforms datetimes, generating additional prefixed 'dow', 'wk', 'qtr', 'wkend' features for all relevant
+        Transforms datetimes, generating additional prefixed 'dow', 'wk', 'month', 'qtr', 'wkend' features for all relevant
         columns (specified) in the dataframe; drops the datetime column by default but can be retained as desired.
         :param rel_cols: the column labels for desired datetime columns in the dataframe
         :type rel_cols: list
@@ -236,8 +273,8 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
             new_X[prefix + 'dow'] = new_X[prefix + 'dow'].astype(int)
             new_X.loc[:, prefix + 'wk'] = new_X[rel_col].apply(lambda x: pd.Timestamp(x).week)
             new_X[prefix + 'wk'] = new_X[prefix + 'wk'].astype(int)
-            # new_X.loc[:, prefix + 'doy'] = new_X[rel_col].dt.dayofyear
-            # new_X[prefix + 'doy'] = new_X[prefix + 'doy'].astype(int)
+            new_X.loc[:, prefix + 'month'] = new_X[rel_col].dt.month
+            new_X[prefix + 'month'] = new_X[prefix + 'month'].astype(int)
             new_X.loc[:, prefix + 'qtr'] = new_X[rel_col].dt.quarter
             new_X[prefix + 'qtr'] = new_X[prefix + 'qtr'].astype(int)
             new_X.loc[:, prefix + 'wkend'] = np.where(new_X[rel_col].dt.dayofweek.isin([5, 6]), 1, 0)
@@ -247,9 +284,9 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
                 new_X.drop(columns=self.rel_cols, inplace=True)
             else:
                 to_drop_cols = []
-                for index, to_drop_cols in enumerate(self.rel_cols):
+                for index, to_drop_col in enumerate(self.rel_cols):
                     if self.drop_rel_cols[index]:
-                        to_drop_cols.append(to_drop_cols)
+                        to_drop_cols.append(to_drop_col)
                 new_X.drop(columns=to_drop_cols, inplace=True)
         return new_X
 
@@ -428,6 +465,65 @@ class SelectiveColumnTransformer(ColumnTransformer):
         self.feature_names = desired_feature_names
         return new_X
 
+class BinarizerColumnTransformer(ColumnTransformer):
+    def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        # if configuring more than one column transformer make sure verbose_feature_names_out=True
+        # to ensure the prefixes ensure uniqueness in the feature names
+        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        conf_transformers = __data_handler.get_binarizer_column_transformers()
+        super().__init__(transformers=conf_transformers,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True if len(conf_transformers) > 1 else False,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        self.num_transformers = len(conf_transformers)
+        self.feature_names = None
+
+    def fit(self, X, y=None, **fit_params):
+        LOGGER.debug('BinarizerColumnTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        super().fit(X, y, **fit_params)
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('BinarizerColumnTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('BinarizerColumnTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('BinarizerColumnTransformer: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if y is None:
+            transformed_X = super().transform(X, **fit_params)
+        else:
+            transformed_X = super().fit_transform(X, y, **fit_params)
+        feature_names_out = super().get_feature_names_out().tolist()
+        if self.num_transformers > 1:
+            feature_names_out.reverse()
+            # sort out any potential duplicates - noting how column transformers concatenate transformed and
+            # passthrough columns
+            feature_names = [feature_name.split('__')[-1] for feature_name in feature_names_out]
+            duplicate_feature_idxs = []
+            desired_feature_names_s = set()
+            desired_feature_names = []
+            for idx, feature_name in enumerate(feature_names):
+                if feature_name not in desired_feature_names_s:
+                    desired_feature_names_s.add(feature_name)
+                    desired_feature_names.append(feature_name)
+                else:
+                    duplicate_feature_idxs.append(idx)
+            desired_feature_names.reverse()
+            duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
+            transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
+        else:
+            desired_feature_names = feature_names_out
+        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
+        self.feature_names = desired_feature_names
+        return new_X
+
 """
 The imblearn.FunctionSampler and imblearn.pipeline.Pipeline need to be used in order to correctly add this to a data pipeline
 """
@@ -454,7 +550,7 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
     :type special_features: dict
     :param drop_feats_cols: drop special_features cols if True
     :type drop_feats_cols: bool
-    :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': col_gen_func1, 'col_label2': col_gen_func2}
+    :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'inc_target': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'inc_target': False, 'kwargs': {}}
     :type calc_features: dict
     :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
     :type gen_target: dict
@@ -547,8 +643,22 @@ def pre_process(X, y=None, date_cols: list=None, int_cols: list=None, float_cols
             new_X.drop(columns=to_drop, inplace=True)
     # generate any calculated columns as needed
     if calc_features is not None:
-        for col, col_gen_func in calc_features.items():
-            new_X[col] = new_X.apply(col_gen_func, axis=1)
+        for col, col_gen_func_dict in calc_features.items():
+            # each col_gen_func_dict specifies {'func': col_gen_func1, 'inc_target': False, 'kwargs': {}}
+            # to include the target as a parameter to the col_gen_func, and any keyword arguments
+            col_gen_func = col_gen_func_dict.get('func')
+            func_kwargs: dict = col_gen_func_dict.get('kwargs')
+            inc_target = col_gen_func_dict.get('inc_target')
+            if inc_target is not None and inc_target:
+                if (func_kwargs is not None) or not (not func_kwargs):
+                    new_X[col] = new_X.apply(col_gen_func, func_kwargs, target=self.target, axis=1, )
+                else:
+                    new_X[col] = new_X.apply(col_gen_func, target=self.target, axis=1, )
+            else:
+                if (func_kwargs is not None) or not (not func_kwargs):
+                    new_X[col] = new_X.apply(col_gen_func, func_kwargs, axis=1)
+                else:
+                    new_X[col] = new_X.apply(col_gen_func, axis=1)
     # apply any masking logic
     if masked_cols is not None:
         for col, mask in masked_cols.items():

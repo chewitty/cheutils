@@ -369,7 +369,7 @@ def winsorize_it(data_in: Union[pd.Series, list, np.ndarray], limits: list = Non
     would result in an unrepresentative or incomplete sample, winsorization preserves all values, ensuring the dataset remains usable.
     :param data_in: input data, which can be any of series, list, or numpy array
     :type data_in:
-    :param limits: scipe of the winsorization - defaults to 5% limits for both ends
+    :param limits: scope of the winsorization - defaults to 5% limits for both ends
     :type limits:
     :param kwargs: any other scipy.stats.mstats.winsorize parameters
     :return: Returns a Winsorized version of the input data.
