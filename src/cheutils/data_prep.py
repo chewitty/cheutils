@@ -9,7 +9,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
 from sklearn.pipeline import Pipeline
 from cheutils.decorator_singleton import singleton
-from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy, apply_impute
+from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
 from cheutils.exceptions import PropertiesException, FeatureGenException
@@ -1521,6 +1521,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.profiling_sorting = profiling_sorting
         self.timeseries_container = timeseries_container
         self.extracted_features = None # holder for extracted features
+        self.extracted_global_aggs = {}
         self.drop_rel_cols = drop_rel_cols
 
     def fit(self, X=None, y=None):
@@ -1556,9 +1557,12 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
                                                   profile=self.profile,
                                                   profiling_filename=self.profiling_filename,
                                                   profiling_sorting=self.profiling_sorting, )
+        self.extracted_features.index.rename(self.column_id, inplace=True)
         cols = list(self.extracted_features.columns)
         col_map = {col: col.replace('__', '_') for col in cols}
         self.extracted_features.rename(columns=col_map, inplace=True)
+        for col in list(self.extracted_features.columns):
+            self.extracted_global_aggs[col] = self.extracted_features.reset_index()[col].agg('median')
         return self
 
     def transform(self, X, **fit_params):
@@ -1593,7 +1597,8 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         # add newly created features to dataset
         new_X = pd.merge(X, self.extracted_features, left_on=self.column_id, right_index=True, how='left')
         feat_cols = list(self.extracted_features.columns)
-        new_X = apply_impute(new_X, rel_cols=feat_cols, by=self.column_id, aggfunc='median')
+        for col in feat_cols:
+            new_X[col] = new_X[col].fillna(self.extracted_global_aggs.get(col))
         if self.drop_rel_cols is not None and not (not self.drop_rel_cols):
             to_drop_cols = []
             for key, item in self.drop_rel_cols.items():
