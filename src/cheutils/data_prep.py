@@ -924,7 +924,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                 clean_df = clean_df.dropna()
                 # do not reset index here
                 # clean_df.reset_index(drop=True, inplace=True)
-                LOGGER.debug('Preprocessing, rows with missing data = {}', len(df) - len(clean_df))
+                LOGGER.debug('DataPrepTransformer: Preprocessing, rows with missing data = {}', len(df) - len(clean_df))
                 if target_sr is not None:
                     clean_target_sr = clean_target_sr[~null_rows]
                     # do not reset index here
@@ -1000,7 +1000,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         if pot_leak_cols is not None or not (not pot_leak_cols):
             to_drop = [col for col in pot_leak_cols if col in new_X.columns]
             new_X.drop(columns=to_drop, inplace=True)
-        LOGGER.debug('Preprocessed dataset, out shape = {}, {}', new_X.shape,
+        LOGGER.debug('DataPrepTransformer: Preprocessed dataset, out shape = {}, {}', new_X.shape,
                      new_y.shape if new_y is not None else None)
         return new_X, new_y
 
@@ -1346,6 +1346,8 @@ class CategoricalTargetEncoder(ColumnTransformer):
         self.fitted = False
 
     def fit(self, X, y=None, **fit_params):
+        if self.fitted:
+            return self
         LOGGER.debug('CategoricalTargetEncoder: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         super().fit(X, y, **fit_params)
         self.fitted = True
@@ -1357,6 +1359,7 @@ class CategoricalTargetEncoder(ColumnTransformer):
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
+        #self.fit(X, y, **fit_params)
         LOGGER.debug('CategoricalTargetEncoder: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = self.__do_transform(X, y, **fit_params)
         LOGGER.debug('CategoricalTargetEncoder: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
