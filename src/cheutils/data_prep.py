@@ -1456,7 +1456,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
                  disable_progressbar=tsfresh.defaults.DISABLE_PROGRESSBAR,
                  impute_function=tsfresh.defaults.IMPUTE_FUNCTION, profile=tsfresh.defaults.PROFILING,
                  profiling_filename=tsfresh.defaults.PROFILING_FILENAME,
-                 profiling_sorting=tsfresh.defaults.PROFILING_SORTING, ):
+                 profiling_sorting=tsfresh.defaults.PROFILING_SORTING, drop_rel_cols: dict=None):
         """
         Create a new FeatureAugmenter instance.
         :param default_fc_parameters: mapping from feature calculator names to parameters. Only those names
@@ -1469,7 +1469,6 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
                 object (which is the value), will be used instead of the default_fc_parameters. This means that kinds,
                 for which kind_of_fc_parameters doe not have any entries, will be ignored by the feature selection.
         :type kind_to_fc_parameters: dict
-
         :param column_id: The column with the id. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_id: basestring
         :param column_sort: The column with the sort data. See :mod:`~tsfresh.feature_extraction.extraction`.
@@ -1478,10 +1477,8 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type column_kind: basestring
         :param column_value: The column with the values. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_value: basestring
-
         :param n_jobs: The number of processes to use for parallelization. If zero, no parallelization is used.
         :type n_jobs: int
-
         :param chunksize: The size of one chunk that is submitted to the worker
             process for the parallelisation.  Where one chunk is defined as a
             singular time series for one id and one kind. If you set the chunksize
@@ -1491,26 +1488,22 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
             memory exceptions, you can try it with the dask distributor and a
             smaller chunksize.
         :type chunksize: None or int
-
         :param show_warnings: Show warnings during the feature extraction (needed for debugging of calculators).
         :type show_warnings: bool
-
         :param disable_progressbar: Do not show a progressbar while doing the calculation.
         :type disable_progressbar: bool
-
         :param impute_function: None, if no imputing should happen or the function to call for imputing
             the result dataframe. Imputing will never happen on the input data.
         :type impute_function: None or function
-
         :param profile: Turn on profiling during feature extraction
         :type profile: bool
-
         :param profiling_sorting: How to sort the profiling results (see the documentation of the profiling package for
                more information)
         :type profiling_sorting: basestring
-
         :param profiling_filename: Where to save the profiling results.
         :type profiling_filename: basestring
+        :param drop_rel_cols: flags indicating whether to drop the time series source features
+        :type drop_rel_cols: dict
         """
         self.default_fc_parameters = default_fc_parameters
         self.kind_to_fc_parameters = kind_to_fc_parameters
@@ -1528,6 +1521,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.profiling_sorting = profiling_sorting
         self.timeseries_container = timeseries_container
         self.extracted_features = None # holder for extracted features
+        self.drop_rel_cols = drop_rel_cols
 
     def fit(self, X=None, y=None):
         """
@@ -1600,4 +1594,11 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         new_X = pd.merge(X, self.extracted_features, left_on=self.column_id, right_index=True, how='left')
         feat_cols = list(self.extracted_features.columns)
         new_X = apply_impute(new_X, rel_cols=feat_cols, by=self.column_id, aggfunc='median')
+        if self.drop_rel_cols is not None and not (not self.drop_rel_cols):
+            to_drop_cols = []
+            for key, item in self.drop_rel_cols.items():
+                if item is not None and item:
+                    to_drop_cols.append(key)
+            if to_drop_cols is not None and not (not to_drop_cols):
+                new_X.drop(columns=to_drop_cols, inplace=True)
         return new_X
