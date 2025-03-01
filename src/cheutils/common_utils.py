@@ -280,10 +280,11 @@ def apply_impute(df: pd.DataFrame, rel_cols: list = None, by: list = None, aggfu
     assert (rel_cols is not None) or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
     assert (by is not None) or not (not by), 'A valid list or non-empty list of column labels to group by expected as input'
     # Impute median for calories
-    imputed_df = df.copy(deep=True)
+    #imputed_df = df.copy(deep=True)
+    imputed_df = df
     # now execute the imputation accordingly now the full dataframe is in place
     for col in rel_cols:
-        imputed_df.loc[:, col] = imputed_df[col].fillna(imputed_df.groupby(by, observed=True)[col].transform(aggfunc))
+        imputed_df.loc[:, col] = imputed_df[col].fillna(imputed_df.groupby(by, observed=True)[col].agg(aggfunc))
     return imputed_df
 
 def apply_clipping(df: pd.DataFrame, rel_cols: list, filterby: str, pos_thres: bool=False, ):
