@@ -134,6 +134,7 @@ class DataPrepProperties(AppPropertiesHandler):
                 tf_obj = None
                 try:
                     tf_obj = tf_class(**tf_params)
+                    #tf_obj.set_output(transform='pandas')
                     pipeline_steps.append((tf_name, tf_obj))
                 except TypeError as err:
                     LOGGER.error('Problem encountered instantiating target encoder: {}, {}', tf_name, err)
@@ -341,12 +342,15 @@ class FeatureSelectionTransformer(RFE):
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
-        if y is None:
-            transformed_X = super().transform(X)
+        if self.selected_cols is None:
+            if y is None:
+                transformed_X = super().transform(X)
+            else:
+                transformed_X = super().fit_transform(X, y, **fit_params)
+            self.selected_cols = list(X.columns[self.get_support()])
+            new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
         else:
-            transformed_X = super().fit_transform(X, y, **fit_params)
-        self.selected_cols = list(X.columns[self.get_support()])
-        new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
+            new_X = pd.DataFrame(X, columns=self.selected_cols)
         return new_X
 
     def get_selected_features(self):
@@ -432,6 +436,7 @@ class SelectiveColumnTransformer(ColumnTransformer):
     def transform(self, X, **fit_params):
         LOGGER.debug('SelectiveColumnTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('SelectiveColumnTransformer: Transformed dataset, shape = {}, {}', X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -493,6 +498,7 @@ class BinarizerColumnTransformer(ColumnTransformer):
     def transform(self, X, **fit_params):
         LOGGER.debug('BinarizerColumnTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('BinarizerColumnTransformer: Transformed dataset, shape = {}, {}', X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -856,7 +862,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         # be sure to patch in any generated target column
         new_X, new_y = self.__do_transform(X)
         self.target = new_y if new_y is not None else self.target
-        LOGGER.debug('DataPrepTransformer: Transforming dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        LOGGER.debug('DataPrepTransformer: Transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -1185,7 +1191,7 @@ class FeatureGenTransformer(BaseEstimator, TransformerMixin):
     def transform(self, X):
         LOGGER.debug('FeatureGenTransformer: Transforming dataset, shape = {}', X.shape)
         new_X = self.__do_transform(X)
-        LOGGER.debug('FeatureGenTransformer: Transforming dataset, out shape = {}', new_X.shape)
+        LOGGER.debug('FeatureGenTransformer: Transformed dataset, out shape = {}', new_X.shape)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -1358,6 +1364,7 @@ class CategoricalTargetEncoder(ColumnTransformer):
     def transform(self, X, **fit_params):
         LOGGER.debug('CategoricalTargetEncoder: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('CategoricalTargetEncoder: Transformed dataset, shape = {}, {}', X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -1587,6 +1594,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('TSFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
@@ -1809,6 +1817,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSLagFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('TSLagFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
