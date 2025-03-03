@@ -462,7 +462,8 @@ class SelectiveColumnTransformer(ColumnTransformer):
                     duplicate_feature_idxs.append(idx)
             desired_feature_names.reverse()
             duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
-            transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
+            if duplicate_feature_idxs is not None and not (not duplicate_feature_idxs):
+                transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
         else:
             desired_feature_names = feature_names_out
         desired_feature_names = [feature_name.split('__')[-1] for feature_name in desired_feature_names]
