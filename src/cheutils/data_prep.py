@@ -1761,10 +1761,10 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSLagFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         timeseries_container: pd.DataFrame = safe_copy(X)
-        period = self.lag_features.get('period')
+        periods = self.lag_features.get('periods')
         freq = self.lag_features.get('freq')
         timeseries_container.set_index(self.column_ts_date, inplace=True)
-        timeseries_container = timeseries_container.shift(periods=period, freq=freq)
+        timeseries_container = timeseries_container.shift(periods=periods, freq=freq)
         if timeseries_container is None:
             raise RuntimeError('You have to provide a time series container/dataframe before.')
         # extract the features
