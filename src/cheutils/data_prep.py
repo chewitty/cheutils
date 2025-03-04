@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import geolib.geohash as gh
 from category_encoders import TargetEncoder
+from exceptiongroup import catch
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -351,6 +352,11 @@ class FeatureSelectionTransformer(RFE):
             new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
         else:
             new_X = pd.DataFrame(X, columns=self.selected_cols)
+        for col in self.selected_cols:
+            try:
+                new_X[col] = pd.to_numeric(new_X[col], )
+            except ValueError as ignore:
+                LOGGER.warning('Potential dtype issue: {}', ignore)
         return new_X
 
     def get_selected_features(self):
@@ -1413,6 +1419,10 @@ class CategoricalTargetEncoder(ColumnTransformer):
         for feature_name in self.feature_names:
             if feature_name in desired_feature_names:
                 desired_feature_names.remove(feature_name)
+            try:
+                new_X[feature_name] = pd.to_numeric(new_X[feature_name], )
+            except ValueError as ignore:
+                LOGGER.warning('Potential dtype issue: {}', ignore)
         desired_feature_names.extend(self.feature_names)
         return new_X[desired_feature_names]
 
