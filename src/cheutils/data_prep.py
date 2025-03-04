@@ -319,13 +319,16 @@ class FeatureSelectionTransformer(RFE):
         super().__init__(self.estimator, ** kwargs)
         self.target = None
         self.selected_cols = None
+        self.fitted = False
 
     def fit(self, X, y=None, **fit_params):
+        if self.fitted:
+            return self
         LOGGER.debug('FeatureSelectionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.target = y  # possibly passed in chain
-        #self.estimator.fit(X, y)
-        #LOGGER.debug('FeatureSelectionTransformer: Feature coefficients = {}', self.estimator.coef_)
-        return super().fit(X, y, **fit_params)
+        super().fit(X, y, **fit_params)
+        self.fitted = True
+        return self
 
     def transform(self, X, y=None, **fit_params):
         LOGGER.debug('FeatureSelectionTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
@@ -335,6 +338,7 @@ class FeatureSelectionTransformer(RFE):
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y, **fit_params)
         LOGGER.debug('FeatureSelectionTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.target = y
         new_X = self.__do_transform(X, y, **fit_params)
@@ -1698,7 +1702,8 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
                  disable_progressbar=tsfresh.defaults.DISABLE_PROGRESSBAR,
                  impute_function=tsfresh.defaults.IMPUTE_FUNCTION, profile=tsfresh.defaults.PROFILING,
                  profiling_filename=tsfresh.defaults.PROFILING_FILENAME,
-                 profiling_sorting=tsfresh.defaults.PROFILING_SORTING, drop_rel_cols: dict=None, ):
+                 profiling_sorting=tsfresh.defaults.PROFILING_SORTING,
+                 drop_rel_cols: dict=None, lag_target: bool=False, ):
         """
         Create a new FeatureAugmenter instance.
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'col_label1': {'filter_by': ['filter_col1', 'filter_col2'], period=0, 'drop_rel_cols': False, }, 'col_label2': {'filter_by': ['filter_col3', 'filter_col4'], period=0, 'drop_rel_cols': False, }}
@@ -1751,6 +1756,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type profiling_filename: basestring
         :param drop_rel_cols: flags to inidcate whether to drop the time series feature columns
         :type drop_rel_cols: dict
+        :param lag_target: flag indicating whether to include lagged target values as features
         """
         assert lag_features is not None and not (not lag_features), 'Lag features specification must be provided'
         self.lag_features = lag_features
@@ -1772,6 +1778,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.drop_rel_cols = drop_rel_cols
         self.extracted_features = None # holder for extracted features
         self.extracted_global_aggs = {}
+        self.lag_target = lag_target
 
     def fit(self, X=None, y=None):
         """
@@ -1788,6 +1795,8 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSLagFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         timeseries_container: pd.DataFrame = safe_copy(X)
+        if self.lag_target:
+            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
         periods = self.lag_features.get('periods')
         freq = self.lag_features.get('freq')
         timeseries_container.set_index(self.column_ts_date, inplace=True)
