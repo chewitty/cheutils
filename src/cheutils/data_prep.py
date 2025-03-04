@@ -802,7 +802,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :param special_features: dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }
         :type special_features:
         :param drop_feats_cols: drop special_features cols if True
-        :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'inc_target': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'inc_target': False, 'kwargs': {}}
+        :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'kwargs': {}}
         :param synthetic_features: dictionary of calculated column labels with their corresponding column generation functions, for cases involving features not present in test data - e.g., {'new_col1': {'func': col_gen_func1, 'agg_col': 'col_label1', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_col': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}, 'new_col2': {'func': col_gen_func2, 'agg_col': 'col_label2', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_col': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'col_label1': {'filter_by': ['filter_col1', 'filter_col2'], period=0, 'drop_rel_cols': False, }, 'col_label2': {'filter_by': ['filter_col3', 'filter_col4'], period=0, 'drop_rel_cols': False, }}
         :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func, 'other_val': 0}
@@ -1078,37 +1078,40 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             indices = X.index
             calc_feats = {}
             for col, col_gen_func_dict in self.calc_features.items():
-                # check that feature present in dataset - as some features may not be present in test data
-                if col not in X.columns:
-                    continue
                 # each col_gen_func_dict specifies {'func': col_gen_func1, 'inc_target': False, 'kwargs': {}}
                 # to include the target as a parameter to the col_gen_func, and any keyword arguments
                 col_gen_func = col_gen_func_dict.get('func')
+                is_numeric = col_gen_func_dict.get('is_numeric')
+                is_numeric = True if is_numeric is None else is_numeric
                 func_kwargs: dict = col_gen_func_dict.get('kwargs')
                 inc_target = col_gen_func_dict.get('inc_target')
                 impute_agg_func = col_gen_func_dict.get('impute_agg_func')
                 if inc_target is not None and inc_target:
                     if (func_kwargs is not None) or not (not func_kwargs):
-                        calc_feat = X.apply(col_gen_func, func_kwargs, target=self.target, axis=1, )
+                        calc_feat = X.agg(col_gen_func, func_kwargs, target=self.target, axis=1, )
                     else:
-                        calc_feat = X.apply(col_gen_func, target=self.target, axis=1, )
+                        calc_feat = X.agg(col_gen_func, target=self.target, axis=1, )
                 else:
                     if (func_kwargs is not None) or not (not func_kwargs):
-                        calc_feat = X.apply(col_gen_func, func_kwargs, axis=1)
+                        calc_feat = X.agg(col_gen_func, func_kwargs, axis=1)
                     else:
-                        calc_feat = X.apply(col_gen_func, axis=1)
+                        calc_feat = X.agg(col_gen_func, axis=1)
                 calc_feats[col] = calc_feat.values
-                self.transform_global_aggs[col] = calc_feat.agg(impute_agg_func if impute_agg_func is not None else 'median').values[0]
+                if is_numeric:
+                    self.transform_global_aggs[col] = calc_feat.agg(impute_agg_func if impute_agg_func is not None else 'median').values[0]
+                else:
+                    self.transform_global_aggs[col] = calc_feat.value_counts().index[0]
             trans_calc_features = pd.DataFrame(calc_feats, index=indices)
         return trans_calc_features
 
-    def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None):
+    def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None, synthetic: bool = False):
         assert source is not None, 'Source dataframe cannot be None'
         if features is not None:
             # check if existing columns need to be dropped from source
             cols_in_source = [col for col in features.columns if col in source.columns]
-            for col in left_on:
-                cols_in_source.remove(col)
+            if left_on is not None:
+                for col in left_on:
+                    cols_in_source.remove(col)
             if cols_in_source is not None and not (not cols_in_source):
                 source.drop(columns=cols_in_source, inplace=True)
             # now merge and replace the new columns in source
@@ -1121,15 +1124,21 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             else:
                 source = pd.merge(source, features, how='left', left_index=True, right_index=True)
             # impute as needed
-            contains_nulls = source[rel_col].isnull().values.any()
-            if contains_nulls:
-                if rel_col is not None:
-                    global_agg = self.gen_global_aggs[rel_col]
-                    source[rel_col] = source[rel_col].fillna(global_agg)
-                else:
-                    for col in cols_in_source:
-                        global_agg = self.gen_global_aggs[col]
-                        source[rel_col] = source[col].fillna(global_agg)
+            if synthetic:
+                contains_nulls = source[rel_col].isnull().values.any()
+                if contains_nulls:
+                    if synthetic:
+                        if rel_col is not None:
+                            global_agg = self.gen_global_aggs[rel_col]
+                            source[rel_col] = source[rel_col].fillna(global_agg)
+                        else:
+                            for col in cols_in_source:
+                                global_agg = self.gen_global_aggs[col]
+                                source[rel_col] = source[col].fillna(global_agg)
+            else:
+                for col in cols_in_source:
+                    global_agg = self.transform_global_aggs[col]
+                    source[col] = source[rel_col].fillna(global_agg)
         return source
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -1143,12 +1152,12 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                                    clip_data=self.clip_data, include_target=self.include_target,)
         # apply any calculated features
         calc_feats = self.__transform_calc_features(X, y=y)
-        new_X = self.__merge_features(new_X, calc_feats)
+        new_X = self.__merge_features(new_X, calc_feats, )
         # apply any generated features
         for key, gen_features in self.gen_calc_features.items():
             gen_spec = self.synthetic_features.get(key)
             keys = [col for col in (gen_spec.get('id_by_col'), gen_spec.get('sort_by_col')) if col is not None]
-            new_X = self.__merge_features(new_X, gen_features, key, left_on=keys, right_on=keys)
+            new_X = self.__merge_features(new_X, gen_features, key, left_on=keys, right_on=keys, synthetic=True)
         return new_X, new_y
 
     def get_params(self, deep=True):
