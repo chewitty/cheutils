@@ -407,7 +407,7 @@ def feature_selection_transformer(selector: str, estimator):
                 except AttributeError:
                     importances = self.estimator_.feature_importances_
                 if importances is not None:
-                    importances = pd.Series(importances, index=self.selected_cols, name='importance')
+                    importances = pd.Series(importances[:len(self.selected_cols)], index=self.selected_cols, name='importance')
                     save_excel(importances, file_name='feature_importances.xlsx', tag_label=selector, index=True)
             except Exception as ignore:
                 LOGGER.warning('Could not save feature importances: {}', ignore)
