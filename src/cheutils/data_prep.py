@@ -3,19 +3,17 @@ import pandas as pd
 import numpy as np
 import geolib.geohash as gh
 from category_encoders import TargetEncoder
-from exceptiongroup import catch
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.feature_selection import RFE
 from sklearn.pipeline import Pipeline
 from cheutils.decorator_singleton import singleton
 from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
+from cheutils.project_tree import save_excel
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
 from cheutils.exceptions import PropertiesException, FeatureGenException
 import tsfresh.defaults
-from streamlit import columns
 from tsfresh.feature_extraction import extract_features
 from tsfresh.utilities.dataframe_functions import restrict_input_to_index
 
@@ -113,6 +111,24 @@ class DataPrepProperties(AppPropertiesHandler):
                 col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
             self.__data_prep_properties['binarizer_column_transformers'] = col_transformers
 
+    def _load_feat_sel_transformers(self, estimator):
+        assert estimator is not None, 'A valid feature section estimator must be provided'
+        key = 'model.feat_selection.transformers'
+        conf_transformers = self.__app_props.get_dict_properties(key)
+        if (conf_transformers is not None) and not (not conf_transformers):
+            LOGGER.debug('Preparing configured feature selection transformer options: \n{}', conf_transformers)
+            col_transformers = {}
+            for selector, transformer_conf in conf_transformers.items():
+                if transformer_conf is None or (not transformer_conf):
+                    continue
+                tf_module = transformer_conf.get('module')
+                tf_package = transformer_conf.get('package')
+                tf_params = transformer_conf.get('params')
+                tf_params = {} if tf_params is None or (not tf_params) else tf_params
+                tf_class = getattr(importlib.import_module(tf_package), tf_module)
+                col_transformers[selector] = (tf_class, tf_params)
+            self.__data_prep_properties['feat_sel_transformers'] = col_transformers
+
     def _load_target_encoder(self):
         key = 'model.target.encoder'
         conf_pipeline = self.__app_props.get_dict_properties(key)
@@ -178,6 +194,12 @@ class DataPrepProperties(AppPropertiesHandler):
         if value is None:
             self._load_binarizer_column_transformers()
         return self.__data_prep_properties.get('binarizer_column_transformers')
+
+    def get_feat_sel_transformers(self, estimator):
+        value = self.__data_prep_properties.get('feat_sel_transformers')
+        if value is None:
+            self._load_feat_sel_transformers(estimator)
+        return self.__data_prep_properties.get('feat_sel_transformers')
 
     def get_target_encoder(self):
         value = self.__data_prep_properties.get('target_encoder')
@@ -305,73 +327,98 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
 
     def get_target(self):
         return self.target
-
-"""
-Meta-transformer for selecting features based on recursive feature selection.
-"""
-class FeatureSelectionTransformer(RFE):
+def feature_selection_transformer(selector: str, estimator):
     """
-    Returns features based on ranking with recursive feature elimination.
+    Meta-transformer for selecting features based on recursive feature selection, select from model, or any other equivalent class.
+    @see https://stackoverflow.com/questions/21060073/dynamic-inheritance-in-python?noredirect=1&lq=1
     """
-    def __init__(self, estimator=None, random_state: int=100, **kwargs):
-        self.random_state = random_state
-        self.estimator = estimator
-        super().__init__(self.estimator, ** kwargs)
-        self.target = None
-        self.selected_cols = None
-        self.fitted = False
+    assert selector is not None, 'A valid configured feature selector option must be provided'
+    __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+    tf_base_class, tf_params = __data_handler.get_feat_sel_transformers(estimator).get(selector) # a tuple (trans_class, trans_params)
+    class FeatureSelectionTransformer(tf_base_class):
+        """
+        Returns features based on ranking with recursive feature elimination.
+        """
+        def __init__(self, estimator=None, random_state: int=100, **kwargs):
+            self.random_state = random_state
+            self.estimator = estimator
+            super().__init__(self.estimator, ** kwargs)
+            self.target = None
+            self.selected_cols = None
+            self.fitted = False
+            self.selector = None
 
-    def fit(self, X, y=None, **fit_params):
-        if self.fitted:
+        def fit(self, X, y=None, **fit_params):
+            if self.fitted:
+                return self
+            LOGGER.debug('FeatureSelectionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+            self.target = y  # possibly passed in chain
+            super().fit(X, y, **fit_params)
+            self.fitted = True
             return self
-        LOGGER.debug('FeatureSelectionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.target = y  # possibly passed in chain
-        super().fit(X, y, **fit_params)
-        self.fitted = True
-        return self
 
-    def transform(self, X, y=None, **fit_params):
-        LOGGER.debug('FeatureSelectionTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = self.__do_transform(X, y=None)
-        LOGGER.debug('FeatureSelectionTransformer: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        LOGGER.debug('FeatureSelectionTransformer: Transformed features selected = {}', self.selected_cols)
-        return new_X
+        def transform(self, X, y=None, **fit_params):
+            LOGGER.debug('FeatureSelectionTransformer: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+            new_X = self.__do_transform(X, y=None)
+            LOGGER.debug('FeatureSelectionTransformer: Transformed dataset, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_cols)
+            return new_X
 
-    def fit_transform(self, X, y=None, **fit_params):
-        self.fit(X, y, **fit_params)
-        LOGGER.debug('FeatureSelectionTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.target = y
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('FeatureSelectionTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        LOGGER.debug('FeatureSelectionTransformer: Fit-transformed features selected = {}', self.selected_cols)
-        return new_X
+        def fit_transform(self, X, y=None, **fit_params):
+            LOGGER.debug('FeatureSelectionTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+            self.fit(X, y, **fit_params)
+            self.target = y
+            new_X = self.__do_transform(X, y, **fit_params)
+            LOGGER.debug('FeatureSelectionTransformer: Fit-transformed dataset, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_cols)
+            return new_X
 
-    def __do_transform(self, X, y=None, **fit_params):
-        if self.selected_cols is None:
-            if y is None:
-                transformed_X = super().transform(X)
+        def __do_transform(self, X, y=None, **fit_params):
+            if self.selected_cols is None:
+                if y is None:
+                    transformed_X = super().transform(X)
+                else:
+                    transformed_X = super().fit_transform(X, y, **fit_params)
+                self.selected_cols = list(X.columns[self.get_support()])
+                new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
+                self.__save_importances()
             else:
-                transformed_X = super().fit_transform(X, y, **fit_params)
-            self.selected_cols = list(X.columns[self.get_support()])
-            new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
-        else:
-            new_X = pd.DataFrame(X, columns=self.selected_cols)
-        for col in self.selected_cols:
+                new_X = pd.DataFrame(X, columns=self.selected_cols)
+            for col in self.selected_cols:
+                try:
+                    new_X[col] = pd.to_numeric(new_X[col], )
+                except ValueError as ignore:
+                    LOGGER.warning('Potential dtype issue: {}', ignore)
+            return new_X
+
+        def get_selected_features(self):
+            """
+            Return the selected features or column labels.
+            :return:
+            """
+            return self.selected_cols
+
+        def get_target(self):
+            return self.target
+
+        def __save_importances(self):
             try:
-                new_X[col] = pd.to_numeric(new_X[col], )
-            except ValueError as ignore:
-                LOGGER.warning('Potential dtype issue: {}', ignore)
-        return new_X
+                importances = None
+                try:
+                    importances = self.estimator_.coef_
+                except AttributeError:
+                    importances = self.estimator_.feature_importances_
+                if importances is not None:
+                    importances = pd.Series(importances, index=self.selected_cols, name='importance')
+                    save_excel(importances, file_name='feature_importances.xlsx', tag_label=selector, index=True)
+            except Exception as ignore:
+                LOGGER.warning('Could not save feature importances: {}', ignore)
 
-    def get_selected_features(self):
-        """
-        Return the selected features or column labels.
-        :return:
-        """
-        return self.selected_cols
-
-    def get_target(self):
-        return self.target
+    tf_instance = None
+    try:
+        tf_instance = FeatureSelectionTransformer(estimator=estimator, **tf_params)
+        tf_instance.selector = selector
+    except TypeError as err:
+        LOGGER.error('Problem encountered instantiating feature selection transformer: {}, {}', selector, err)
+    return tf_instance
 
 class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
     """
@@ -813,7 +860,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :type special_features:
         :param drop_feats_cols: drop special_features cols if True
         :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'kwargs': {}}
-        :param synthetic_features: dictionary of calculated column labels with their corresponding column generation functions, for cases involving features not present in test data - e.g., {'new_col1': {'func': col_gen_func1, 'agg_col': 'col_label1', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_col': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}, 'new_col2': {'func': col_gen_func2, 'agg_col': 'col_label2', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_col': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}
+        :param synthetic_features: dictionary of calculated column labels with their corresponding column generation functions, for cases involving features not present in test data - e.g., {'new_col1': {'func': col_gen_func1, 'agg_col': 'col_label1', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}, 'new_col2': {'func': col_gen_func2, 'agg_col': 'col_label2', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'col_label1': {'filter_by': ['filter_col1', 'filter_col2'], period=0, 'drop_rel_cols': False, }, 'col_label2': {'filter_by': ['filter_col3', 'filter_col4'], period=0, 'drop_rel_cols': False, }}
         :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func, 'other_val': 0}
         :param correlated_cols: columns that are moderately to highly correlated and should be dropped
@@ -1053,32 +1100,44 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                 # each col_gen_func_dict specifies {'func': col_gen_func1, 'inc_target': False, 'kwargs': {}}
                 # to include the target as a parameter to the col_gen_func, and any keyword arguments
                 # generate feature function specification should include at least an id_by_col
-                # but can also include a sort_by_col
+                # but can also include sort_by_cols
                 agg_col = col_gen_func_dict.get('agg_col')
+                is_numeric = col_gen_func_dict.get('is_numeric')
                 agg_func = col_gen_func_dict.get('agg_func')
                 col_gen_func = col_gen_func_dict.get('func')
                 func_kwargs: dict = col_gen_func_dict.get('kwargs')
                 id_by_col = col_gen_func_dict.get('id_by_col')
-                sort_by_col = col_gen_func_dict.get('sort_by_col')
+                sort_by_cols = list(col_gen_func_dict.get('sort_by_cols'))
                 inc_target = col_gen_func_dict.get('inc_target')
                 impute_agg_func = col_gen_func_dict.get('impute_agg_func')
                 if col_gen_func is not None:
                     if inc_target is not None and inc_target:
                         if (func_kwargs is not None) or not (not func_kwargs):
-                            new_X[:, col] = new_X.apply(col_gen_func, func_kwargs, target=self.target, axis=1, )
+                            new_X[:, col] = new_X.transform(col_gen_func, func_kwargs, target=self.target, axis=1, )
                         else:
-                            new_X[:, col] = new_X.apply(col_gen_func, target=self.target, axis=1, )
+                            new_X[:, col] = new_X.transform(col_gen_func, target=self.target, axis=1, )
                     else:
                         if (func_kwargs is not None) or not (not func_kwargs):
-                            new_X[:, col] = new_X.apply(col_gen_func, func_kwargs, axis=1)
+                            new_X[:, col] = new_X.transform(col_gen_func, func_kwargs, axis=1)
                         else:
-                            new_X[:, col] = new_X.apply(col_gen_func, axis=1)
+                            new_X[:, col] = new_X.transform(col_gen_func, axis=1)
                 # do aggregating
-                group_by_cols = [the_col for the_col in (id_by_col, sort_by_col) if the_col is not None]
-                calc_feat = new_X.groupby(group_by_cols)[agg_col].agg(agg_func).reset_index()
-                calc_feat.rename(columns={agg_col: col}, inplace=True)
+                grp_by_candidates = [id_by_col]
+                if (sort_by_cols is not None and not (not sort_by_cols)):
+                    grp_by_candidates.extend(sort_by_cols)
+                group_by_cols = [the_col for the_col in grp_by_candidates if the_col is not None]
+                if is_numeric:
+                    calc_feat = new_X.groupby(group_by_cols)[agg_col].agg(agg_func).reset_index()
+                    calc_feat[col] = calc_feat[agg_col]
+                else:
+                    calc_feat = new_X.groupby(group_by_cols)[agg_col].value_counts().reset_index()
+                    calc_feat.drop(columns=['count'], inplace=True)
+                    calc_feat[col] = calc_feat[agg_col] == agg_func
                 self.gen_calc_features[col] = calc_feat
-                self.gen_global_aggs[col] = calc_feat.agg(impute_agg_func if impute_agg_func is not None else agg_func).values[0]
+                if is_numeric:
+                    self.gen_global_aggs[col] = calc_feat.transform(impute_agg_func if impute_agg_func is not None else agg_func).values[0]
+                else:
+                    self.gen_global_aggs[col] = calc_feat[col].value_counts().index[0]
 
     def __transform_calc_features(self, X, y=None,):
         # generate any calculated columns as needed - the input features
@@ -1166,7 +1225,11 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         # apply any generated features
         for key, gen_features in self.gen_calc_features.items():
             gen_spec = self.synthetic_features.get(key)
-            keys = [col for col in (gen_spec.get('id_by_col'), gen_spec.get('sort_by_col')) if col is not None]
+            sort_by_cols = gen_spec.get('sort_by_cols')
+            grp_by_candidates = [gen_spec.get('id_by_col')]
+            if (sort_by_cols is not None and not (not sort_by_cols)):
+                grp_by_candidates.extend(sort_by_cols)
+            keys = [col for col in grp_by_candidates if col is not None]
             new_X = self.__merge_features(new_X, gen_features, key, left_on=keys, right_on=keys, synthetic=True)
         return new_X, new_y
 
@@ -1342,7 +1405,7 @@ class GeospatialTransformer(BaseEstimator, TransformerMixin):
     def __generate_geohashes(self, X, **fit_params):
         new_X = safe_copy(X)
         # notes: precision of 5 translates to ≤ 4.89km × 4.89km; 6 translates to ≤ 1.22km × 0.61km; 7 translates to ≤ 153m × 153m
-        new_X[self.to_col] = new_X.apply(lambda x: gh.encode(x[self.lat_col], x[self.long_col], precision=self.precision), axis=1)
+        new_X[self.to_col] = new_X.transform(lambda x: gh.encode(x[self.lat_col], x[self.long_col], precision=self.precision), axis=1)
         return new_X
 
     def __do_fit(self, X, y=None, **fit_params):
@@ -1779,6 +1842,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.extracted_features = None # holder for extracted features
         self.extracted_global_aggs = {}
         self.lag_target = lag_target
+        self.fitted = False
 
     def fit(self, X=None, y=None):
         """
@@ -1793,6 +1857,8 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :return: The estimator instance itself
         :rtype: FeatureAugmenter
         """
+        if self.fitted:
+            return self
         LOGGER.debug('TSLagFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         timeseries_container: pd.DataFrame = safe_copy(X)
         if self.lag_target:
@@ -1826,6 +1892,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         for col in list(self.extracted_features.columns):
             self.extracted_global_aggs[col] = self.extracted_features.reset_index()[col].agg('median')
         del timeseries_container
+        self.fitted = True
         return self
 
     def transform(self, X, **fit_params):

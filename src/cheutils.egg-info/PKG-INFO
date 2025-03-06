@@ -33,6 +33,7 @@ Requires-Dist: scikit-optimize
 Requires-Dist: fast_ml
 Requires-Dist: mlflow
 Requires-Dist: dask
+Requires-Dist: tsfresh
 Provides-Extra: datasource
 Requires-Dist: dask[dataframe]; extra == "datasource"
 Requires-Dist: psycopg2; extra == "datasource"

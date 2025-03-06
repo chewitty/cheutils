@@ -17,6 +17,7 @@ scikit-optimize
 fast_ml
 mlflow
 dask
+tsfresh
 
 [datasource]
 dask[dataframe]

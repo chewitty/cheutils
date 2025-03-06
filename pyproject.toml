@@ -33,6 +33,7 @@ dependencies = [
     "fast_ml",
     "mlflow",
     "dask",
+    "tsfresh",
 ]
 requires-python = ">=3.9"
 classifiers = [

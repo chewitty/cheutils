@@ -21,7 +21,7 @@ from .ml import (get_estimator, exclude_nulls,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
                  print_classification_report, recreate_labels, rmsle)
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
-from .data_prep import (FeatureSelectionTransformer, DateFeaturesTransformer, generate_features, FeatureGenTransformer,
+from .data_prep import (feature_selection_transformer, DateFeaturesTransformer, generate_features, FeatureGenTransformer,
                         DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer, CategoricalTargetEncoder,
                         DataPrepTransformer, pre_process, generate_target, SelectiveFunctionTransformer, DataPrepProperties,
                         BinarizerColumnTransformer, TSFeatureAugmenter, TSLagFeatureAugmenter, )
