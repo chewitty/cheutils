@@ -335,7 +335,7 @@ class DateFeaturesTransformer(BaseEstimator, TransformerMixin):
 
     def get_target(self):
         return self.target
-def feature_selection_transformer(selector: str, estimator):
+def feature_selection_transformer(selector: str, estimator, passthrough: bool=False, ):
     """
     Meta-transformer for selecting features based on recursive feature selection, select from model, or any other equivalent class.
     @see https://stackoverflow.com/questions/21060073/dynamic-inheritance-in-python?noredirect=1&lq=1
@@ -347,17 +347,20 @@ def feature_selection_transformer(selector: str, estimator):
         """
         Returns features based on ranking with recursive feature elimination.
         """
-        def __init__(self, estimator=None, random_state: int=100, **kwargs):
+        def __init__(self, estimator=None, passthrough: bool=False, random_state: int=100, **kwargs):
             self.random_state = random_state
             self.estimator = estimator
             super().__init__(self.estimator, ** kwargs)
             self.target = None
             self.selected_cols = None
+            self.passthrough = passthrough
             self.fitted = False
             self.selector = None
 
         def fit(self, X, y=None, **fit_params):
-            if self.fitted:
+            if self.passthrough:
+                self.selected_cols = list(X.columns)
+            if self.fitted and not self.passthrough:
                 return self
             LOGGER.debug('FeatureSelectionTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
             self.target = y  # possibly passed in chain
@@ -380,7 +383,7 @@ def feature_selection_transformer(selector: str, estimator):
             return new_X
 
         def __do_transform(self, X, y=None, **fit_params):
-            if self.selected_cols is None:
+            if self.selected_cols is None and not self.passthrough:
                 if y is None:
                     transformed_X = super().transform(X)
                 else:
@@ -422,7 +425,7 @@ def feature_selection_transformer(selector: str, estimator):
 
     tf_instance = None
     try:
-        tf_instance = FeatureSelectionTransformer(estimator=estimator, **tf_params)
+        tf_instance = FeatureSelectionTransformer(estimator=estimator, passthrough=passthrough, **tf_params, )
         tf_instance.selector = selector
     except TypeError as err:
         LOGGER.error('Problem encountered instantiating feature selection transformer: {}, {}', selector, err)
@@ -801,7 +804,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :return: Processed dataframe and updated target Series
         :rtype: tuple(pd.DataFrame, pd.Series or None)
         """
-        LOGGER.debug('DataPrepTransformer: Preprocessing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('DataPrepTransformer: Pre-processing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = X
         new_y = y
         # process columns with  strings to replace patterns
@@ -879,7 +882,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         if pot_leak_cols is not None or not (not pot_leak_cols):
             to_drop = [col for col in pot_leak_cols if col in new_X.columns]
             new_X.drop(columns=to_drop, inplace=True)"""
-        LOGGER.debug('DataPrepTransformer: Preprocessed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        LOGGER.debug('DataPrepTransformer: Pre-processed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X, new_y
 
     def __post_process(self, X, correlated_cols: list = None, pot_leak_cols: list = None, ):
@@ -894,6 +897,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :return:
         :rtype:
         """
+        LOGGER.debug('DataPrepTransformer: Post-processing dataset, out shape = {}', X.shape)
         new_X = X
         if correlated_cols is not None or not (not correlated_cols):
             to_drop = [col for col in correlated_cols if col in new_X.columns]
@@ -901,6 +905,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         if pot_leak_cols is not None or not (not pot_leak_cols):
             to_drop = [col for col in pot_leak_cols if col in new_X.columns]
             new_X.drop(columns=to_drop, inplace=True)
+        LOGGER.debug('DataPrepTransformer: Post-processed dataset, out shape = {}', new_X.shape)
         return new_X
 
     def __gen_lag_features(self, X, y=None):
