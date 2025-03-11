@@ -1382,7 +1382,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
                  profiling_filename=tsfresh.defaults.PROFILING_FILENAME,
                  profiling_sorting=tsfresh.defaults.PROFILING_SORTING, drop_rel_cols: dict=None):
         """
-        Create a new FeatureAugmenter instance.
+        Create a new TSFeatureAugmenter instance.
         :param default_fc_parameters: mapping from feature calculator names to parameters. Only those names
                which are keys in this dict will be calculated. See the class:`ComprehensiveFCParameters` for
                more information.
@@ -1450,8 +1450,6 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
 
     def fit(self, X=None, y=None):
         """
-        The fit function is not needed for this estimator. It just does nothing and is here for compatibility reasons.
-
         :param X: Unneeded.
         :type X: Any
 
@@ -1594,7 +1592,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
                  profiling_sorting=tsfresh.defaults.PROFILING_SORTING,
                  drop_rel_cols: dict=None, lag_target: bool=False, ):
         """
-        Create a new FeatureAugmenter instance.
+        Create a new TSLagFeatureAugmenter instance.
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'sort_by_cols': ['sort_by_col1', 'sort_by_col2'], period=1, 'freq': 'D', 'drop_rel_cols': False, }
         :type lag_features: dict
 
@@ -1672,8 +1670,6 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
 
     def fit(self, X=None, y=None):
         """
-        The fit function is not needed for this estimator. It just does nothing and is here for compatibility reasons.
-
         :param X: Unneeded.
         :type X: Any
 
@@ -1765,4 +1761,107 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
                     to_drop_cols.append(key)
             if to_drop_cols is not None and not (not to_drop_cols):
                 new_X.drop(columns=to_drop_cols, inplace=True)
+        return new_X
+
+class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
+    """
+    See also TSLagFeatureAugmenter.
+    """
+    def __init__(self, roll_col=None, window: int=15, shift_periods: int=15, freq: str='D', column_ts_date: str=None,
+                 filter_by:str='date', agg_func: str='mean', ):
+        """
+        Create a new TSRollingLagFeatureAugmenter instance.
+        :param roll_col: The column to aggregate - if not specified it is assumed that the target variable is rolled
+        :type roll_col: basestring
+        :param window: the rolling window
+        :type window: int
+        :param shift_periods: any lag periods as necessary
+        :type shift_periods: int
+        :param freq: the frequency of the rolling window
+        :type freq: str
+        :param column_ts_date: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type column_ts_date: basestring
+        :param filter_by: filter the data by this column label
+        :type filter_by: basestring
+        :param agg_func: The aggregation function to apply to each column
+        :type agg_func: basestring
+        """
+        self.roll_col = roll_col # if not specified it is assumed that the target variable is rolled
+        self.window = window
+        self.shift_periods = shift_periods
+        self.freq = freq
+        self.column_ts_date = column_ts_date
+        self.filter_by = filter_by
+        self.agg_func = agg_func
+        self.extracted_features = None # holder for extracted features
+        self.extracted_global_aggs = {}
+        self.fitted = False
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        timeseries_container: pd.DataFrame = safe_copy(X)
+        if self.roll_col is None:
+            # roll target variable instead by default
+            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+        timeseries_container.set_index(self.column_ts_date, inplace=True)
+        #timeseries_container = timeseries_container.shift(periods=self.window + 1, freq=self.freq)
+        # extract the features
+        selected_col = y.name if self.roll_col is None else self.roll_col
+        self.extracted_features = timeseries_container.groupby(self.filter_by)[selected_col].apply(lambda x: x.shift(self.shift_periods, freq=self.freq)).rolling(window=self.window + 1, min_periods=1).agg(self.agg_func)
+        self.extracted_features = self.extracted_features.reset_index()
+        cols = list(self.extracted_features.columns)
+        col_map = {selected_col: selected_col.replace(selected_col, cols[-1] + '_' + str(self.shift_periods) + '_lag_rolling_' + self.agg_func)}
+        self.extracted_features.rename(columns=col_map, inplace=True)
+        cols = list(self.extracted_features.columns)
+        self.extracted_features.loc[:, cols[-1]] = self.extracted_features[cols[-1]].bfill()
+        self.extracted_global_aggs[cols[-1]] = self.extracted_features[cols[-1]].agg(self.agg_func)
+        del timeseries_container
+        """is_duplicate = self.extracted_features.duplicated(subset=[self.filter_by, self.column_ts_date], keep='last')
+        try:
+            self.extracted_features[is_duplicate].to_excel('duplicate_extracted_features.xlsx')
+            self.extracted_features[~is_duplicate].to_excel('not_duplicate_extracted_features.xlsx')
+        except Exception as ignore:
+            LOGGER.warning('Could not save duplicate extracted features:\n{}', ignore)"""
+        self.extracted_features.drop_duplicates(subset=[self.filter_by, self.column_ts_date], keep='last', inplace=True)
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        """
+        Add the features calculated using the timeseries_container and add them to the corresponding rows in the input
+        pandas.DataFrame X.
+
+        To save some computing time, you should only include those time serieses in the container, that you
+        need. You can set the timeseries container with the method :func:`set_timeseries_container`.
+
+        :param X: the DataFrame to which the calculated timeseries features will be added. This is *not* the
+               dataframe with the timeseries itself.
+        :type X: pandas.DataFrame
+
+        :return: The input DataFrame, but with added features.
+        :rtype: pandas.DataFrame
+        """
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fit(X, y)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if self.extracted_features is None:
+            raise RuntimeError('You have to call fit on the transformer before')
+        # add newly created features to dataset
+        common_key = [self.filter_by, self.column_ts_date]
+        new_X = pd.merge(X, self.extracted_features, how='left', left_on=common_key, right_on=common_key)
+        feat_cols = list(self.extracted_features.columns)
+        if new_X[feat_cols[-1]].isnull().sum() > 0:
+            new_X[feat_cols[-1]] = new_X[feat_cols[-1]].fillna(self.extracted_global_aggs.get(feat_cols[-1]))
         return new_X
