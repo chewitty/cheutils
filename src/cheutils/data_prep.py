@@ -604,81 +604,6 @@ class BinarizerColumnTransformer(ColumnTransformer):
         self.feature_names = desired_feature_names
         return new_X
 
-def generate_target(X: pd.DataFrame, y: pd.Series=None, gen_target: dict=None, include_target: bool=False, **kwargs):
-    """
-    Generate the target variable from available data in X, and y.
-    :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
-    :type X:
-    :param y: part or all of the raw target variable, may contribute to generating the actual target
-    :type y:
-    :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
-    :type gen_target:
-    :param include_target: include the target Series in the returned first item of the tuple if True; default is False
-    :type include_target:
-    :param kwargs:
-    :type kwargs:
-    :return:
-    :rtype:
-    """
-    assert X is not None, 'A valid DataFrame expected as input'
-    new_X = X
-    new_y = y
-    try:
-        if gen_target is not None:
-            target_gen_col = {gen_target.get('target_col'): (gen_target.get('target_gen_func'), gen_target.get('alter_val'))}
-            new_X = generate_features(new_X, new_y, gen_cols=target_gen_col, return_y=include_target,
-                                      target_col=gen_target.get('target_col'), )
-            new_y = new_X[gen_target.get('target_col')]
-    except Exception as warnEx:
-        LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
-        pass
-    return new_X, new_y
-
-def generate_features(X: pd.DataFrame, y: pd.Series=None, gen_cols: dict=None, return_y: bool=False, target_col:str=None, **kwargs) -> pd.DataFrame:
-    """
-    Generate the target variable from available data in X, and y.
-    :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
-    :type X:
-    :param y: part or all of the raw target variable, may contribute to generating the actual target
-    :type y:
-    :param gen_cols: dictionary of new feature column labels and their corresponding value generation functions
-        and default values - e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'feat_col': (val_gen_func, alter_val)}
-    :type gen_cols: dict
-    :param return_y: if True, add back a column with y or a modified version to the returned dataframe
-    :param target_col: the column label of the target column - either as a hint or may be encountered as part of any generation function.
-    :param kwargs:
-    :type kwargs:
-    :return: a dataframe with the generated features
-    :rtype:
-    """
-    assert X is not None, 'A valid DataFrame expected as input'
-    assert gen_cols is not None and not (not gen_cols), 'A valid dictionary of new feature column labels and their corresponding value generation functions and optional default values expected as input'
-    new_X = safe_copy(X)
-    # add back the target column, in case it is needed
-    if y is not None:
-        if isinstance(y, pd.Series):
-            new_X[y.name] = safe_copy(y)
-        else:
-            if target_col is not None and not (not target_col):
-                new_X[target_col] = safe_copy(y)
-    try:
-        for col, val_gen_func in gen_cols.items():
-            new_X[col] = new_X.apply(val_gen_func[0], axis=1)
-            if val_gen_func[1] is not None:
-                new_X[col].fillna(val_gen_func[1], inplace=True)
-        # drop the target column again
-        if not return_y:
-            if y is not None and isinstance(y, pd.Series):
-                new_X.drop(columns=[y.name], inplace=True)
-            else:
-                if target_col is not None and not (not target_col):
-                    if target_col in new_X.columns:
-                        new_X.drop(columns=[target_col], inplace=True)
-        return new_X
-    except Exception as err:
-        LOGGER.error('Something went wrong with feature generation, skipping: {}', err)
-        raise FeatureGenException(f'Something went wrong with feature generation, skipping: {err}')
-
 class DataPrepTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
@@ -770,6 +695,85 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         self.target = new_y
         LOGGER.debug('DataPrepTransformer: Fit-transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
+
+    def __generate_features(self, X: pd.DataFrame, y: pd.Series = None, gen_cols: dict = None, return_y: bool = False,
+                          target_col: str = None, **kwargs) -> pd.DataFrame:
+        """
+        Generate the target variable from available data in X, and y.
+        :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
+        :type X:
+        :param y: part or all of the raw target variable, may contribute to generating the actual target
+        :type y:
+        :param gen_cols: dictionary of new feature column labels and their corresponding value generation functions
+            and default values - e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'feat_col': (val_gen_func, alter_val)}
+        :type gen_cols: dict
+        :param return_y: if True, add back a column with y or a modified version to the returned dataframe
+        :param target_col: the column label of the target column - either as a hint or may be encountered as part of any generation function.
+        :param kwargs:
+        :type kwargs:
+        :return: a dataframe with the generated features
+        :rtype:
+        """
+        assert X is not None, 'A valid DataFrame expected as input'
+        assert gen_cols is not None and not (
+            not gen_cols), 'A valid dictionary of new feature column labels and their corresponding value generation functions and optional default values expected as input'
+        new_X = safe_copy(X)
+        # add back the target column, in case it is needed
+        if y is not None:
+            if isinstance(y, pd.Series):
+                new_X[y.name] = safe_copy(y)
+            else:
+                if target_col is not None and not (not target_col):
+                    new_X[target_col] = safe_copy(y)
+        try:
+            for col, val_gen_func in gen_cols.items():
+                new_X[col] = new_X.apply(val_gen_func[0], axis=1)
+                if val_gen_func[1] is not None:
+                    new_X[col].fillna(val_gen_func[1], inplace=True)
+            # drop the target column again
+            if not return_y:
+                if y is not None and isinstance(y, pd.Series):
+                    new_X.drop(columns=[y.name], inplace=True)
+                else:
+                    if target_col is not None and not (not target_col):
+                        if target_col in new_X.columns:
+                            new_X.drop(columns=[target_col], inplace=True)
+            return new_X
+        except Exception as err:
+            LOGGER.error('Something went wrong with feature generation, skipping: {}', err)
+            raise FeatureGenException(f'Something went wrong with feature generation, skipping: {err}')
+
+    def __generate_target(self, X: pd.DataFrame, y: pd.Series = None, gen_target: dict = None, include_target: bool = False,
+                        **kwargs):
+        """
+        Generate the target variable from available data in X, and y.
+        :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
+        :type X:
+        :param y: part or all of the raw target variable, may contribute to generating the actual target
+        :type y:
+        :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
+        :type gen_target:
+        :param include_target: include the target Series in the returned first item of the tuple if True; default is False
+        :type include_target:
+        :param kwargs:
+        :type kwargs:
+        :return:
+        :rtype:
+        """
+        assert X is not None, 'A valid DataFrame expected as input'
+        new_X = X
+        new_y = y
+        try:
+            if gen_target is not None:
+                target_gen_col = {
+                        gen_target.get('target_col'): (gen_target.get('target_gen_func'), gen_target.get('alter_val'))}
+                new_X = self.__generate_features(new_X, new_y, gen_cols=target_gen_col, return_y=include_target,
+                                          target_col=gen_target.get('target_col'), )
+                new_y = new_X[gen_target.get('target_col')]
+        except Exception as warnEx:
+            LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
+            pass
+        return new_X, new_y
 
     def __pre_process(self, X, y=None, date_cols: list = None, int_cols: list = None, float_cols: list = None,
                       masked_cols: dict = None, special_features: dict = None, drop_feats_cols: bool = True,
@@ -875,13 +879,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         # do this safely so that if any missing features is encountered, as with real unseen data situation where
         # future variable is not available at the time of testing, then ignore the target generation as it ought
         # to be predicted
-        new_X, new_y = generate_target(new_X, new_y, gen_target=gen_target, include_target=include_target, )
-        """if correlated_cols is not None or not (not correlated_cols):
-            to_drop = [col for col in correlated_cols if col in new_X.columns]
-            new_X.drop(columns=to_drop, inplace=True)
-        if pot_leak_cols is not None or not (not pot_leak_cols):
-            to_drop = [col for col in pot_leak_cols if col in new_X.columns]
-            new_X.drop(columns=to_drop, inplace=True)"""
+        new_X, new_y = self.__generate_target(new_X, new_y, gen_target=gen_target, include_target=include_target, )
         LOGGER.debug('DataPrepTransformer: Pre-processed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X, new_y
 
@@ -973,32 +971,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                     self.transform_global_aggs[result[0]] = result[1].agg(impute_agg_func if impute_agg_func is not None else 'median')
                 else:
                     self.transform_global_aggs[result[0]] = result[1].value_counts().index[0]
-            """for col, col_gen_func_dict in self.calc_features.items():
-                # each col_gen_func_dict specifies {'func': col_gen_func1, 'inc_target': False, 'kwargs': {}}
-                # to include the target as a parameter to the col_gen_func, and any keyword arguments
-                col_gen_func = col_gen_func_dict.get('func')
-                is_numeric = col_gen_func_dict.get('is_numeric')
-                is_numeric = True if is_numeric is None else is_numeric
-                func_kwargs: dict = col_gen_func_dict.get('kwargs')
-                inc_target = col_gen_func_dict.get('inc_target')
-                impute_agg_func = col_gen_func_dict.get('impute_agg_func')
-                if inc_target is not None and inc_target:
-                    if (func_kwargs is not None) or not (not func_kwargs):
-                        calc_feat = X.agg(col_gen_func, func_kwargs, target=self.target, axis=1, )
-                    else:
-                        calc_feat = X.agg(col_gen_func, target=self.target, axis=1, )
-                else:
-                    if (func_kwargs is not None) or not (not func_kwargs):
-                        calc_feat = X.agg(col_gen_func, func_kwargs, axis=1)
-                    else:
-                        calc_feat = X.agg(col_gen_func, axis=1)
-                calc_feats[col] = calc_feat.values
-                if is_numeric:
-                    self.transform_global_aggs[col] = calc_feat.agg(impute_agg_func if impute_agg_func is not None else 'median').values[0]
-                else:
-                    self.transform_global_aggs[col] = calc_feat.value_counts().index[0]"""
             trans_calc_features = pd.DataFrame(calc_feats, index=indices)
-
         return trans_calc_features
 
     def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None, synthetic: bool = False):
@@ -1449,16 +1422,6 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.drop_rel_cols = drop_rel_cols
 
     def fit(self, X=None, y=None):
-        """
-        :param X: Unneeded.
-        :type X: Any
-
-        :param y: Unneeded.
-        :type y: Any
-
-        :return: The estimator instance itself
-        :rtype: FeatureAugmenter
-        """
         LOGGER.debug('TSFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.timeseries_container = X
         if self.timeseries_container is None:
@@ -1493,7 +1456,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         pandas.DataFrame X.
 
         To save some computing time, you should only include those time serieses in the container, that you
-        need. You can set the timeseries container with the method :func:`set_timeseries_container`.
+        need.
 
         :param X: the DataFrame to which the calculated timeseries features will be added. This is *not* the
                dataframe with the timeseries itself.
@@ -1669,16 +1632,6 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.fitted = False
 
     def fit(self, X=None, y=None):
-        """
-        :param X: Unneeded.
-        :type X: Any
-
-        :param y: Unneeded.
-        :type y: Any
-
-        :return: The estimator instance itself
-        :rtype: FeatureAugmenter
-        """
         if self.fitted:
             return self
         LOGGER.debug('TSLagFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
@@ -1690,7 +1643,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         sort_by_cols = self.lag_features.get('sort_by_cols')
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
         timeseries_container.set_index(self.column_ts_date, inplace=True)
-        timeseries_container = timeseries_container.shift(periods=periods, freq=freq)
+        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq)
         if timeseries_container is None:
             raise RuntimeError('You have to provide a time series container/dataframe before.')
         # extract the features
@@ -1806,7 +1759,6 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
             # roll target variable instead by default
             timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
         timeseries_container.set_index(self.column_ts_date, inplace=True)
-        #timeseries_container = timeseries_container.shift(periods=self.window + 1, freq=self.freq)
         # extract the features
         selected_col = y.name if self.roll_col is None else self.roll_col
         self.extracted_features = timeseries_container.groupby(self.filter_by)[selected_col].apply(lambda x: x.shift(self.shift_periods, freq=self.freq)).rolling(window=self.window + 1, min_periods=1).agg(self.agg_func)
