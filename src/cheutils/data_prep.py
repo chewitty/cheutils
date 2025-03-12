@@ -14,7 +14,7 @@ from cheutils.project_tree import save_excel
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
 from cheutils.exceptions import PropertiesException, FeatureGenException
-from cheutils.data_prep_support import apply_replace_patterns, apply_calc_feature, apply_type
+from cheutils.data_prep_support import apply_replace_patterns, apply_calc_feature, apply_type, force_joblib_cleanup
 import tsfresh.defaults
 from tsfresh.feature_extraction import extract_features
 from tsfresh.utilities.dataframe_functions import restrict_input_to_index
@@ -813,9 +813,15 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         new_y = y
         # process columns with  strings to replace patterns
         if self.replace_patterns is not None:
-            result_out = Parallel(n_jobs=-1)(delayed(apply_replace_patterns)(new_X, replace_dict) for replace_dict in self.replace_patterns)
-            for result in result_out:
-                new_X.loc[:, result[0]] = result[1]
+            if len(self.replace_patterns) > 1:
+                result_out = Parallel(n_jobs=-1, backend='threading')(delayed(apply_replace_patterns)(new_X, replace_dict) for replace_dict in self.replace_patterns)
+                for result in result_out:
+                    new_X.loc[:, result[0]] = result[1]
+                # free up memory usage by joblib pool
+                force_joblib_cleanup()
+            else:
+                if self.replace_patterns is not None and not (not self.replace_patterns):
+                    new_X.loc[:, self.replace_patterns[0].get('rel_col')] = apply_replace_patterns(new_X, self.replace_patterns[0])[1]
         # parse date columns
         if date_cols is not None:
             for col in date_cols:
@@ -961,7 +967,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         if self.calc_features is not None:
             indices = X.index
             calc_feats = {}
-            results_out = Parallel(n_jobs=-1)(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in self.calc_features.items())
+            results_out = Parallel(n_jobs=-1, backend='threading')(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in self.calc_features.items())
             for result in results_out:
                 calc_feats[result[0]] = result[1]
                 is_numeric = self.calc_features.get(result[0]).get('is_numeric')
@@ -972,6 +978,8 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                 else:
                     self.transform_global_aggs[result[0]] = result[1].value_counts().index[0]
             trans_calc_features = pd.DataFrame(calc_feats, index=indices)
+            # free up memory usage by joblib pool
+            force_joblib_cleanup()
         return trans_calc_features
 
     def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None, synthetic: bool = False):

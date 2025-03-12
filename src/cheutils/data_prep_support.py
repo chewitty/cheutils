@@ -1,14 +1,17 @@
 import os
+import contextlib
+import joblib
+from tqdm import tqdm
 import pandas as pd
 from cheutils.loggers import LoguruWrapper
 from pandas.api.types import is_datetime64_any_dtype, is_categorical_dtype, is_bool_dtype, is_float_dtype, is_integer_dtype, is_string_dtype
+from loky import get_reusable_executor
 
 LOGGER = LoguruWrapper().get_logger()
 
 def apply_replace_patterns(df: pd.DataFrame, replace_dict: dict):
     assert df is not None, 'A valid dataframe is required'
     assert replace_dict is not None, 'A valid replace_dict is required'
-    LOGGER.debug('Doing replace patterns ...')
     rel_col = replace_dict.get('rel_col')
     col_repl_dict = replace_dict.get('replace_dict')
     is_regex = replace_dict.get('regex')
@@ -49,3 +52,6 @@ def apply_calc_feature(df: pd.DataFrame, rel_col: str, col_gen_func_dict):
         else:
             calc_feat = df.agg(col_gen_func, axis=1)
     return rel_col, calc_feat
+
+def force_joblib_cleanup():
+    get_reusable_executor().shutdown(wait=True, kill_workers=True)
