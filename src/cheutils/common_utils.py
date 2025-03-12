@@ -287,22 +287,21 @@ def apply_impute(df: pd.DataFrame, rel_cols: list = None, by: list = None, aggfu
         imputed_df.loc[:, col] = imputed_df[col].fillna(imputed_df.groupby(by, observed=True)[col].agg(aggfunc))
     return imputed_df
 
-def apply_clipping(df: pd.DataFrame, rel_cols: list, filterby: str, pos_thres: bool=False, ):
+def apply_clipping(df: pd.DataFrame, rel_cols: list, group_by: list, pos_thres: bool=False, ):
     """
     Clips the relevant columns based on their category or group aggregate statistics and outlier rules - that is, an outlier is less than 1st_quartile - 1.5*iqr and more than 3rd_quartile + 1.5*iqr; additionally, enforce that the values must be positive as desired.
     :param df: the relevant dataframe
     :param rel_cols: the list of columns to clip
-    :param filterby: column to group by or filter the data by
+    :param group_by: list of columns to group by or filter the data by
     :param pos_thres: enforce positive clipping boundaries or thresholds values
     :return: a clipped dataframe
     """
     assert df is not None, 'A valid DataFrame expected as input'
     assert (rel_cols is not None) or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
-    LOGGER.debug('Clipping the dataframe columns = {} filtered by {}', rel_cols, filterby)
+    LOGGER.debug('Clipping the dataframe columns = {} filtered by {}', rel_cols, group_by)
     def cat_thresholds(rel_col: str, rel_cat: str, l_quartile: float = 0.25, u_quartile: float = 0.75):
         is_not_null = df[rel_col].notnull()
         cat_df = df[is_not_null]
-        cat_df = cat_df[cat_df[filterby] == rel_cat]
         col_iqr = iqr(cat_df[rel_col])
         qvals = get_quantiles(cat_df, rel_col, [l_quartile, u_quartile])
         l_thres = qvals[0] - 1.5 * col_iqr
@@ -312,14 +311,18 @@ def apply_clipping(df: pd.DataFrame, rel_cols: list, filterby: str, pos_thres: b
         return l_thres, u_thres
     # Clip the  affected columns based on which category they are associated with
     clipped_df = df.copy(deep=True)
-    filter_vals = df[filterby].unique()
-    for col in rel_cols:
-        clipped_subset = []
-        for filter_val in filter_vals:
-            l_thres, u_thres = cat_thresholds(col, filter_val)
-            clipped_subset.append(clipped_df[clipped_df[filterby] == filter_val][col].clip(lower=l_thres, upper=u_thres))
-        clipped_sr = pd.concat(clipped_subset, ignore_index=True)
-        clipped_df.loc[:, col] = clipped_sr.values
+    cat_grps = df.groupby(group_by)
+    clipped_subset = []
+    for grp_name, cat_grp in cat_grps:
+        lower_thres = []
+        upper_thres = []
+        for col in rel_cols:
+            l_thres, u_thres = cat_thresholds(col, cat_grp)
+            lower_thres.append(l_thres)
+            upper_thres.append(u_thres)
+        clipped_subset.append(cat_grp[rel_cols].clip(lower=lower_thres, upper=upper_thres))
+    clipped_srs = pd.concat(clipped_subset, ignore_index=True)
+    clipped_df.loc[:, rel_cols] = clipped_srs
     return clipped_df
 
 
