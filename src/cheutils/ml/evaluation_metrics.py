@@ -1,4 +1,5 @@
 import numpy as np
+from sklearn.metrics import mean_squared_log_error
 
 def rmsle(y_true, y_pred):
     """
@@ -10,7 +11,5 @@ def rmsle(y_true, y_pred):
     :return: Root Mean Squared Logarithmic Error (RMSLE) as a float.
     :rtype:
     """
-    diffs = np.log(y_true + 1) - np.log(y_pred + 1)
-    squares = np.power(diffs, 2)
-    err = np.sqrt(np.mean(squares))
+    err = np.sqrt(mean_squared_log_error(y_true, y_pred))
     return err
