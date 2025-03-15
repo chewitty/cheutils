@@ -287,23 +287,25 @@ def apply_impute(df: pd.DataFrame, rel_cols: list = None, by: list = None, aggfu
         imputed_df.loc[:, col] = imputed_df[col].fillna(imputed_df.groupby(by, observed=True)[col].agg(aggfunc))
     return imputed_df
 
-def apply_clipping(df: pd.DataFrame, rel_cols: list, group_by: list, pos_thres: bool=False, ):
+def apply_clipping(df: pd.DataFrame, rel_cols: list, group_by: list, l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
     """
     Clips the relevant columns based on their category or group aggregate statistics and outlier rules - that is, an outlier is less than 1st_quartile - 1.5*iqr and more than 3rd_quartile + 1.5*iqr; additionally, enforce that the values must be positive as desired.
     :param df: the relevant dataframe
     :param rel_cols: the list of columns to clip
     :param group_by: list of columns to group by or filter the data by
+    :param l_quartile: the lower quartile (float between 0 and 1)
+    :param u_quartile: the upper quartile (float between 0 and 1 but greater than l_quartile)
     :param pos_thres: enforce positive clipping boundaries or thresholds values
     :return: a clipped dataframe
     """
     assert df is not None, 'A valid DataFrame expected as input'
     assert (rel_cols is not None) or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
-    LOGGER.debug('Clipping the dataframe columns = {} filtered by {}', rel_cols, group_by)
-    def cat_thresholds(rel_col: str, rel_cat: str, l_quartile: float = 0.25, u_quartile: float = 0.75):
-        is_not_null = df[rel_col].notnull()
-        cat_df = df[is_not_null]
+    LOGGER.debug('Clipping the dataframe columns = {} grouped by {}', rel_cols, group_by)
+    def cat_thresholds(cat_group, rel_col: str, l_q: float = 0.25, u_q: float = 0.75):
+        is_not_null = cat_group[rel_col].notnull()
+        cat_df = cat_group[is_not_null]
         col_iqr = iqr(cat_df[rel_col])
-        qvals = get_quantiles(cat_df, rel_col, [l_quartile, u_quartile])
+        qvals = get_quantiles(cat_df, rel_col, [l_q, u_q])
         l_thres = qvals[0] - 1.5 * col_iqr
         u_thres = qvals[1] + 1.5 * col_iqr
         l_thres = max(0, l_thres) if pos_thres else l_thres
@@ -317,7 +319,7 @@ def apply_clipping(df: pd.DataFrame, rel_cols: list, group_by: list, pos_thres: 
         lower_thres = []
         upper_thres = []
         for col in rel_cols:
-            l_thres, u_thres = cat_thresholds(col, cat_grp)
+            l_thres, u_thres = cat_thresholds(cat_grp, col, l_q=l_quartile, u_q=u_quartile)
             lower_thres.append(l_thres)
             upper_thres.append(u_thres)
         clipped_subset.append(cat_grp[rel_cols].clip(lower=lower_thres, upper=upper_thres))
@@ -325,6 +327,43 @@ def apply_clipping(df: pd.DataFrame, rel_cols: list, group_by: list, pos_thres: 
     clipped_df.loc[:, rel_cols] = clipped_srs
     return clipped_df
 
+def get_outlier_cat_thresholds(df: pd.DataFrame, rel_cols: list, group_by: list, l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
+    """
+    Generate the relevant category outlier thresholds to be used to clip features based on their category or group aggregate statistics and outlier rules - that is, an outlier is less than 1st_quartile - 1.5*iqr and more than 3rd_quartile + 1.5*iqr; additionally, enforce that the values must be positive as desired.
+    :param df: the relevant dataframe
+    :param rel_cols: the list of columns to clip
+    :param group_by: list of columns to group by or filter the data by
+    :param l_quartile: the lower quartile (float between 0 and 1)
+    :param u_quartile: the upper quartile (float between 0 and 1 but greater than l_quartile)
+    :param pos_thres: enforce positive clipping boundaries or thresholds values
+    :return: a category outlier threshold dataframe indexed by the group_by values
+    """
+    assert df is not None, 'A valid DataFrame expected as input'
+    assert rel_cols is not None or not (not rel_cols), 'A valid list or non-empty list of column labels expected as input'
+    assert group_by is not None or not (not group_by), 'Valid numeric feature columns must be specified'
+    LOGGER.debug('Generating the category outlier thresholds = {} grouped by {}', rel_cols, group_by)
+    def cat_thresholds(cat_group, rel_col: str, l_q: float = 0.25, u_q: float = 0.75):
+        is_not_null = cat_group[rel_col].notnull()
+        cat_df = cat_group[is_not_null]
+        col_iqr = iqr(cat_df[rel_col])
+        qvals = get_quantiles(cat_df, rel_col, [l_q, u_q])
+        l_thres = qvals[0] - 1.5 * col_iqr
+        u_thres = qvals[1] + 1.5 * col_iqr
+        l_thres = max(0, l_thres) if pos_thres else l_thres
+        u_thres = max(0, u_thres) if pos_thres else u_thres
+        return l_thres, u_thres
+    # generate category thresholds for the relevant numeric columns
+    cat_grps = df.groupby(group_by)
+    cat_thres_dict = {}
+    for grp_name, cat_grp in cat_grps:
+        lower_thres = []
+        upper_thres = []
+        for col in rel_cols:
+            l_thres, u_thres = cat_thresholds(cat_grp, col, l_q=l_quartile, u_q=u_quartile)
+            lower_thres.append(l_thres)
+            upper_thres.append(u_thres)
+        cat_thres_dict[grp_name] = (lower_thres, upper_thres)
+    return cat_thres_dict
 
 def parse_special_features(special_feat_str, feature_mappings: dict, sep: str =',', ):
     """

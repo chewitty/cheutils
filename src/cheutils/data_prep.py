@@ -9,7 +9,7 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 from cheutils.decorator_singleton import singleton
-from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy
+from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy, get_outlier_cat_thresholds, get_quantiles
 from cheutils.project_tree import save_excel
 from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
@@ -20,6 +20,7 @@ from tsfresh.feature_extraction import extract_features
 from tsfresh.utilities.dataframe_functions import restrict_input_to_index
 from joblib import Parallel, delayed
 from pandas.api.types import is_datetime64_any_dtype, is_float_dtype, is_integer_dtype, is_categorical_dtype
+from scipy.stats import iqr
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -1841,4 +1842,80 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         for feat_col in feat_cols:
             if feat_col not in common_key:
                 new_X.loc[:, feat_col] = new_X[feat_col].fillna(self.extracted_global_aggs.get(feat_col))
+        return new_X
+
+class ClipOutliersTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, rel_cols: list, group_by: list,
+                 l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
+        """
+        Create a new TSRollingLagFeatureAugmenter instance.
+        :param rel_cols: the list of columns to clip
+        :param group_by: list of columns to group by or filter the data by
+        :param l_quartile: the lower quartile (float between 0 and 1)
+        :param u_quartile: the upper quartile (float between 0 and 1 but greater than l_quartile)
+        :param pos_thres: enforce positive clipping boundaries or thresholds values
+        """
+        assert rel_cols is not None, 'Valid numeric feature columns must be specified'
+        assert group_by is not None or not (not group_by), 'Valid numeric feature columns must be specified'
+        self.rel_cols = rel_cols
+        self.group_by = group_by
+        self.l_quartile = l_quartile
+        self.u_quartile = u_quartile
+        self.pos_thres = pos_thres
+        self.extracted_cat_thres = None # holder for extracted category thresholds
+        self.extracted_global_thres = {}
+        self.fitted = False
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('ClipOutliersTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        # generate category thresholds
+        self.extracted_cat_thres = get_outlier_cat_thresholds(X, self.rel_cols, self.group_by,
+                                                              self.l_quartile, self.u_quartile, self.pos_thres)
+        for rel_col in self.rel_cols:
+            col_iqr = iqr(X[rel_col])
+            qvals = get_quantiles(X, rel_col, [self.l_quartile, self.u_quartile])
+            l_thres = qvals[0] - 1.5 * col_iqr
+            u_thres = qvals[1] + 1.5 * col_iqr
+            l_thres = max(0, l_thres) if self.pos_thres else l_thres
+            u_thres = max(0, u_thres) if self.pos_thres else u_thres
+            self.extracted_global_thres[rel_col] = (l_thres, u_thres)
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('ClipOutliersTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('ClipOutliersTransformer: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('ClipOutliersTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fit(X, y)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('ClipOutliersTransformer: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if not self.fitted or self.extracted_cat_thres is None:
+            raise RuntimeError('You have to call fit on the transformer before')
+        # apply clipping appropriately
+        new_X = safe_copy(X)
+        cat_grps = new_X.groupby(self.group_by)
+        clipped_subset = []
+        for grp_name, cat_grp in cat_grps:
+            cur_thres = self.extracted_cat_thres.get(grp_name)
+            if cur_thres is not None:
+                lower_thres, upper_thres = cur_thres
+            else:
+                l_thres = []
+                u_thres = []
+                for col in self.rel_cols:
+                    l_thres.append(self.extracted_global_thres.get(col)[0])
+                    u_thres.append(self.extracted_global_thres.get(col)[1])
+                lower_thres, upper_thres = l_thres, u_thres
+            clipped_subset.append(cat_grp[self.rel_cols].clip(lower=lower_thres, upper=upper_thres))
+        clipped_srs = pd.concat(clipped_subset, ignore_index=False)
+        new_X.loc[:, self.rel_cols] = clipped_srs
         return new_X

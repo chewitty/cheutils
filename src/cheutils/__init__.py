@@ -24,7 +24,8 @@ from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (feature_selection_transformer, DateFeaturesTransformer, FeatureGenTransformer,
                         DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer, CategoricalTargetEncoder,
                         DataPrepTransformer, SelectiveFunctionTransformer, DataPrepProperties,
-                        BinarizerColumnTransformer, TSFeatureAugmenter, TSLagFeatureAugmenter, TSRollingLagFeatureAugmenter, )
+                        BinarizerColumnTransformer, TSFeatureAugmenter, TSLagFeatureAugmenter,
+                        TSRollingLagFeatureAugmenter, ClipOutliersTransformer, )
 from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
