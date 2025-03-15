@@ -440,10 +440,14 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
         super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.target = None
+        self.fitted = False
 
     def fit(self, X, y=None):
+        if self.fitted:
+            return self
         LOGGER.debug('DropSelectedColsTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.target = y
+        self.fitted = True
         return self
 
     def transform(self, X, y=None):
@@ -455,25 +459,13 @@ class DropSelectedColsTransformer(BaseEstimator, TransformerMixin):
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y)
         LOGGER.debug('DropSelectedColsTransformer: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.target = y
         new_X = self.__do_transform(X, y, **fit_params)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
-        def drop_selected(df: pd.DataFrame, rel_cols: list):
-            """
-            Drop rows with missing data
-            :param df: dataframe with the specified columns, which may not contain any target class labels
-            :param rel_cols: list of column labels corresponding to columns of the specified dataframe
-            :return: revised dataframe with the specified columns dropped
-            """
-            assert df is not None, 'A valid DataFrame expected as input'
-            clean_df = df.copy(deep=True)
-            clean_df = clean_df.drop(columns=rel_cols)
-            LOGGER.debug('Dropped columns = {}', rel_cols)
-            return clean_df
-        new_X = drop_selected(X, rel_cols=self.rel_cols)
+        new_X = X.drop(columns=self.rel_cols) if self.rel_cols is not None and not (not self.rel_cols) else X
         return new_X
 
     def get_target(self):
