@@ -619,7 +619,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         :param special_features: dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }
         :type special_features:
         :param drop_feats_cols: drop special_features cols if True
-        :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'drop_col': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'drop_col': False, 'kwargs': {}}
+        :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'delay': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'delay': False, 'kwargs': {}}
         :param synthetic_features: dictionary of calculated column labels with their corresponding column generation functions, for cases involving features not present in test data - e.g., {'new_col1': {'func': col_gen_func1, 'agg_col': 'col_label1', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}, 'new_col2': {'func': col_gen_func2, 'agg_col': 'col_label2', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'col_label1': {'filter_by': ['filter_col1', 'filter_col2'], period=0, 'drop_rel_cols': False, }, 'col_label2': {'filter_by': ['filter_col3', 'filter_col4'], period=0, 'drop_rel_cols': False, }}
         :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func, 'other_val': 0}
@@ -651,7 +651,8 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
         self.target = None
         self.gen_calc_features = {} # to hold generated features from the training set - i.e., these features are generated during fit()
         self.gen_global_aggs = {}
-        self.transform_calc_features = None # to hold calculated features from input features - i.e., encountered during transform()
+        self.basic_calc_features = {}
+        self.delayed_calc_features = {}
         self.transform_global_aggs = {}
         self.fitted = False
 
@@ -666,6 +667,14 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                                           drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
                                           gen_cat_col=self.gen_cat_col,
                                           clip_data=self.clip_data, include_target=self.include_target, )
+        # sort of sequence of calculated features
+        if self.calc_features is not None:
+            for col, col_gen_func_dict in self.calc_features.items():
+                delay_calc = col_gen_func_dict.get('delay')
+                if delay_calc is not None and delay_calc:
+                    self.delayed_calc_features[col] = col_gen_func_dict
+                else:
+                    self.basic_calc_features[col] = col_gen_func_dict
         # then, generate any features that may depend on synthetic features (i.e., features not present in test data)
         self.__gen_synthetic_features(new_X, new_y if new_y is not None else y)
         self.target = new_y if new_y is not None else y
@@ -953,19 +962,19 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                         else:
                             new_X[:, col] = new_X.apply(col_gen_func, axis=1)
 
-    def __transform_calc_features(self, X, y=None,):
+    def __transform_calc_features(self, X, y=None, calc_features: dict=None):
         # generate any calculated columns as needed - the input features
         # includes only features present in test data - i.e., non-synthetic features
         trans_calc_features = None
-        if self.calc_features is not None:
+        if calc_features is not None:
             indices = X.index
             calc_feats = {}
-            results_out = Parallel(n_jobs=-1, backend='threading')(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in self.calc_features.items())
+            results_out = Parallel(n_jobs=-1, backend='threading')(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in calc_features.items())
             for result in results_out:
                 calc_feats[result[0]] = result[1]
-                is_numeric = self.calc_features.get(result[0]).get('is_numeric')
+                is_numeric = calc_features.get(result[0]).get('is_numeric')
                 is_numeric = True if is_numeric is None else is_numeric
-                impute_agg_func = self.calc_features.get(result[0]).get('impute_agg_func')
+                impute_agg_func = calc_features.get(result[0]).get('impute_agg_func')
                 if is_numeric:
                     self.transform_global_aggs[result[0]] = result[1].agg(impute_agg_func if impute_agg_func is not None else 'median')
                 else:
@@ -1019,8 +1028,11 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                                    drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
                                    gen_cat_col=self.gen_cat_col,
                                    clip_data=self.clip_data, include_target=self.include_target,)
-        # apply any calculated features
-        calc_feats = self.__transform_calc_features(X, y=y)
+        # apply any basic calculated features
+        calc_feats = self.__transform_calc_features(X, y=y, calc_features=self.basic_calc_features)
+        new_X = self.__merge_features(new_X, calc_feats, )
+        # then apply any delayed calculated features
+        calc_feats = self.__transform_calc_features(new_X, y=y, calc_features=self.delayed_calc_features)
         new_X = self.__merge_features(new_X, calc_feats, )
         # apply any generated features
         for key, gen_features in self.gen_calc_features.items():
@@ -1031,6 +1043,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
                 grp_by_candidates.extend(sort_by_cols)
             keys = [col for col in grp_by_candidates if col is not None]
             new_X = self.__merge_features(new_X, gen_features, key, left_on=keys, right_on=keys, synthetic=True)
+        # then apply any post-processing
         new_X = self.__post_process(new_X, correlated_cols=self.correlated_cols, pot_leak_cols=self.pot_leak_cols,)
         return new_X, new_y
 
