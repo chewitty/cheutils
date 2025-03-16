@@ -70,7 +70,7 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
     return dataset_df
 
 
-def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False):
+def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False, **kwargs):
     """
     Save the specified dataframe to Excel.
     :param df: the dataframe to be saved
@@ -88,9 +88,9 @@ def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label:
                                                                                                          label=tag_label))
     target_file = datestamp(target_file) if date_stamped else target_file
 
-    df.to_excel(target_file, index=index)
+    df.to_excel(target_file, index=index, **kwargs)
 
-def save_csv(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False):
+def save_csv(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False, **kwargs):
     """
     Save the specified dataframe to Excel.
     :param df: the dataframe to be saved
@@ -107,7 +107,7 @@ def save_csv(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: s
                                                                                                    label(file_name,
                                                                                                          label=tag_label))
     target_file = datestamp(target_file) if date_stamped else target_file
-    df.to_csv(target_file, index=index)
+    df.to_csv(target_file, index=index, **kwargs)
 
 
 def save_current_fig(file_name: str, **kwargs):
