@@ -1853,14 +1853,14 @@ class ClipOutliersTransformer(BaseEstimator, TransformerMixin):
     def __init__(self, rel_cols: list, group_by: list,
                  l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
         """
-        Create a new TSRollingLagFeatureAugmenter instance.
+        Create a new ClipOutliersTransformer instance.
         :param rel_cols: the list of columns to clip
         :param group_by: list of columns to group by or filter the data by
         :param l_quartile: the lower quartile (float between 0 and 1)
         :param u_quartile: the upper quartile (float between 0 and 1 but greater than l_quartile)
         :param pos_thres: enforce positive clipping boundaries or thresholds values
         """
-        assert rel_cols is not None, 'Valid numeric feature columns must be specified'
+        assert rel_cols is not None or not (not rel_cols), 'Valid numeric feature columns must be specified'
         assert group_by is not None or not (not group_by), 'Valid numeric feature columns must be specified'
         self.rel_cols = rel_cols
         self.group_by = group_by
@@ -1923,4 +1923,64 @@ class ClipOutliersTransformer(BaseEstimator, TransformerMixin):
             clipped_subset.append(cat_grp[self.rel_cols].clip(lower=lower_thres, upper=upper_thres))
         clipped_srs = pd.concat(clipped_subset, ignore_index=False)
         new_X.loc[:, self.rel_cols] = clipped_srs
+        return new_X
+
+class PeriodicFeatureAugmenter(BaseEstimator, TransformerMixin):
+    def __init__(self, rel_cols: list, periods: list, ):
+        """
+        Create a new PeriodicFeatureAugmenter instance.
+        :param rel_cols: the list of columns with periodic features to encode using a sine and cosine transformation
+        with the corresponding matching periods
+        :param periods: list of appropriate period values, matching the relevant periodic feature columns specified
+        """
+        assert rel_cols is not None or not (not rel_cols), 'Valid numeric periodic feature columns must be specified'
+        assert periods is not None or not (not periods), 'Valid periods for the periodic features must be specified'
+        self.rel_cols = rel_cols
+        self.periods = periods
+        self.sine_transformers = {}
+        self.cosine_transformers = {}
+        self.fitted = False
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('PeriodicFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.__sine_transformers()
+        self.__cosine_transformers()
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('PeriodicFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('PeriodicFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('PeriodicFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fit(X, y)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('PeriodicFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __sine_transformers(self):
+        for rel_col, period in zip(self.rel_cols, self.periods):
+            self.sine_transformers[rel_col] = FunctionTransformer(lambda x: np.sin(x / period * 2 * np.pi))
+
+    def __cosine_transformers(self):
+        for rel_col, period in zip(self.rel_cols, self.periods):
+            self.cosine_transformers[rel_col] = FunctionTransformer(lambda x: np.cos(x / period * 2 * np.pi))
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if not self.fitted:
+            raise RuntimeError('You have to call fit on the transformer before')
+        # apply sine and cosine transformations appropriately
+        new_X = X
+        for rel_col in self.rel_cols:
+            sine_tf = self.sine_transformers.get(rel_col)
+            if sine_tf is not None:
+                new_X.loc[:, rel_col + '_sin'] = sine_tf.fit_transform(X[[rel_col]])[rel_col]
+            cose_tf = self.cosine_transformers.get(rel_col)
+            if cose_tf is not None:
+                new_X.loc[:, rel_col + '_cos'] = cose_tf.fit_transform(X[[rel_col]])[rel_col]
         return new_X
