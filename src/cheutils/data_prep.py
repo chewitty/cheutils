@@ -1566,7 +1566,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
 
     def __init__(self, lag_features: dict, default_fc_parameters=None, kind_to_fc_parameters=None, column_id=None,
-                 column_sort=None, column_kind=None, column_value=None, column_ts_date: str=None,
+                 column_sort=None, column_kind=None, column_value=None, column_ts_index: str=None,
                  chunksize=tsfresh.defaults.CHUNKSIZE, n_jobs=tsfresh.defaults.N_PROCESSES,
                  show_warnings=tsfresh.defaults.SHOW_WARNINGS,
                  disable_progressbar=tsfresh.defaults.DISABLE_PROGRESSBAR,
@@ -1597,8 +1597,8 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type column_kind: basestring
         :param column_value: The column with the values. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_value: basestring
-        :param column_ts_date: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
-        :type column_ts_date: basestring
+        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type column_ts_index: basestring
         :param n_jobs: The number of processes to use for parallelization. If zero, no parallelization is used.
         :type n_jobs: int
         :param chunksize: The size of one chunk that is submitted to the worker
@@ -1636,7 +1636,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.column_sort = column_sort
         self.column_kind = column_kind
         self.column_value = column_value
-        self.column_ts_date = column_ts_date if column_ts_date is not None else column_sort
+        self.column_ts_index = column_ts_index if column_ts_index is not None else column_sort
         self.n_jobs = n_jobs
         self.chunksize = chunksize
         self.show_warnings = show_warnings
@@ -1662,7 +1662,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         freq = self.lag_features.get('freq')
         sort_by_cols = self.lag_features.get('sort_by_cols')
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
-        timeseries_container.set_index(self.column_ts_date, inplace=True)
+        timeseries_container.set_index(self.column_ts_index, inplace=True)
         timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq)
         if timeseries_container is None:
             raise RuntimeError('You have to provide a time series container/dataframe before.')
@@ -1743,7 +1743,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
     See also TSLagFeatureAugmenter.
     """
     def __init__(self, roll_cols: list, roll_target: bool=False, window: int=15,
-                 shift_periods: int=15, freq: str='D', column_ts_date: str=None,
+                 shift_periods: int=15, freq: str=None, column_ts_index: str=None,
                  filter_by:str='date', agg_func: str='mean', ):
         """
         Create a new TSRollingLagFeatureAugmenter instance.
@@ -1757,8 +1757,8 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type shift_periods: int
         :param freq: the frequency of the rolling window
         :type freq: str
-        :param column_ts_date: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
-        :type column_ts_date: basestring
+        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type column_ts_index: basestring
         :param filter_by: filter the data by this column label
         :type filter_by: basestring
         :param agg_func: The aggregation function to apply to each column
@@ -1770,7 +1770,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.window = window
         self.shift_periods = shift_periods
         self.freq = freq
-        self.column_ts_date = column_ts_date
+        self.column_ts_index = column_ts_index
         self.filter_by = filter_by
         self.agg_func = agg_func
         self.extracted_features = None # holder for extracted features
@@ -1787,7 +1787,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
             # roll target variable/feature
             timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
             all_cols_to_roll.append(y.name)
-        timeseries_container.set_index(self.column_ts_date, inplace=True)
+        timeseries_container.set_index(self.column_ts_index, inplace=True)
         # extract the features
         self.extracted_features = timeseries_container.groupby(self.filter_by)[all_cols_to_roll].apply(lambda x: x.shift(self.shift_periods, freq=self.freq)).rolling(window=self.window + 1, min_periods=1).agg(self.agg_func)
         self.extracted_features = self.extracted_features.bfill()
@@ -1800,13 +1800,13 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         for col in cols[-len(all_cols_to_roll):]:
             self.extracted_global_aggs[col] = self.extracted_features[col].agg(self.agg_func)
         del timeseries_container
-        """is_duplicate = self.extracted_features.duplicated(subset=[self.filter_by, self.column_ts_date], keep='last')
+        """is_duplicate = self.extracted_features.duplicated(subset=[self.filter_by, self.column_ts_index], keep='last')
         try:
             self.extracted_features[is_duplicate].to_excel('duplicate_extracted_features.xlsx')
             self.extracted_features[~is_duplicate].to_excel('not_duplicate_extracted_features.xlsx')
         except Exception as ignore:
             LOGGER.warning('Could not save duplicate extracted features:\n{}', ignore)"""
-        self.extracted_features.drop_duplicates(subset=[self.filter_by, self.column_ts_date], keep='last', inplace=True)
+        self.extracted_features.drop_duplicates(subset=[self.filter_by, self.column_ts_index], keep='last', inplace=True)
         self.fitted = True
         return self
 
@@ -1841,7 +1841,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         if self.extracted_features is None:
             raise RuntimeError('You have to call fit on the transformer before')
         # add newly created features to dataset
-        common_key = [self.filter_by, self.column_ts_date]
+        common_key = [self.filter_by, self.column_ts_index]
         new_X = pd.merge(X, self.extracted_features, how='left', left_on=common_key, right_on=common_key)
         feat_cols = list(self.extracted_features.columns)
         for feat_col in feat_cols:
@@ -1979,8 +1979,134 @@ class PeriodicFeatureAugmenter(BaseEstimator, TransformerMixin):
         for rel_col in self.rel_cols:
             sine_tf = self.sine_transformers.get(rel_col)
             if sine_tf is not None:
-                new_X.loc[:, rel_col + '_sin'] = sine_tf.fit_transform(X[[rel_col]])[rel_col]
+                new_X.loc[:, rel_col + '_sin'] = sine_tf.fit_transform(new_X[[rel_col]])[rel_col]
             cose_tf = self.cosine_transformers.get(rel_col)
             if cose_tf is not None:
-                new_X.loc[:, rel_col + '_cos'] = cose_tf.fit_transform(X[[rel_col]])[rel_col]
+                new_X.loc[:, rel_col + '_cos'] = cose_tf.fit_transform(new_X[[rel_col]])[rel_col]
+        return new_X
+
+class TrendFeatureAugmenter(BaseEstimator, TransformerMixin):
+    def __init__(self, rel_cols: list, periods: list, impute_vals:list = None):
+        """
+        Create a new TrendFeatureAugmenter instance.
+        :param rel_cols: the list of columns with series features to encode using a sine and cosine transformation
+        with the corresponding matching periods
+        :param periods: list of corresponding period values, matching the relevant series feature columns specified
+        :param impute_vals: list of corresponding values to impute missing values for the corresponding features
+        """
+        assert rel_cols is not None or not (not rel_cols), 'Valid numeric periodic feature columns must be specified'
+        assert periods is not None or not (not periods), 'Valid periods for the periodic features must be specified'
+        self.rel_cols = rel_cols
+        self.periods = periods
+        self.impute_vals = impute_vals if impute_vals is not None and not (not impute_vals) else [0]*len(rel_cols)
+        self.fitted = False
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('TrendFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('TrendFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('TrendFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('TrendFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fit(X, y)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('TrendFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if not self.fitted:
+            raise RuntimeError('You have to call fit on the transformer before')
+        # apply trend features
+        new_X = X
+        for idx, rel_col in enumerate(self.rel_cols):
+            new_X.loc[:, rel_col + '_' + str(self.periods[idx]) + 'p_trend'] = new_X[rel_col].diff(self.periods[idx]).fillna(self.impute_vals[idx])
+        return new_X
+
+class ExtremeStateFeatureAugmenter(BaseEstimator, TransformerMixin):
+    def __init__(self, rel_cols: list, lower_quartiles: list, upper_quartiles: list, group_by: list=None, ):
+        """
+        Create a new ExtremeStateFeatureAugmenter instance.
+        :param rel_cols: the list of columns with features to examine for extree values
+        :param lower_quartiles: list of corresponding lower quartile (float between 0 and 1), matching the relevant feature columns specified
+        :param upper_quartiles: list of corresponding upper quartile (float between 0 and 1 but higher than the lower quartiles), matching the relevant feature columns specified
+        :param group_by: any necessary category to group aggregate stats by - default is None
+        """
+        assert rel_cols is not None or not (not rel_cols), 'Valid numeric feature columns must be specified'
+        assert lower_quartiles is not None or not (not lower_quartiles), 'Valid lower quartiles for the numeric features must be specified'
+        assert upper_quartiles is not None or not (not upper_quartiles), 'Valid upper quartiles for the numeric features must be specified'
+        self.rel_cols = rel_cols
+        self.lower_quartiles = lower_quartiles
+        self.upper_quartiles = upper_quartiles
+        self.group_by = group_by
+        self.inter_quartile_ranges = {}
+        self.global_inter_quartile_ranges = {}
+        self.fitted = False
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        if self.group_by is not None and not (not self.group_by):
+            cur_groups = X.groupby(self.group_by)
+            for grp_name, group in cur_groups:
+                cur_iqrs = {}
+                for idx, rel_col in enumerate(self.rel_cols):
+                    col_iqr = iqr(group[rel_col])
+                    qvals = get_quantiles(group, rel_col, [self.lower_quartiles[idx], self.upper_quartiles[idx]])
+                    l_thres = qvals[0] - 1.5 * col_iqr
+                    u_thres = qvals[1] + 1.5 * col_iqr
+                    cur_iqrs[rel_col] = (l_thres, u_thres)
+                self.inter_quartile_ranges[grp_name] = cur_iqrs
+        else:
+            for rel_col in self.rel_cols:
+                col_iqr = iqr(X[rel_col])
+                qvals = get_quantiles(X, rel_col, [self.lower_quartiles, self.upper_quartiles])
+                l_thres = qvals[0] - 1.5 * col_iqr
+                u_thres = qvals[1] + 1.5 * col_iqr
+                self.global_inter_quartile_ranges[rel_col] = (l_thres, u_thres)
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fit(X, y)
+        new_X = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if not self.fitted:
+            raise RuntimeError('You have to call fit on the transformer before')
+        # apply sine and cosine transformations appropriately
+        new_X = X
+        if self.group_by is not None and not (not self.group_by):
+            cur_groups = X.groupby(self.group_by)
+            grp_subset = []
+            renamed_cols = [rel_col + '_extreme' for rel_col in self.rel_cols]
+            for grp_name, group in cur_groups:
+                grp_iqrs = self.inter_quartile_ranges[grp_name]
+                for col_name, rel_col in zip(renamed_cols, self.rel_cols):
+                    prevailing_iqrs = grp_iqrs.get(rel_col)
+                    group.loc[:, col_name] = (group[rel_col] < prevailing_iqrs[0]) | (group[rel_col] > prevailing_iqrs[1])
+                grp_subset.append(group[renamed_cols])
+            updated_srs = pd.concat(grp_subset, ignore_index=False, )
+            new_X.loc[:, renamed_cols] = updated_srs.astype(int)
+        else:
+            for rel_col in self.rel_cols:
+                prevailing_iqrs = self.global_inter_quartile_ranges.get(rel_col)
+                new_X.loc[:, rel_col + '_extreme'] = new_X[[rel_col]] < prevailing_iqrs[0] or new_X[[rel_col]] > prevailing_iqrs[1]
         return new_X
