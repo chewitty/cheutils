@@ -1800,12 +1800,6 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         for col in cols[-len(all_cols_to_roll):]:
             self.extracted_global_aggs[col] = self.extracted_features[col].agg(self.agg_func)
         del timeseries_container
-        """is_duplicate = self.extracted_features.duplicated(subset=[self.filter_by, self.column_ts_index], keep='last')
-        try:
-            self.extracted_features[is_duplicate].to_excel('duplicate_extracted_features.xlsx')
-            self.extracted_features[~is_duplicate].to_excel('not_duplicate_extracted_features.xlsx')
-        except Exception as ignore:
-            LOGGER.warning('Could not save duplicate extracted features:\n{}', ignore)"""
         self.extracted_features.drop_duplicates(subset=[self.filter_by, self.column_ts_index], keep='last', inplace=True)
         self.fitted = True
         return self
