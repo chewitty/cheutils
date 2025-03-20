@@ -419,7 +419,7 @@ def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int
                         cur_val = np.sort(np.where(cur_val < 0, 0, cur_val))
                         cur_range = cur_val.tolist()
                         cur_range.sort()
-                        param_grid[key] = scope.int(hp.quniform(key, min(cur_range), max(cur_range), num_params))
+                        param_grid[key] = scope.int(hp.choice(key, cur_range))
                 elif isinstance(value[0], float):
                     if len(value) == 1 | (value[0] == value[-1]):
                         min_val = np.exp(max(value[0] * (1 + fudge_factor), lbound))

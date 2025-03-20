@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: cheutils
 Version: 2.7.40
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
@@ -45,6 +45,7 @@ Requires-Dist: mysql.connector; extra == "datasource"
 Requires-Dist: sqlalchemy; extra == "datasource"
 Provides-Extra: mlflow
 Requires-Dist: mlflow; extra == "mlflow"
+Dynamic: license-file
 
 # cheutils
 
