@@ -145,7 +145,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
             if self.cv is not None:
                 cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
                                            cv=self.cv, n_jobs=self.n_jobs)
-                min_score = abs(cv_score.mean())
+                min_score = -(cv_score.mean()) if 'roc_auc' in self.scoring_ else abs(cv_score.mean())
                 LOGGER.debug('Current cv loss = {}', min_score)
                 # refit the model for mlflow registering and logging
                 underlying_model.fit(self.X, self.y)
