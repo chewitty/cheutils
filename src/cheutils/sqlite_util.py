@@ -7,6 +7,7 @@ from cheutils.project_tree import get_data_dir
 from cheutils.exceptions import SQLiteUtilException
 from cheutils.loggers import LoguruWrapper
 from cheutils.data_prep import DataPrepProperties
+from cheutils.ml.model_options import parse_grid_types
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -75,13 +76,14 @@ def save_param_grid_to_sqlite_db(param_grid: dict, tb_name: str='promising_grids
         except:
             pass
 
-def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolution: int=1, grid_size: int=0, model_prefix: str=None, **kwargs):
+def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolution: int=1, grid_size: int=0, model_option: str=None, model_prefix: str=None, **kwargs):
     """
     Fetches data from the underlying SQLite DB using the query string.
     :param tb_name: the table name to be queried
     :param grid_resolution: the prevailing parameter grid resolution or maximum number of parameters supported by grid
     :param grid_size: the grid size or number of parameters supported or in the configured estimator grid
-    :param model_prefix: any prevailing model prefix
+    :param model_option: the prevailing model option
+    :param model_prefix: any prevailing model prefix, which is often the same as the model_option
     :param kwargs:
     :type kwargs:
     :return:
@@ -115,7 +117,7 @@ def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolutio
         col_names.remove('grid_resolution')
         data_df.rename(columns=lambda x: model_prefix + '__' + x if (model_prefix is not None) and not (not model_prefix) else x, inplace=True)
         grid_dicts = data_df.to_dict('records')
-        return grid_dicts[0] if grid_dicts is not None or not (not grid_dicts) else None
+        return parse_grid_types(grid_dicts[0], model_option=model_option, prefix=model_prefix) if grid_dicts is not None or not (not grid_dicts) else None
     except Exception as warning:
         LOGGER.warning('SQLite DB error: {}, {}', sqlite_db, warning)
         # check if the promising grid is still to be generated
@@ -158,7 +160,7 @@ def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key
         for key, value in param_grid.items():
             if (model_prefix is not None) and not (not model_prefix):
                 key = key.split('__')[1] if model_prefix in key else key
-            data_grid[key] = value
+            data_grid[key] = str(value)
         data_df = pd.DataFrame(data_grid, index=[0])
         # Connect to the SQLite database (or create it if it doesn't exist)
         conn = sqlite3.connect(sqlite_db)
@@ -192,11 +194,12 @@ def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key
         except:
             pass
 
-def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model_prefix: str=None, **kwargs):
+def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model_option: str=None, model_prefix: str=None, **kwargs):
     """
     Fetches data from the underlying SQLite DB using the query string.
     :param tb_name: the table name to be queried
     :param cache_key: the prevailing cache or lookup key
+    :param model_option: the prevailing model option
     :param model_prefix: any prevailing model prefix
     :param kwargs:
     :type kwargs:
@@ -230,7 +233,7 @@ def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model
         col_names.remove('cache_key')
         data_df.rename(columns=lambda x: model_prefix + '__' + x if (model_prefix is not None) and not (not model_prefix) else x, inplace=True)
         grid_dicts = data_df.to_dict('records')
-        return grid_dicts[0] if grid_dicts is not None or not (not grid_dicts) else None
+        return parse_grid_types(grid_dicts[0], model_option=model_option, prefix=model_prefix) if grid_dicts is not None or not (not grid_dicts) else None
     except Exception as warning:
         LOGGER.warning('SQLite DB error: {}, {}', sqlite_db, warning)
         # check if the promising grid is still to be generated

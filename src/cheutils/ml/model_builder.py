@@ -13,7 +13,7 @@ from cheutils.common_utils import safe_copy
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
 from cheutils.ml.bayesian_search import HyperoptSearch, HyperoptSearchCV
-from cheutils.ml.model_options import get_params_grid, get_params_pounds, parse_grid_types
+from cheutils.ml.model_options import get_params_grid, get_params_pounds
 from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
@@ -96,9 +96,9 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
     num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
     # attempt to fetch promising grid from SQLite DB
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid), model_prefix=prefix, tb_name=__model_handler.get_model_option())
-    best_params = parse_grid_types(best_params, model_option=__model_handler.get_model_option(),
-                                   prefix=prefix) if best_params is not None else best_params
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid),
+                                                model_option=__model_handler.get_model_option(), model_prefix=prefix,
+                                                tb_name=__model_handler.get_model_option())
     if best_params is None:
         search_cv = RandomizedSearchCV(estimator=pipeline, param_distributions=params_grid,
                                        scoring=__model_handler.get_cross_val_scoring(), cv=__model_handler.get_cross_val_num_folds(), n_iter=__model_handler.get_n_iters(), n_jobs=__model_handler.get_n_jobs(),
@@ -174,20 +174,16 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     params_bounds = get_params_pounds(__model_handler.get_model_option(), prefix=prefix)
     # fetch promising params grid from cache if possible
     num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds), model_prefix=prefix, tb_name=__model_handler.get_model_option())
-    best_params = parse_grid_types(best_params, model_option=__model_handler.get_model_option(),
-                                   prefix=prefix) if best_params is not None else best_params
-    best_params = best_params if promising_params_grid is None else promising_params_grid
+    best_params = promising_params_grid
+    if best_params is None:
+        best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds),
+                                                    model_option=__model_handler.get_model_option(),
+                                                    model_prefix=prefix, tb_name=__model_handler.get_model_option())
     # fetch narrow params grid from cache if possible
-    params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-    narrow_param_grid = get_narrow_grid_from_sqlite_db(tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
+    narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
+                                              params_bounds=params_bounds, model_prefix=prefix)
     narrow_param_grid = narrow_param_grid if with_narrower_grid else get_params_grid(__model_handler.get_model_option(), prefix=prefix)
     # phase 2: perform finer search
-    # generate narrow grid as required
-    if with_narrower_grid & (narrow_param_grid is None):
-        narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
-                                                  params_bounds=params_bounds)
-    LOGGER.debug('Narrower hyperparameters = \n{}', narrow_param_grid)
     search_cv = None
     if __model_handler.get_find_grid_resolution():
         num_params = get_optimal_grid_resolution(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
@@ -304,7 +300,7 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
     LOGGER.debug('Optimal grid resolution = {}', num_params)
     return num_params
 
-def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= None):
+def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor: float = 1.0, params_bounds: dict= None, model_prefix: str=None):
     """
     Returns a generated hyperparameter grid based on a specified (usually, promising hyperparameter grid) from a coarse or random search and a scaling factor that defines the size of the space centered on the set promising hyperparameters.
     :param promising_params: the promising set of hyperparameters or seed hyperparameters obtained from a coarse or random search
@@ -313,15 +309,19 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     :param scaling_factor: scaling factor used to control how much the size of the hyperparameter search space around the set promising hyperparameters
     :type scaling_factor:
     :param params_bounds: usually the bounding values of the relevant configured parameters grid - defines the widest bounds of the hyperparameter search space
+    :param model_prefix: prevailing model prefix
     :return:
     :rtype:
     """
     __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
     params_bounds = {} if params_bounds is None else params_bounds
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
-    narrower_grid = get_narrow_grid_from_sqlite_db(tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
+    model_option = __model_handler.get_model_option()
+    narrower_grid = get_narrow_grid_from_sqlite_db(tb_name=model_option, cache_key=params_cache_key,
+                                                   model_option=model_option, model_prefix=model_prefix)
     if narrower_grid is not None:
         LOGGER.debug('Reusing previously generated narrower hyperparameter grid ...')
+        LOGGER.debug('Narrower hyperparameters = \n{}', narrower_grid)
         return narrower_grid
     num_steps = num_params
     if params_bounds is None:
@@ -330,7 +330,7 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     for param, value in promising_params.items():
         bounds = params_bounds.get(param.split('__')[-1])
         if bounds is not None:
-            min_val, max_val = bounds
+            min_val, max_val = bounds.get('start'), bounds.get('end')
             if isinstance(value, (int, np.integer)):
                 min_val = int(min_val) if min_val is not None else value
                 max_val = int(max_val) if max_val is not None else value
@@ -359,6 +359,7 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
             param_grid[param] = [value]
     #NARROW_PARAM_GRIDS[params_cache_key] = param_grid
     save_narrow_grid_to_sqlite_db(param_grid, tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
+    LOGGER.debug('Narrower hyperparameters = \n{}', param_grid)
     return param_grid
 
 def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
