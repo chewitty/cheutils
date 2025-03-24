@@ -3,9 +3,10 @@ import mlflow
 from mlflow.models import infer_signature
 from hyperopt import fmin, space_eval, STATUS_OK, Trials
 from sklearn.base import BaseEstimator, clone
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, roc_auc_score
 from sklearn.model_selection import cross_val_score
 from hpsklearn import HyperoptEstimator
+from sklearn.base import is_classifier, is_regressor
 
 from cheutils.common_base import CheutilsBase
 from cheutils.ml.model_options import get_hyperopt_estimator, get_estimator
@@ -145,7 +146,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
             if self.cv is not None:
                 cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
                                            cv=self.cv, n_jobs=self.n_jobs)
-                min_score = -(cv_score.mean()) if 'roc_auc' in self.scoring_ else abs(cv_score.mean())
+                min_score = -(cv_score.mean()) if is_classifier(underlying_model) else abs(cv_score.mean())
                 LOGGER.debug('Current cv loss = {}', min_score)
                 # refit the model for mlflow registering and logging
                 underlying_model.fit(self.X, self.y)
@@ -157,7 +158,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
                 #no cross-validation
                 underlying_model.fit(self.X, self.y)
                 y_pred = underlying_model.predict(self.X)
-                min_score = abs(mean_squared_error(self.y, y_pred))
+                min_score = -roc_auc_score(self.y, y_pred) if is_classifier(underlying_model) else abs(mean_squared_error(self.y, y_pred))
                 LOGGER.debug('Current loss = {}', min_score)
                 if min_score < self.best_score_:
                     self.best_score_ = min_score
