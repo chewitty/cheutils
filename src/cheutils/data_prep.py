@@ -1663,7 +1663,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         sort_by_cols = self.lag_features.get('sort_by_cols')
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
         timeseries_container.set_index(self.column_ts_index, inplace=True)
-        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq)
+        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
         if timeseries_container is None:
             raise RuntimeError('You have to provide a time series container/dataframe before.')
         # extract the features
