@@ -168,6 +168,18 @@ class DataPrepProperties(AppPropertiesHandler):
         key = 'project.sqlite3.db'
         self.__data_prep_properties['sqlite3_db'] = self.__app_props.get(key)
 
+    def _load_feat_sel_passthrough(self):
+        key = 'model.feat_selection.passthrough'
+        self.__data_prep_properties['feat_sel_passthrough'] = self.__app_props.get_bol(key)
+
+    def _load_feat_sel_override(self):
+        key = 'model.feat_selection.override'
+        self.__data_prep_properties['feat_sel_override'] = self.__app_props.get_bol(key)
+
+    def _load_feat_sel_selected(self):
+        key = 'model.feat_selection.selected'
+        self.__data_prep_properties['feat_sel_selected'] = self.__app_props.get_list(key)
+
     def _load_winsorize_limits(self):
         key = 'func.winsorize.limits'
         limits = self.__app_props.get_list(key)
@@ -217,6 +229,24 @@ class DataPrepProperties(AppPropertiesHandler):
         if value is None:
             self._load_sqlite3_db()
         return self.__data_prep_properties.get('sqlite3_db')
+
+    def get_feat_sel_passthrough(self):
+        value = self.__data_prep_properties.get('feat_sel_passthrough')
+        if value is None:
+            self._load_feat_sel_passthrough()
+        return self.__data_prep_properties.get('feat_sel_passthrough')
+
+    def get_feat_sel_override(self):
+        value = self.__data_prep_properties.get('feat_sel_override')
+        if value is None:
+            self._load_feat_sel_override()
+        return self.__data_prep_properties.get('feat_sel_override')
+
+    def get_feat_sel_selected(self):
+        value = self.__data_prep_properties.get('feat_sel_selected')
+        if value is None:
+            self._load_feat_sel_selected()
+        return self.__data_prep_properties.get('feat_sel_selected')
 
     def get_winsorize_limits(self):
         value = self.__data_prep_properties.get('winsorize_limits')
@@ -344,17 +374,23 @@ def feature_selection_transformer(selector: str, estimator, passthrough: bool=Fa
     assert selector is not None, 'A valid configured feature selector option must be provided'
     __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
     tf_base_class, tf_params = __data_handler.get_feat_sel_transformers(estimator).get(selector) # a tuple (trans_class, trans_params)
+    do_passthrough = passthrough | __data_handler.get_feat_sel_passthrough()
+    override_sel = __data_handler.get_feat_sel_override()
+    override_with_cols = __data_handler.get_feat_sel_selected()
     class FeatureSelectionTransformer(tf_base_class):
         """
         Returns features based on ranking with recursive feature elimination.
         """
-        def __init__(self, estimator=None, passthrough: bool=False, random_state: int=100, **kwargs):
+        def __init__(self, estimator=None, passthrough: bool=False, override_sel: bool=False,
+                     override_cols: list=None, random_state: int=100, **kwargs):
             self.random_state = random_state
             self.estimator = estimator
             super().__init__(self.estimator, ** kwargs)
             self.target = None
             self.selected_cols = None
             self.passthrough = passthrough
+            self.override_sel = override_sel
+            self.override_cols = override_cols
             self.fitted = False
             self.selector = None
 
@@ -385,13 +421,17 @@ def feature_selection_transformer(selector: str, estimator, passthrough: bool=Fa
 
         def __do_transform(self, X, y=None, **fit_params):
             if self.selected_cols is None and not self.passthrough:
-                if y is None:
-                    transformed_X = super().transform(X)
-                else:
-                    transformed_X = super().fit_transform(X, y, **fit_params)
-                self.selected_cols = list(X.columns[self.get_support()])
-                new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
-                self.__save_importances()
+                if self.override_sel:
+                    self.selected_cols = self.override_cols
+                    new_X = X[self.selected_cols]
+                if self.selected_cols is None:
+                    if y is None:
+                        transformed_X = super().transform(X)
+                    else:
+                        transformed_X = super().fit_transform(X, y, **fit_params)
+                    self.selected_cols = list(X.columns[self.get_support()])
+                    new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
+                    self.__save_importances()
             else:
                 new_X = pd.DataFrame(X, columns=self.selected_cols)
             for col in self.selected_cols:
@@ -426,7 +466,9 @@ def feature_selection_transformer(selector: str, estimator, passthrough: bool=Fa
 
     tf_instance = None
     try:
-        tf_instance = FeatureSelectionTransformer(estimator=estimator, passthrough=passthrough, **tf_params, )
+        tf_instance = FeatureSelectionTransformer(estimator=estimator, passthrough=do_passthrough,
+                                                  override_sel=override_sel, override_cols=override_with_cols,
+                                                  **tf_params, )
         tf_instance.selector = selector
     except TypeError as err:
         LOGGER.error('Problem encountered instantiating feature selection transformer: {}, {}', selector, err)
