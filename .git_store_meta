@@ -3,9 +3,11 @@
 .gitignore	f	2025-02-18T09:47:22Z
 README.md	f	2024-12-10T18:11:02Z
 build and installing custom packages.txt	f	2024-12-03T17:45:30Z
-dist	d	2025-03-15T16:32:27Z
+dist	d	2025-03-23T21:52:09Z
 dist/cheutils-2.7.40-py3-none-any.whl	f	2025-03-23T20:44:26Z
 dist/cheutils-2.7.40.tar.gz	f	2025-03-23T20:44:00Z
+dist/cheutils-2.7.41-py3-none-any.whl	f	2025-03-23T21:52:09Z
+dist/cheutils-2.7.41.tar.gz	f	2025-03-23T21:51:52Z
 pyproject.toml	f	2025-03-23T21:51:25Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2025-03-10T10:43:00Z
