@@ -29,6 +29,7 @@ src/cheutils.egg-info/top_level.txt
 src/cheutils/interceptor/__init__.py
 src/cheutils/interceptor/numeric_data_interceptor.py
 src/cheutils/interceptor/pipelineInterceptor.py
+src/cheutils/interceptor/selected_features.py
 src/cheutils/ml/__init__.py
 src/cheutils/ml/bayesian_search.py
 src/cheutils/ml/evaluation_metrics.py

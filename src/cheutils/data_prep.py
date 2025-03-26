@@ -2159,7 +2159,7 @@ class DataInterceptorTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, X, **fit_params):
         LOGGER.debug('DataInterceptorTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X = self.__do_transform(X, y=None, **fit_params)
+        new_X, new_y = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('DataInterceptorTransformer: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 

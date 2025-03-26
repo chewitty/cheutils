@@ -20,7 +20,7 @@ from .ml import (get_estimator, exclude_nulls,
                  promising_params_grid, params_optimization, plot_no_skill_line,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
                  print_classification_report, recreate_labels, rmsle)
-from .interceptor import PipelineInterceptor, NumericDataInterceptor
+from .interceptor import PipelineInterceptor, NumericDataInterceptor, SelectedFeaturesInterceptor
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (feature_selection_transformer, DateFeaturesTransformer, FeatureGenTransformer,
                         DropSelectedColsTransformer, SelectiveColumnTransformer, GeospatialTransformer, CategoricalTargetEncoder,
