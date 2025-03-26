@@ -15,6 +15,8 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
 from cheutils.exceptions import PropertiesException, FeatureGenException
 from cheutils.data_prep_support import apply_replace_patterns, apply_calc_feature, apply_type, force_joblib_cleanup
+from cheutils.interceptor.pipelineInterceptor import PipelineInterceptor
+from cheutils.interceptor.numeric_data_interceptor import NumericDataInterceptor
 import tsfresh.defaults
 from tsfresh.feature_extraction import extract_features
 from tsfresh.utilities.dataframe_functions import restrict_input_to_index
@@ -434,11 +436,6 @@ def feature_selection_transformer(selector: str, estimator, passthrough: bool=Fa
                     self.__save_importances()
             else:
                 new_X = pd.DataFrame(X, columns=self.selected_cols)
-            for col in self.selected_cols:
-                try:
-                    new_X[col] = pd.to_numeric(new_X[col], )
-                except ValueError as ignore:
-                    LOGGER.warning('Potential dtype issue: {}', ignore)
             return new_X
 
         def get_selected_features(self):
@@ -1301,14 +1298,14 @@ class CategoricalTargetEncoder(ColumnTransformer):
     def transform(self, X, **fit_params):
         LOGGER.debug('CategoricalTargetEncoder: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('CategoricalTargetEncoder: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('CategoricalTargetEncoder: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         #self.fit(X, y, **fit_params) # cannot make this call as a superclass call creates an unending loop
         LOGGER.debug('CategoricalTargetEncoder: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('CategoricalTargetEncoder: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('CategoricalTargetEncoder: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -1529,14 +1526,14 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('TSFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('TSFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('TSFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TSFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('TSFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -1753,14 +1750,14 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSLagFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('TSLagFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('TSLagFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('TSLagFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TSLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('TSLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -1863,14 +1860,14 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         LOGGER.debug('TSRollingLagFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('TSRollingLagFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('TSRollingLagFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TSRollingLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('TSRollingLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -1928,14 +1925,14 @@ class ClipOutliersTransformer(BaseEstimator, TransformerMixin):
     def transform(self, X, **fit_params):
         LOGGER.debug('ClipOutliersTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('ClipOutliersTransformer: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('ClipOutliersTransformer: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('ClipOutliersTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('ClipOutliersTransformer: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('ClipOutliersTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -1989,14 +1986,14 @@ class PeriodicFeatureAugmenter(BaseEstimator, TransformerMixin):
     def transform(self, X, **fit_params):
         LOGGER.debug('PeriodicFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('PeriodicFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('PeriodicFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('PeriodicFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('PeriodicFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('PeriodicFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __sine_transformers(self):
@@ -2047,14 +2044,14 @@ class TrendFeatureAugmenter(BaseEstimator, TransformerMixin):
     def transform(self, X, **fit_params):
         LOGGER.debug('TrendFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('TrendFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('TrendFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('TrendFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TrendFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('TrendFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -2114,14 +2111,14 @@ class ExtremeStateFeatureAugmenter(BaseEstimator, TransformerMixin):
     def transform(self, X, **fit_params):
         LOGGER.debug('ExtremeStateFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('ExtremeStateFeatureAugmenter: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
         LOGGER.debug('ExtremeStateFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('ExtremeStateFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('ExtremeStateFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -2146,3 +2143,40 @@ class ExtremeStateFeatureAugmenter(BaseEstimator, TransformerMixin):
                 prevailing_iqrs = self.global_inter_quartile_ranges.get(rel_col)
                 new_X.loc[:, rel_col + '_extreme'] = new_X[[rel_col]] < prevailing_iqrs[0] or new_X[[rel_col]] > prevailing_iqrs[1]
         return new_X
+
+class DataInterceptorTransformer(BaseEstimator, TransformerMixin):
+    def __init__(self, interceptors: list=None, apply_numeric: bool=False, ):
+        """
+        Create a new DataInterceptorTransformer instance.
+        :param interceptors: the list of data pipeline interceptors to be applied in order
+        :param apply_numeric: indicates if the numeric data interceptor should be applied as the final step
+        """
+        self.interceptors = interceptors
+        self.apply_numeric = apply_numeric
+
+    def fit(self, X=None, y=None):
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('DataInterceptorTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('DataInterceptorTransformer: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
+        return new_X
+
+    def fit_transform(self, X, y=None, **fit_params):
+        LOGGER.debug('DataInterceptorTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.fit(X, y)
+        new_X, new_y = self.__do_transform(X, y, **fit_params)
+        LOGGER.debug('DataInterceptorTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        # apply the data pipeline interceptors in order, with the numeric interceptor as last step as needed
+        new_X = X
+        new_y = y
+        interceptors = self.interceptors if self.interceptors is not None else []
+        if self.apply_numeric:
+            interceptors.append(NumericDataInterceptor())
+        for interceptor in interceptors:
+            new_X, new_y = interceptor.apply(new_X, new_y)
+        return new_X, new_y

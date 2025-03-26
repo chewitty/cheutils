@@ -26,6 +26,12 @@ class AppPropertiesHandler(ABC):
     def get_name(self):
         return self.__name
 
+    @classmethod
+    def __subclasshook__(cls, subclass):
+        return (hasattr(subclass, 'reload') and
+                callable(subclass.reload) or
+                NotImplemented)
+
     @abstractmethod
     def reload(self):
         """
@@ -33,7 +39,7 @@ class AppPropertiesHandler(ABC):
         :return: None
         :rtype:
         """
-        pass
+        raise NotImplementedError
 
 """
 Utilities for reading project properties or configuration files. When instantiated, it loads the first 
