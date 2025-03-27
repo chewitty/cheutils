@@ -2151,8 +2151,11 @@ class DataInterceptorTransformer(BaseEstimator, TransformerMixin):
         :param interceptors: the list of data pipeline interceptors to be applied in order
         :param apply_numeric: indicates if the numeric data interceptor should be applied as the final step
         """
-        self.interceptors = interceptors
+        self.interceptors = interceptors if interceptors is not None else []
         self.apply_numeric = apply_numeric
+        if self.apply_numeric:
+            # add the numeric interceptor as last step as needed
+            self.interceptors.append(NumericDataInterceptor())
 
     def fit(self, X=None, y=None):
         return self
@@ -2174,9 +2177,6 @@ class DataInterceptorTransformer(BaseEstimator, TransformerMixin):
         # apply the data pipeline interceptors in order, with the numeric interceptor as last step as needed
         new_X = X
         new_y = y
-        interceptors = self.interceptors if self.interceptors is not None else []
-        if self.apply_numeric:
-            interceptors.append(NumericDataInterceptor())
-        for interceptor in interceptors:
+        for interceptor in self.interceptors:
             new_X, new_y = interceptor.apply(new_X, new_y)
         return new_X, new_y
