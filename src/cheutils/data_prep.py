@@ -1514,9 +1514,6 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         Add the features calculated using the timeseries_container and add them to the corresponding rows in the input
         pandas.DataFrame X.
 
-        To save some computing time, you should only include those time serieses in the container, that you
-        need.
-
         :param X: the DataFrame to which the calculated timeseries features will be added. This is *not* the
                dataframe with the timeseries itself.
         :type X: pandas.DataFrame
@@ -1738,9 +1735,6 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         Add the features calculated using the timeseries_container and add them to the corresponding rows in the input
         pandas.DataFrame X.
 
-        To save some computing time, you should only include those time serieses in the container, that you
-        need. You can set the timeseries container with the method :func:`set_timeseries_container`.
-
         :param X: the DataFrame to which the calculated timeseries features will be added. This is *not* the
                dataframe with the timeseries itself.
         :type X: pandas.DataFrame
@@ -1847,9 +1841,6 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
         Add the features calculated using the timeseries_container and add them to the corresponding rows in the input
         pandas.DataFrame X.
-
-        To save some computing time, you should only include those time serieses in the container, that you
-        need. You can set the timeseries container with the method :func:`set_timeseries_container`.
 
         :param X: the DataFrame to which the calculated timeseries features will be added. This is *not* the
                dataframe with the timeseries itself.
@@ -2143,40 +2134,3 @@ class ExtremeStateFeatureAugmenter(BaseEstimator, TransformerMixin):
                 prevailing_iqrs = self.global_inter_quartile_ranges.get(rel_col)
                 new_X.loc[:, rel_col + '_extreme'] = new_X[[rel_col]] < prevailing_iqrs[0] or new_X[[rel_col]] > prevailing_iqrs[1]
         return new_X
-
-class DataInterceptorTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, interceptors: list=None, apply_numeric: bool=False, ):
-        """
-        Create a new DataInterceptorTransformer instance.
-        :param interceptors: the list of data pipeline interceptors to be applied in order
-        :param apply_numeric: indicates if the numeric data interceptor should be applied as the final step
-        """
-        self.interceptors = interceptors if interceptors is not None else []
-        self.apply_numeric = apply_numeric
-        if self.apply_numeric:
-            # add the numeric interceptor as last step as needed
-            self.interceptors.append(NumericDataInterceptor())
-
-    def fit(self, X=None, y=None):
-        return self
-
-    def transform(self, X, **fit_params):
-        LOGGER.debug('DataInterceptorTransformer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X, new_y = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('DataInterceptorTransformer: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('DataInterceptorTransformer: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X, new_y = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('DataInterceptorTransformer: Fit-transformed dataset, shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
-        return new_X
-
-    def __do_transform(self, X, y=None, **fit_params):
-        # apply the data pipeline interceptors in order, with the numeric interceptor as last step as needed
-        new_X = X
-        new_y = y
-        for interceptor in self.interceptors:
-            new_X, new_y = interceptor.apply(new_X, new_y)
-        return new_X, new_y
