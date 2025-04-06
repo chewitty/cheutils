@@ -10,6 +10,7 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import label, datestamp
 from cheutils.properties_util import AppProperties
 from cheutils.project_tree_handler import ProjectTreeProperties
+from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -19,7 +20,7 @@ def get_root_dir():
     :return: the path to the root directory.
     :rtype:
     """
-    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    __proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
     return __proj_handler.get_proj_root()
 
 
@@ -29,7 +30,7 @@ def get_data_dir():
     :return: the path to the data directory.
     :rtype:
     """
-    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    __proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
     return __proj_handler.get_proj_data()
 
 
@@ -39,7 +40,7 @@ def get_output_dir():
     :return: the path to the output directory.
     :rtype:
     """
-    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    __proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
     return __proj_handler.get_proj_output()
 
 def get_namespace():
@@ -48,7 +49,7 @@ def get_namespace():
     :return:
     :rtype:
     """
-    __proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+    __proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
     return __proj_handler.get_proj_namespace()
 
 def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = None, ):

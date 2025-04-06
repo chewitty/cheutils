@@ -23,6 +23,7 @@ from tsfresh.utilities.dataframe_functions import restrict_input_to_index
 from joblib import Parallel, delayed
 from pandas.api.types import is_datetime64_any_dtype, is_float_dtype, is_integer_dtype, is_categorical_dtype
 from scipy.stats import iqr
+from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -374,7 +375,7 @@ def feature_selection_transformer(selector: str, estimator, passthrough: bool=Fa
     @see https://stackoverflow.com/questions/21060073/dynamic-inheritance-in-python?noredirect=1&lq=1
     """
     assert selector is not None, 'A valid configured feature selector option must be provided'
-    __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
     tf_base_class, tf_params = __data_handler.get_feat_sel_transformers(estimator).get(selector) # a tuple (trans_class, trans_params)
     do_passthrough = passthrough | __data_handler.get_feat_sel_passthrough()
     override_sel = __data_handler.get_feat_sel_override()
@@ -434,6 +435,8 @@ def feature_selection_transformer(selector: str, estimator, passthrough: bool=Fa
                     self.selected_cols = list(X.columns[self.get_support()])
                     new_X = pd.DataFrame(transformed_X, columns=self.selected_cols)
                     self.__save_importances()
+                else:
+                    new_X = X
             else:
                 new_X = pd.DataFrame(X, columns=self.selected_cols)
             return new_X
@@ -519,7 +522,7 @@ class SelectiveColumnTransformer(ColumnTransformer):
                  verbose=False, n_jobs=None, **kwargs):
         # if configuring more than one column transformer make sure verbose_feature_names_out=True
         # to ensure the prefixes ensure uniqueness in the feature names
-        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
         conf_transformers = __data_handler.get_selective_column_transformers()
         super().__init__(transformers=conf_transformers,
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
@@ -581,7 +584,7 @@ class BinarizerColumnTransformer(ColumnTransformer):
                  verbose=False, n_jobs=None, **kwargs):
         # if configuring more than one column transformer make sure verbose_feature_names_out=True
         # to ensure the prefixes ensure uniqueness in the feature names
-        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
         conf_transformers = __data_handler.get_binarizer_column_transformers()
         super().__init__(transformers=conf_transformers,
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
@@ -891,7 +894,7 @@ class DataPrepTransformer(BaseEstimator, TransformerMixin):
             rel_cols = clip_data.get('rel_cols')
             filterby = clip_data.get('filterby')
             pos_thres = clip_data.get('pos_thres')
-            new_X = apply_clipping(new_X, rel_cols=rel_cols, filterby=filterby, pos_thres=pos_thres)
+            new_X = apply_clipping(new_X, rel_cols=rel_cols, group_by=filterby, pos_thres=pos_thres)
         # process any special features
         def process_feature(col, feat_mappings, sep: str = ','):
             created_features = new_X[col].apply(lambda x: parse_special_features(x, feat_mappings, sep=sep))
@@ -1135,7 +1138,7 @@ class FeatureGenTransformer(BaseEstimator, TransformerMixin):
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
-        new_X = generate_features(X, y, gen_cols=self.gen_cols, target_col=self.target_col, **fit_params)
+        new_X = self.__generate_features(X, y, gen_cols=self.gen_cols, target_col=self.target_col, **fit_params)
         return new_X
 
     def get_params(self, deep=True):
@@ -1143,6 +1146,53 @@ class FeatureGenTransformer(BaseEstimator, TransformerMixin):
             'gen_cols': self.gen_cols,
             'target_col': self.target_col,
         }
+
+    def __generate_features(self, X: pd.DataFrame, y: pd.Series = None, gen_cols: dict = None, return_y: bool = False,
+                          target_col: str = None, **kwargs) -> pd.DataFrame:
+        """
+        Generate the target variable from available data in X, and y.
+        :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
+        :type X:
+        :param y: part or all of the raw target variable, may contribute to generating the actual target
+        :type y:
+        :param gen_cols: dictionary of new feature column labels and their corresponding value generation functions
+            and default values - e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'feat_col': (val_gen_func, alter_val)}
+        :type gen_cols: dict
+        :param return_y: if True, add back a column with y or a modified version to the returned dataframe
+        :param target_col: the column label of the target column - either as a hint or may be encountered as part of any generation function.
+        :param kwargs:
+        :type kwargs:
+        :return: a dataframe with the generated features
+        :rtype:
+        """
+        assert X is not None, 'A valid DataFrame expected as input'
+        assert gen_cols is not None and not (
+            not gen_cols), 'A valid dictionary of new feature column labels and their corresponding value generation functions and optional default values expected as input'
+        new_X = safe_copy(X)
+        # add back the target column, in case it is needed
+        if y is not None:
+            if isinstance(y, pd.Series):
+                new_X[y.name] = safe_copy(y)
+            else:
+                if target_col is not None and not (not target_col):
+                    new_X[target_col] = safe_copy(y)
+        try:
+            for col, val_gen_func in gen_cols.items():
+                new_X[col] = new_X.apply(val_gen_func[0], axis=1)
+                if val_gen_func[1] is not None:
+                    new_X[col].fillna(val_gen_func[1], inplace=True)
+            # drop the target column again
+            if not return_y:
+                if y is not None and isinstance(y, pd.Series):
+                    new_X.drop(columns=[y.name], inplace=True)
+                else:
+                    if target_col is not None and not (not target_col):
+                        if target_col in new_X.columns:
+                            new_X.drop(columns=[target_col], inplace=True)
+            return new_X
+        except Exception as err:
+            LOGGER.error('Something went wrong with feature generation, skipping: {}', err)
+            raise FeatureGenException(f'Something went wrong with feature generation, skipping: {err}')
 
 class SelectiveFunctionTransformer(FunctionTransformer):
     def __init__(self, rel_cols: list, **kwargs):
@@ -1277,7 +1327,7 @@ class CategoricalTargetEncoder(ColumnTransformer):
                  verbose=False, n_jobs=None, **kwargs):
         # if configuring more than one column transformer make sure verbose_feature_names_out=True
         # to ensure the prefixes ensure uniqueness in the feature names
-        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
         conf_target_encs = __data_handler.get_target_encoder() # a list with a single tuple (with target encoder pipeline)
         super().__init__(transformers=conf_target_encs,
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
@@ -1570,19 +1620,6 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         2. the input data X, where the features will be added to. Its rows are identifies by the index and each index in
            X must be present as an id in the time series container.
 
-        Imagine the following situation: You want to classify 10 different financial shares and you have their development
-        in the last year as a time series. You would then start by creating features from the metainformation of the
-        shares, e.g. how long they were on the market etc. and filling up a table - the features of one stock in one row.
-        This is the input array X, which each row identified by e.g. the stock name as an index.
-
-        >>> df = pandas.DataFrame(index=["AAA", "BBB", ...])
-        >>> # Fill in the information of the stocks
-        >>> df["started_since_days"] = ... # add a feature
-
-        You can then extract all the features from the time development of the shares, by using this estimator.
-        The time series container must include a column of ids, which are the same as the index of X.
-
-        >>> time_series = read_in_timeseries() # get the development of the shares
         >>> from cheutils import TSFeatureAugmenter
         >>> augmenter = TSLagFeatureAugmenter(column_id="id")
         >>> augmenter.fit(time_series, y=None)

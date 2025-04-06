@@ -31,8 +31,9 @@ from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlit
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 from .target_encoder import mean_target_encoding, train_mean_target_encoding, test_mean_target_encoding
+from typing import cast
 
-__proj_handler: ProjectTreeProperties = AppProperties().get_subscriber('proj_handler')
+__proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
 log_handler = {'sink': os.path.join(__proj_handler.get_proj_output(), 'app-log.log'), 'serialize': False, 'backtrace': True,
                'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}', 'level': 'TRACE',
                'rotation': '00:00', 'colorize': True, 'enqueue': True, }

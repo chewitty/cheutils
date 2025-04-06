@@ -20,6 +20,7 @@ from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_f
                                   save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db)
 from cheutils.properties_util import AppProperties
 from cheutils.ml.model_properties_handler import ModelProperties
+from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -83,7 +84,7 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     :return: dictionary of promising hyperparameters
     :rtype: dict
     """
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     assert pipeline is not None, "A valid pipeline instance expected"
     if random_state is None:
         random_state = __model_handler.get_random_seed()
@@ -146,7 +147,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     if mlflow_exp is not None:
         if mlflow_exp.get('log') is True:
             LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
@@ -246,7 +247,7 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
     :return:
     :rtype:
     """
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     if random_state is None:
         random_state = __model_handler.get_random_seed()
     num_params = OPTIMAL_GRID_RES.get(__model_handler.get_model_option())
@@ -313,7 +314,7 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     :return:
     :rtype:
     """
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     params_bounds = {} if params_bounds is None else params_bounds
     params_cache_key = str(num_params) + '_' + str(np.round(scaling_factor, 2)).replace('.', '_')
     model_option = __model_handler.get_model_option()
@@ -476,7 +477,7 @@ def __get_hyperopt_algos():
     :return: an appropriate hyperopt algorithm(s) - based on what is configured (i.e., the 'model.hyperopt.algos' property)
     :rtype:
     """
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     p_suggest = []
     if __model_handler.get_hyperopt_algos() is not None:
         for key, value in __model_handler.get_hyperopt_algos().items():
