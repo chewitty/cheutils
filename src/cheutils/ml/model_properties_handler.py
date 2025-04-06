@@ -1,3 +1,5 @@
+import importlib
+from sklearn.metrics import make_scorer
 from cheutils.properties_util import AppProperties, AppPropertiesHandler
 from cheutils.decorator_singleton import singleton
 from cheutils.loggers import LoguruWrapper
@@ -97,8 +99,16 @@ class ModelProperties(AppPropertiesHandler):
         self.__model_properties['hyperopt_algos'] = self.__app_props.get_dict_properties(key)
 
     def _load_cross_val_scoring(self):
-        key = 'model.cross_val.scoring'
-        self.__model_properties['cross_val_scoring'] = self.__app_props.get(key)
+        key = 'model.cross_val.scoring_fn'
+        scorer_dict = self.__app_props.get_dict_properties(key)
+        if scorer_dict is not None:
+            scorer_package = scorer_dict.get('package')
+            scorer_fn = scorer_dict.get('func')
+            scorer_params = scorer_dict.get('params')
+            self.__model_properties['cross_val_scoring'] = make_scorer(getattr(importlib.import_module(scorer_package), scorer_fn), **scorer_params)
+        else:
+            key = 'model.cross_val.scoring'
+            self.__model_properties['cross_val_scoring'] = self.__app_props.get(key)
 
     def _load_cross_val_num_folds(self):
         key = 'model.cross_val.num_folds'

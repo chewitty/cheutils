@@ -1,7 +1,7 @@
 from cheutils.ml.model_options import (get_estimator, get_hyperopt_estimator, get_params_grid, get_params_pounds,
                                        get_param_defaults)
 from cheutils.ml.model_builder import (exclude_nulls, get_narrow_param_grid,
-                                       get_optimal_grid_resolution, __parse_params,
+                                       get_optimal_grid_resolution, __parse_params, promising_interactions,
                                        promising_params_grid, params_optimization, recreate_labels)
 from cheutils.ml.bayesian_search import HyperoptSearch, HyperoptSearchCV
 from cheutils.ml.visualize import (plot_hyperparameter, plot_reg_residuals, plot_pie, plot_reg_predictions,

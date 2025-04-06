@@ -3,7 +3,9 @@ import pandas as pd
 import requests
 import mlflow
 from functools import partial
-from sklearn.model_selection import RandomizedSearchCV
+
+from sklearn.base import is_classifier
+from sklearn.model_selection import RandomizedSearchCV, cross_val_score
 from sklearn.pipeline import Pipeline
 from skopt import BayesSearchCV
 from skopt.space import Integer, Real, Categorical
@@ -17,7 +19,8 @@ from cheutils.ml.model_options import get_params_grid, get_params_pounds
 from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
-                                  save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db)
+                                  save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db,
+                                  save_promising_interactions_to_sqlite_db, get_promising_interactions_from_sqlite_db)
 from cheutils.properties_util import AppProperties
 from cheutils.ml.model_properties_handler import ModelProperties
 from typing import cast
@@ -362,6 +365,77 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     save_narrow_grid_to_sqlite_db(param_grid, tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
     LOGGER.debug('Narrower hyperparameters = \n{}', param_grid)
     return param_grid
+
+@track_duration(name='promising_interactions')
+def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, candidate_feats: list,
+                           grid_resolution: int=None, prefix: str = None, tb_name: str=None,
+                           random_state: int=None, **kwargs):
+    """
+    Perform a cross-validation search for promising feature interactions - identify which feature interactions improve
+    the simple model performance (i.e., the simple model being the model with the obvious features derived from the training dataset).
+    :param pipeline: estimator or pipeline instance with estimator
+    :type pipeline:
+    :param X: pandas DataFrame or numpy array
+    :type X:
+    :param y: pandas Series or numpy array
+    :type y:
+    :param baseline_score: the simple model current performance score
+    :param candidate_feats: list of candidate feature columns provisionally selected for the feature interactions investigation.
+    :param grid_resolution: the grid resolution or maximum number of values per parameter
+    :param prefix: any model prefix - the default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
+    :param random_state: random seed for reproducibility
+    :param tb_name: the name of the underlying sqlite table for saving any promising interactions
+    :param kwargs:
+    :type kwargs:
+    :return: dictionary of promising hyperparameters
+    :rtype: dict
+    """
+    assert pipeline is not None, 'Valid pipeline with an estimator required'
+    assert baseline_score is not None, 'A baseline performance score is required'
+    assert candidate_feats is not None and len(candidate_feats) > 1, 'A valid list of at least two features required'
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
+    assert pipeline is not None, "A valid pipeline instance expected"
+    if random_state is None:
+        random_state = __model_handler.get_random_seed()
+    name = None
+    if "name" in kwargs:
+        name = kwargs.get("name")
+        del kwargs["name"]
+    promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
+    if promising_feats is not None and not(not promising_feats):
+        return promising_feats
+    params_grid = get_params_grid(__model_handler.get_model_option(), prefix=prefix)
+    LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
+    num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
+    # attempt to fetch promising grid from SQLite DB
+    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid),
+                                                model_option=__model_handler.get_model_option(), model_prefix=prefix,
+                                                tb_name=__model_handler.get_model_option())
+    # use the configured grid
+    best_params = params_grid if best_params is None else best_params
+    train = safe_copy(X)
+    promising_feats = []
+    for i, c1 in enumerate(candidate_feats):
+        for j, c2 in enumerate(candidate_feats[i + 1:]):
+            n = f"{c1}_with_{c2}"
+            train[n] = train[c1] * train[c2]
+            cv_score = cross_val_score(pipeline, train, y, scoring=__model_handler.get_cross_val_scoring(),
+                                       cv=__model_handler.get_cross_val_num_folds(),
+                                       n_jobs=__model_handler.get_n_jobs())
+            min_score = -np.nanmean(cv_score) if is_classifier(pipeline) else abs(np.nanmean(cv_score))
+            LOGGER.debug('Mean score = {}\n', min_score)
+            if min_score < baseline_score:
+                promising_feats.append(n)
+            train.drop(columns=[n], inplace=True)
+    del train
+    # cache the promising interaction features to SQLite
+    if len(promising_feats) > 0:
+        if tb_name is not None:
+            save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, tb_name=tb_name)
+        else:
+            save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, )
+    promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
+    return promising_feats
 
 def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
     """

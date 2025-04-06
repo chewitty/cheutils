@@ -3,6 +3,7 @@ import importlib
 from cheutils.properties_util import AppProperties
 from cheutils.loggers import LoguruWrapper
 from cheutils.ml.model_properties_handler import ModelProperties
+from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -22,7 +23,7 @@ def get_estimator(**model_params):
     if 'params_grid_key' in cur_model_params:
         params_grid_key = cur_model_params.get('params_grid_key')
         del cur_model_params['params_grid_key']
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     model_info = __model_handler.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('package')), model_info.get('name'))
@@ -57,7 +58,7 @@ def get_hyperopt_estimator(model_option, **model_params):
     :return: estimator instance
     :rtype:
     """
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     model_info = __model_handler.get_models_supported().get(model_option)
     assert model_info is not None, 'Model info must be specified'
     model_class = getattr(importlib.import_module(model_info.get('package')), model_info.get('name'))
@@ -90,7 +91,7 @@ def get_params_pounds(model_option: str, prefix: str=None):
     :return: dictionary of hyperparameters bounding values
     :rtype: dict
     """
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     return __model_handler.get_params_grid(model_option=model_option, is_range=True)
 
 def parse_grid_types(from_grid: dict, model_option: str=None, prefix: str=None):
@@ -107,7 +108,7 @@ def parse_grid_types(from_grid: dict, model_option: str=None, prefix: str=None):
     """
     assert from_grid is not None, 'A valid parameter grid must be provided'
     params_grid = {}
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     params_grid_dict = __model_handler.get_params_grid(model_option=model_option)
     param_keys = from_grid.keys()
     for param_key in param_keys:
@@ -162,7 +163,7 @@ def get_param_defaults(param_key: str, model_option: str, prefix: str=None):
 
 def __get_estimator_params(model_option, prefix: str=None):
     params_grid = {}
-    __model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
+    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
     params_grid_dict = __model_handler.get_params_grid(model_option=model_option)
     param_keys = params_grid_dict.keys()
     for param_key in param_keys:

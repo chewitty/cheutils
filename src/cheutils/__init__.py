@@ -19,7 +19,7 @@ from .ml import (get_estimator, exclude_nulls,
                  get_narrow_param_grid, HyperoptSearch, HyperoptSearchCV, ModelProperties,
                  promising_params_grid, params_optimization, plot_no_skill_line,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
-                 print_classification_report, recreate_labels, rmsle)
+                 print_classification_report, recreate_labels, rmsle, promising_interactions)
 from .interceptor import PipelineInterceptor, NumericDataInterceptor, SelectedFeaturesInterceptor, DataPipelineInterceptor
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .data_prep import (feature_selection_transformer, DateFeaturesTransformer, FeatureGenTransformer,
@@ -27,7 +27,8 @@ from .data_prep import (feature_selection_transformer, DateFeaturesTransformer, 
                         DataPrepTransformer, SelectiveFunctionTransformer, DataPrepProperties, ExtremeStateFeatureAugmenter,
                         BinarizerColumnTransformer, TSFeatureAugmenter, TSLagFeatureAugmenter, TrendFeatureAugmenter,
                         TSRollingLagFeatureAugmenter, ClipOutliersTransformer, PeriodicFeatureAugmenter, )
-from .sqlite_util import save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db
+from .sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db,
+                          get_narrow_grid_from_sqlite_db, save_promising_interactions_to_sqlite_db, get_promising_interactions_from_sqlite_db)
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 from .target_encoder import mean_target_encoding, train_mean_target_encoding, test_mean_target_encoding
