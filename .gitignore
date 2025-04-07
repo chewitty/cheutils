@@ -5,3 +5,6 @@
 /build and installing custom packages_orig.txt
 /build and installing custom packages.txt
 /src/cheutils/interceptor/__pycache__
+/src/cheutils/basic/__pycache__
+/src/cheutils/feature_generation/__pycache__
+/src/cheutils/timeseries/__pycache__

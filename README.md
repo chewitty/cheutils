@@ -10,9 +10,9 @@ A package with a set of basic reusable utilities and tools to facilitate quickly
 - Convenience methods to support common programming tasks, such as renaming or tagging file names- e.g., `label(file_name, label='some_label')`) or tagging and date-stamping files (e.g., `datestamp(file_name, fmt='%Y-%m-%d')`).
 - A debug or logging, timer, and singleton decorators - for enabling logging and method timing, as well as creating singleton instances.
 - Convenience methods available via the `DSWrapper` for managing datasource configuration or properties files - e.g. `ds-config.properties` - offering a set of generic datasource access methods such as `apply_to_datasource()` to persist data to any configured datasource or `read_from_datasource()` to read data from any configured datasources.
-- A set of custom `scikit-learn` transformers for preprocessing data such as `DataPrepTransformer` which can be added to a data pipeline for pre-process dataset - e.g., handling date conversions, type casting of columns, clipping data, generating special features from rows of text strings, generating calculated features, masking columns, dropping correlated or potential data leakage columns, and generating target variables from other features as needed (separet from target encoding). A `GeospatialTransformer` for generating geohash features from latitude and longitudes; a `SelectiveFunctionTransformer` and `SelectiveColumnTransformer` for selectively transforming dataframe columns; a `DateFeaturesTransformer` for generating date-related features for feature engineering, and `FeatureSelectionTransformer` for feature selection using configured estimators such as `Lasso` or `LinearRegression`
+- A set of custom `scikit-learn` transformers for preprocessing data such as `DataPrep` which can be added to a data pipeline for pre-process dataset - e.g., handling date conversions, type casting of columns, clipping data, generating special features from rows of text strings, generating calculated features, masking columns, dropping correlated or potential data leakage columns, and generating target variables from other features as needed (separet from target encoding). A `GeohashAugmenter` for generating geohash features from latitude and longitudes; a `ApplySelectiveFunction` and `TransformSelectiveColumns` for selectively transforming dataframe columns; a `DateFeaturesAugmenter` for generating date-related features for feature engineering, and `FeatureSelector` for feature selection using configured estimators such as `Lasso` or `LinearRegression`
 - A set of generic or common utilities for summarizing dataframes and others - e.g., using `summarize()` or to winsorize using `winsorize_it()`
-- A set of convenience properties handlers to accessing generic configured properties relating to the project tree, data preparation, or model development and execution such as `ProjectTreeProperties`, `DataPrepProperties`, and `ModelProperties`. These handlers offer a convenient feature for reloading properties as needed, thereby refreshing properties without having to re-start the running VM (really only useful in development). However you may access any configured properties in the usual way via the `AppProperties` object.
+- A set of convenience properties handlers to accessing generic configured properties relating to the project tree, data preparation, or model development and execution such as `ProjectTreeProperties`, `DataPropertiesHandler`, and `ModelProperties`. These handlers offer a convenient feature for reloading properties as needed, thereby refreshing properties without having to re-start the running VM (really only useful in development). However you may access any configured properties in the usual way via the `AppProperties` object.
 
 ## Usage
 You can install this module as follows:
@@ -35,7 +35,7 @@ project.data.dir=./data/
 project.output.dir=./output/
 # properties handlers
 project.properties.prop_handler={'name': 'ProjectTreeProperties', 'package': 'cheutils', }
-project.properties.data_handler={'name': 'DataPrepProperties', 'package': 'cheutils', }
+project.properties.data_handler={'name': 'DataPropertiesHandler', 'package': 'cheutils', }
 project.properties.model_handler={'name': 'ModelProperties', 'package': 'cheutils', }
 # SQLite DB - used for selected caching for efficiency
 project.sqlite3.db=proj_sqlite.db
@@ -178,37 +178,40 @@ data_df = ds.read_from_datasource(ds_config=ds_params, chunksize=5000)
 The `cheutils` module comes with custom transformers for some preprocessing - e.g., some basic data cleaning and formatting, handling date conversions, type casting of columns, clipping data, generating special features, calculating new features, masking columns, dropping correlated and potential leakage columns, and generating target variables if needed. 
 
 You can add a data preprocessing transformer to your pipeline as follows:
+
 ```python
-from cheutils import DataPrepTransformer
+from cheutils import DataPrep
+
 date_cols = ['rental_date']
 int_cols = ['release_year', 'length', 'NC-17', 'PG', 'PG-13', 'R',
             'trailers', 'deleted_scenes', 'behind_scenes', 'commentaries', 'extra_fees']
 correlated_cols = ['rental_rate_2', 'length_2', 'amount_2']
-drop_missing = True # drop rows with missing data
-clip_data = None # no data clipping; but you could clip outliers based on category aggregates with something like clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'cat_col', }
-exp_tf = DataPrepTransformer(date_cols=date_cols, 
-                             int_cols=int_cols, 
-                             drop_missing=drop_missing, 
-                             clip_data=clip_data,
-                             correlated_cols=correlated_cols,)
-data_prep_pipeline_steps = [('data_prep_step', exp_tf)] # this can be added to a model pipeline
+drop_missing = True  # drop rows with missing data
+clip_data = None  # no data clipping; but you could clip outliers based on category aggregates with something like clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'cat_col', }
+exp_tf = DataPrep(date_cols=date_cols,
+                  int_cols=int_cols,
+                  drop_missing=drop_missing,
+                  clip_data=clip_data,
+                  correlated_cols=correlated_cols, )
+data_prep_pipeline_steps = [('data_prep_step', exp_tf)]  # this can be added to a model pipeline
 ```
 You can also include feature selection by adding the following to the pipeline:
+
 ```python
-from cheutils import FeatureSelectionTransformer, get_estimator, AppProperties, ModelProperties, SelectiveColumnTransformer
+from cheutils import feature_selector, get_estimator, AppProperties, ModelProperties, TransformSelectiveColumns
 
 standard_pipeline_steps = ['some previously defined pipeline steps']
 model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
-feat_sel_tf = FeatureSelectionTransformer(estimator=get_estimator(model_option='xgboost'),
-                                          random_state=model_handler.get_random_seed())
+feat_sel_tf = feature_selector(estimator=get_estimator(model_option='xgboost'),
+                              random_state=model_handler.get_random_seed())
 # add feature selection to pipeline
 standard_pipeline_steps.append(('feat_selection_step', feat_sel_tf))
 # You can also add a configured selective column transforme.
 # e.g., if you already have configured a list of column transformers in the `app-config.properties` such as in the sample properties file above,
-# you can add it to the pipeline as below. The `SelectiveColumnTransformer` uses the configured property to determine 
+# you can add it to the pipeline as below. The `TransformSelectiveColumns` uses the configured property to determine 
 # the transformer(s), and the corresponding columns affected, to add to the pipeline. 
 # Each configured transformer only applies any transformations to the specified columns and others are simply passed through.
-scaler_tf = SelectiveColumnTransformer()
+scaler_tf = TransformSelectiveColumns()
 standard_pipeline_steps.append(('scale_feats_step', scaler_tf))
 ```
 Ultimately, you may create a model pipeline and execute using steps similar to the following:

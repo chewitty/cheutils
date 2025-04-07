@@ -15,14 +15,14 @@ from cheutils.common_utils import safe_copy
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
 from cheutils.ml.bayesian_search import HyperoptSearch, HyperoptSearchCV
-from cheutils.ml.model_options import get_params_grid, get_params_pounds
+from cheutils.ml.model_support import get_params_grid, get_params_pounds
 from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
 from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
                                   save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db,
                                   save_promising_interactions_to_sqlite_db, get_promising_interactions_from_sqlite_db)
 from cheutils.properties_util import AppProperties
-from cheutils.ml.model_properties_handler import ModelProperties
+from cheutils.ml.model_properties import ModelProperties
 from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()

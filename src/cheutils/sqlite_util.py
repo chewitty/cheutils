@@ -6,8 +6,8 @@ from cheutils.properties_util import AppProperties
 from cheutils.project_tree import get_data_dir
 from cheutils.exceptions import SQLiteUtilException
 from cheutils.loggers import LoguruWrapper
-from cheutils.data_prep import DataPrepProperties
-from cheutils.ml.model_options import parse_grid_types
+from cheutils.data_properties import DataPropertiesHandler
+from cheutils.ml.model_support import parse_grid_types
 from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
@@ -35,7 +35,7 @@ def save_param_grid_to_sqlite_db(param_grid: dict, tb_name: str='promising_grids
     assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
     conn = None
     cursor = None
-    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     underlying_tb_name = tb_name + '_' + str(grid_size)
     try:
@@ -95,7 +95,7 @@ def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolutio
     assert grid_size > 0, 'A valid grid size (>0) - i.e., len(param_grid) expected'
     conn = None
     cursor = None
-    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     try:
         # Connect to the SQLite database (or create it if it doesn't exist)
@@ -153,7 +153,7 @@ def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key
     assert cache_key is not None and len(cache_key) > 0, 'Unique lookup key must be provided'
     conn = None
     cursor = None
-    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     underlying_tb_name = tb_name + '_narrow_grids'
     try:
@@ -211,7 +211,7 @@ def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model
     assert cache_key is not None and len(cache_key) > 0, 'Unique lookup key must be provided'
     conn = None
     cursor = None
-    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     try:
         # Connect to the SQLite database (or create it if it doesn't exist)
@@ -263,7 +263,7 @@ def save_promising_interactions_to_sqlite_db(promising_interactions: list, tb_na
     assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
     conn = None
     cursor = None
-    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     underlying_tb_name = tb_name
     try:
@@ -310,7 +310,7 @@ def get_promising_interactions_from_sqlite_db(tb_name: str='promising_interactio
     assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
     conn = None
     cursor = None
-    __data_handler: DataPrepProperties = cast(DataPrepProperties, AppProperties().get_subscriber('data_handler'))
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
     try:
         # Connect to the SQLite database (or create it if it doesn't exist)

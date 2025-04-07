@@ -1,7 +1,7 @@
 import math
 import time
 import datetime as dt
-import sys, os
+import os
 import dask.dataframe as dd
 import pandas as pd
 import pyodbc
@@ -14,12 +14,11 @@ import sqlalchemy as sa
 from typing import Union
 from dask.delayed import delayed
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
 from sqlalchemy.engine import URL
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.sql import text
 from sqlalchemy.event import listens_for
-from cheutils.data_prep import DataPrepProperties
+from cheutils.data_properties import DataPropertiesHandler
 from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import datestamp, safe_copy
 from cheutils.decorator_debug import debug_func
@@ -1096,7 +1095,7 @@ class DSWrapper(object):
         """
         # log message on completion
         LOGGER.debug('Preparing DSWrapper ...')
-        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        __data_handler: DataPropertiesHandler = AppProperties().get_subscriber('data_handler')
         DSWrapper.ds_props__ = __data_handler.get_ds_props(ds_key='ds_main', ds_config_file_name=DEFAULT_DS_CONFIG)
         assert DSWrapper.ds_props__ is not None, 'Failure with processing datasource config file (ds-config.properties'
         def get_ds_properties(prop_key=None):
@@ -1202,7 +1201,7 @@ class DSWrapper(object):
             msg = 'An appropriate DB table name must be specified'
             LOGGER.debug(msg)
             raise DSWrapperException(msg)
-        __data_handler: DataPrepProperties = AppProperties().get_subscriber('data_handler')
+        __data_handler: DataPropertiesHandler = AppProperties().get_subscriber('data_handler')
         replace = __data_handler.get_replace_tb(ds_namespace=ds_namespace, tb_name=db_table)
         delete_subset = __data_handler.get_properties(ds_namespace=ds_namespace, tb_name=db_table)
         db_tool = self.get_db_tool(ds_key=ds_key)

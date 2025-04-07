@@ -9,7 +9,7 @@ from hpsklearn import HyperoptEstimator
 from sklearn.base import is_classifier, is_regressor
 
 from cheutils.common_base import CheutilsBase
-from cheutils.ml.model_options import get_hyperopt_estimator, get_estimator
+from cheutils.ml.model_support import get_hyperopt_estimator, get_estimator
 from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()

@@ -3,7 +3,7 @@ from hyperopt.pyll.stochastic import sample
 from hyperopt import hp
 from hyperopt.pyll import scope
 from cheutils.loggers import LoguruWrapper
-from cheutils.ml.model_options import get_estimator, get_params_grid
+from cheutils.ml.model_support import get_estimator, get_params_grid
 from cheutils.properties_util import AppProperties
 
 LOGGER = LoguruWrapper().get_logger()

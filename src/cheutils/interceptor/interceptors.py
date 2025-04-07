@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, TransformerMixin
 from cheutils.loggers import LoguruWrapper
 from cheutils.interceptor.pipelineInterceptor import PipelineInterceptor
-from cheutils.interceptor.numeric_data_interceptor import NumericDataInterceptor
+from cheutils.interceptor.numeric_data import NumericDataInterceptor
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -38,10 +38,20 @@ class DataPipelineInterceptor(BaseEstimator, TransformerMixin):
         LOGGER.debug('DataPipelineInterceptor: Fit-transformed dataset, shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
 
-    def __do_transform(self, X, y=None, **fit_params):
-        # apply the data pipeline interceptors in order, with the numeric interceptor as last step as needed
+    def __do_transform(self, X, y=None, **fit_params) -> (pd.DataFrame, pd.Series):
+        """
+        Apply the data pipeline interceptors in order, with the numeric interceptor as last step as needed.
+        :param X: dataframe with data to transform
+        :type X:
+        :param y: series with target values - in most cases, these target values are untouched
+        :type y:
+        :param fit_params: any additional special parameters that may be required by the specific interceptor processing
+        :type fit_params:
+        :return: the transformed X and y (which may be untouched)
+        :rtype: (pd.DataFrame, pd.Series)
+        """
         new_X = X
         new_y = y
         for interceptor in self.interceptors:
-            new_X, new_y = interceptor.apply(new_X, new_y)
+            new_X, new_y = interceptor.apply(new_X, new_y, **fit_params)
         return new_X, new_y

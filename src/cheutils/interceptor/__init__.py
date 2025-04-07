@@ -1,4 +1,5 @@
 from cheutils.interceptor.pipelineInterceptor import PipelineInterceptor
-from cheutils.interceptor.numeric_data_interceptor import NumericDataInterceptor
-from cheutils.interceptor.selected_features import SelectedFeaturesInterceptor
+from cheutils.interceptor.numeric_data import NumericDataInterceptor
+from cheutils.interceptor.feature_selection import FeatureSelectionInterceptor
+from cheutils.interceptor.feature_selection import feature_selector
 from cheutils.interceptor.interceptors import DataPipelineInterceptor

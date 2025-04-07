@@ -71,10 +71,10 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
     return dataset_df
 
 
-def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False, **kwargs):
+def save_excel(df: [pd.DataFrame, pd.Series], file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False, **kwargs):
     """
-    Save the specified dataframe to Excel.
-    :param df: the dataframe to be saved
+    Save the specified dataframe or series to Excel.
+    :param df: the dataframe or series to be saved
     :param file_name: the file name to be saved, which is expected to be saved in the data folder in the project root directory
     :param index: to include the index column or not
     :param tag_label: the label to be added to the file name - e.g., test-<tag_label>.xlsx
@@ -91,10 +91,10 @@ def save_excel(df: pd.DataFrame, file_name: str, index: bool = False, tag_label:
 
     df.to_excel(target_file, index=index, **kwargs)
 
-def save_csv(df: pd.DataFrame, file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False, **kwargs):
+def save_csv(df: [pd.DataFrame, pd.Series], file_name: str, index: bool = False, tag_label: str=None, date_stamped: bool = False, **kwargs):
     """
-    Save the specified dataframe to Excel.
-    :param df: the dataframe to be saved
+    Save the specified dataframe or series to Excel.
+    :param df: the dataframe or series to be saved
     :param file_name: the file name to be saved, which is expected to be saved in the data folder in the project root directory
     :param index: to include the index column or not
     :param tag_label: the label to be added to the file name - e.g., test-<tag_label>.csv
