@@ -112,7 +112,24 @@ class ModelProperties(AppPropertiesHandler):
 
     def _load_cross_val_num_folds(self):
         key = 'model.cross_val.num_folds'
-        self.__model_properties['cross_val_num_folds'] = int(self.__app_props.get(key))
+        key_st = 'model.cross_val.strategy'
+        cv_strategy = self.__app_props.get_dict_properties(key_st)
+        if cv_strategy is not None:
+            cv_package = cv_strategy.get('package')
+            cv_fn = cv_strategy.get('func')
+            cv_params = cv_strategy.get('params')
+            splitter_params = {} if cv_params is None or (not cv_params) else cv_params
+            splitter_class = getattr(importlib.import_module(cv_package), cv_fn)
+            splitter_obj = None
+            try:
+                splitting_obj = splitter_class(**splitter_params)
+                self.__model_properties['cross_val_num_folds'] = splitting_obj
+            except TypeError as err:
+                LOGGER.error('Problem encountered instantiating cv strategy: {}, {}', cv_fn, err)
+                # default to the usual
+                self.__model_properties['cross_val_num_folds'] = int(self.__app_props.get(key))
+        else:
+            self.__model_properties['cross_val_num_folds'] = int(self.__app_props.get(key))
 
     def _load_random_seed(self):
         key = 'model.active.random_seed'

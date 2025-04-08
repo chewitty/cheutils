@@ -161,7 +161,7 @@ def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key
         for key, value in param_grid.items():
             if (model_prefix is not None) and not (not model_prefix):
                 key = key.split('__')[1] if model_prefix in key else key
-            data_grid[key] = str(value)
+            data_grid[key] = str(value.tolist())
         data_df = pd.DataFrame(data_grid, index=[0])
         # Connect to the SQLite database (or create it if it doesn't exist)
         conn = sqlite3.connect(sqlite_db)

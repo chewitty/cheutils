@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: cheutils
-Version: 2.8.1
+Version: 2.8.2
 Summary: A set of basic reusable utilities and tools to facilitate quickly getting up and going on any machine learning project.
 Author-email: Ferdinand Che <ferdinand.che@gmail.com>
 Maintainer-email: Ferdinand Che <ferdinand.che@gmail.com>
@@ -247,11 +247,11 @@ data_prep_pipeline_steps = [('data_prep_step', exp_tf)]  # this can be added to 
 You can also include feature selection by adding the following to the pipeline:
 
 ```python
-from cheutils import FeatureSelector, get_estimator, AppProperties, ModelProperties, TransformSelectiveColumns
+from cheutils import feature_selector, get_estimator, AppProperties, ModelProperties, TransformSelectiveColumns
 
 standard_pipeline_steps = ['some previously defined pipeline steps']
 model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
-feat_sel_tf = FeatureSelector(estimator=get_estimator(model_option='xgboost'),
+feat_sel_tf = feature_selector(estimator=get_estimator(model_option='xgboost'),
                               random_state=model_handler.get_random_seed())
 # add feature selection to pipeline
 standard_pipeline_steps.append(('feat_selection_step', feat_sel_tf))

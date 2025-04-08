@@ -7,10 +7,11 @@ from sklearn.metrics import mean_squared_error, roc_auc_score
 from sklearn.model_selection import cross_val_score
 from hpsklearn import HyperoptEstimator
 from sklearn.base import is_classifier, is_regressor
-
+from sklearn.pipeline import Pipeline
 from cheutils.common_base import CheutilsBase
 from cheutils.ml.model_support import get_hyperopt_estimator, get_estimator
 from cheutils.loggers import LoguruWrapper
+from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
 
@@ -140,12 +141,13 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
         LOGGER.debug('\nRunning trial ID = {}', self.trial_run)
         LOGGER.debug('Current hyperparams:\n{}', params)
         underlying_model = clone(self.estimator)
+        underlying_model = cast(Pipeline, underlying_model)
         underlying_model.set_params(**params)
         def evaluate_obj():
             min_score = self.best_score_
             if self.cv is not None:
                 cv_score = cross_val_score(underlying_model, self.X, self.y, scoring=self.scoring_,
-                                           cv=self.cv, n_jobs=self.n_jobs)
+                                           cv=self.cv, n_jobs=self.n_jobs, error_score='raise')
                 min_score = -np.nanmean(cv_score) if is_classifier(underlying_model) else abs(np.nanmean(cv_score))
                 LOGGER.debug('Current cv loss = {}', min_score)
                 # refit the model for mlflow registering and logging

@@ -26,7 +26,7 @@ from .ml import (get_estimator, exclude_nulls,
                  get_narrow_param_grid, HyperoptSearch, HyperoptSearchCV, ModelProperties,
                  promising_params_grid, params_optimization, plot_no_skill_line,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
-                 print_classification_report, recreate_labels, rmsle, promising_interactions)
+                 print_classification_report, recreate_labels, rmsle, nan_rmsle, promising_interactions)
 from .interceptor import (PipelineInterceptor, NumericDataInterceptor, DataPipelineInterceptor,
                           FeatureSelectionInterceptor, feature_selector)
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper

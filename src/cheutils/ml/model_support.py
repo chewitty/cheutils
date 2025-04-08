@@ -1,5 +1,6 @@
 import numpy as np
 import importlib
+import re
 from cheutils.properties_util import AppProperties
 from cheutils.loggers import LoguruWrapper
 from cheutils.ml.model_properties import ModelProperties
@@ -114,28 +115,30 @@ def parse_grid_types(from_grid: dict, model_option: str=None, prefix: str=None):
     for param_key in param_keys:
         conf_param_key = param_key.split('__')[1] if '__' in param_key else param_key
         param = params_grid_dict.get(conf_param_key)
+        param_val = from_grid.get(param_key)
+        param_val = eval(re.sub(r'\s+', ' ', param_val)) if isinstance(param_val, str) else param_val
         if param is not None:
             param_type = param.get('type')
             if param_type == int:
                 if prefix is None:
-                    params_grid[param_key] = int(from_grid.get(param_key))
+                    params_grid[param_key] = param_val if isinstance(param_val, list) else int(param_val)
                 else:
-                    params_grid[prefix + '__' + conf_param_key] = int(from_grid.get(param_key))
+                    params_grid[prefix + '__' + conf_param_key] = param_val if isinstance(param_val, list) else int(param_val)
             elif param_type == float:
                 if prefix is None:
-                    params_grid[param_key] = float(from_grid.get(param_key))
+                    params_grid[param_key] = param_val if isinstance(param_val, list) else float(param_val)
                 else:
-                    params_grid[prefix + '__' + conf_param_key] = float(from_grid.get(param_key))
+                    params_grid[prefix + '__' + conf_param_key] = param_val if isinstance(param_val, list) else float(param_val)
             elif param_type == bool:
                 if prefix is None:
-                    params_grid[param_key] = bool(from_grid.get(param_key))
+                    params_grid[param_key] = param_val if isinstance(param_val, list) else bool(param_val)
                 else:
-                    params_grid[prefix + '__' + conf_param_key] = bool(from_grid.get(param_key))
+                    params_grid[prefix + '__' + conf_param_key] = param_val if isinstance(param_val, list) else bool(param_val)
             else:
                 if prefix is None:
-                    params_grid[param_key] = from_grid.get(param_key)
+                    params_grid[param_key] = param_val
                 else:
-                    params_grid[prefix + '__' + conf_param_key] = from_grid.get(param_key)
+                    params_grid[prefix + '__' + conf_param_key] = param_val
     if params_grid is None:
         params_grid = {}
     return params_grid

@@ -121,7 +121,8 @@ def promising_params_grid(pipeline: Pipeline, X, y, grid_resolution: int=None, p
     return best_params
 
 @track_duration(name='params_optimization')
-def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, with_narrower_grid: bool = False,
+def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict,
+                        with_narrower_grid: bool = False,
                         fine_search: str = 'hyperoptcv', scaling_factor: float = 0.20, grid_resolution: int=None,
                         prefix: str = None, cv: int=None, random_state: int=None, mlflow_exp: dict= None, **kwargs):
     """
@@ -141,7 +142,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     :type scaling_factor:
     :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: model prefix - the default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
-    :param cv: cross-validation
+    :param cv: cross-validation strategy or number of folds; if unspecified attempts to used any configured strategy or number of folds
     :param random_state: random seed for reproducibility
     :param mlflow_exp: dict such as {'log': False, 'uri': None} indicating if this is part of a Mlflow experiment in which logging should be enabled - BUT only valid for "hyperoptcv"
     :param kwargs:
@@ -151,6 +152,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
     """
     assert pipeline is not None, "A valid pipeline instance expected"
     __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
+    cv_strategy = cv if cv is not None else __model_handler.get_cross_val_num_folds()
     if mlflow_exp is not None:
         if mlflow_exp.get('log') is True:
             LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
@@ -199,7 +201,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                fine_search=fine_search,
                                                                random_state=random_state),
                                    model_option=__model_handler.get_model_option(), max_evals=__model_handler.get_n_trials(),
-                                   algo=__get_hyperopt_algos(), cv=__model_handler.get_cross_val_num_folds(),
+                                   algo=__get_hyperopt_algos(), cv=cv_strategy,
                                    trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
     elif "hyperoptcv" == fine_search:
         search_cv = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(narrow_param_grid,
@@ -207,16 +209,17 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict, w
                                                                                      params_bounds=params_bounds,
                                                                                      fine_search=fine_search,
                                                                                      random_state=random_state),
-                                     cv=cv, scoring=__model_handler.get_cross_val_scoring(), algo=__get_hyperopt_algos(),
+                                     cv=cv_strategy, scoring=__model_handler.get_cross_val_scoring(), algo=__get_hyperopt_algos(),
                                      max_evals=__model_handler.get_n_trials(), n_jobs=__model_handler.get_n_jobs(), mlflow_exp=mlflow_exp,
-                                     trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
+                                     trial_timeout=__model_handler.get_trial_timeout(), model_prefix=prefix, random_state=random_state)
     elif 'skoptimize' == fine_search:
         search_cv = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(narrow_param_grid,
                                                                                    num_params=num_params,
                                                                                    params_bounds=params_bounds,
                                                                                    fine_search=fine_search,
                                                                                    random_state=random_state),
-                                  scoring=__model_handler.get_cross_val_scoring(), cv=cv, n_iter=5, n_jobs=__model_handler.get_n_jobs(),
+                                  scoring=__model_handler.get_cross_val_scoring(), cv=cv_strategy, n_iter=__model_handler.get_n_iters(),
+                                  n_jobs=__model_handler.get_n_jobs(),
                                   random_state=random_state, verbose=10, )
     else:
         LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
@@ -362,7 +365,8 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
         else:
             param_grid[param] = [value]
     #NARROW_PARAM_GRIDS[params_cache_key] = param_grid
-    save_narrow_grid_to_sqlite_db(param_grid, tb_name=__model_handler.get_model_option(), cache_key=params_cache_key, )
+    save_narrow_grid_to_sqlite_db(param_grid, tb_name=__model_handler.get_model_option(), cache_key=params_cache_key,
+                                  model_prefix=model_prefix)
     LOGGER.debug('Narrower hyperparameters = \n{}', param_grid)
     return param_grid
 
@@ -421,7 +425,7 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
             train[n] = train[c1] * train[c2]
             cv_score = cross_val_score(pipeline, train, y, scoring=__model_handler.get_cross_val_scoring(),
                                        cv=__model_handler.get_cross_val_num_folds(),
-                                       n_jobs=__model_handler.get_n_jobs())
+                                       n_jobs=__model_handler.get_n_jobs(), error_score='raise')
             min_score = -np.nanmean(cv_score) if is_classifier(pipeline) else abs(np.nanmean(cv_score))
             LOGGER.debug('Mean score = {}\n', min_score)
             if min_score < baseline_score:
