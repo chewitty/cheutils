@@ -10,8 +10,8 @@ dist/cheutils-2.7.41-py3-none-any.whl	f	2025-03-26T12:44:14Z
 dist/cheutils-2.7.41.tar.gz	f	2025-03-26T12:43:51Z
 dist/cheutils-2.8.1-py3-none-any.whl	f	2025-04-07T10:50:08Z
 dist/cheutils-2.8.1.tar.gz	f	2025-04-07T10:49:32Z
-dist/cheutils-2.8.2-py3-none-any.whl	f	2025-04-08T10:14:43Z
-dist/cheutils-2.8.2.tar.gz	f	2025-04-08T10:13:57Z
+dist/cheutils-2.8.2-py3-none-any.whl	f	2025-04-09T23:18:10Z
+dist/cheutils-2.8.2.tar.gz	f	2025-04-09T23:17:40Z
 pyproject.toml	f	2025-04-07T13:47:03Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2025-04-07T10:36:47Z
@@ -35,7 +35,7 @@ src/cheutils/ds-config.properties	f	2024-12-03T13:58:01Z
 src/cheutils/exceptions.py	f	2024-12-05T17:05:27Z
 src/cheutils/feature_generation	d	2025-04-07T10:39:11Z
 src/cheutils/feature_generation/__init__.py	f	2025-04-07T09:31:01Z
-src/cheutils/feature_generation/cos_sine_features.py	f	2025-04-07T09:22:07Z
+src/cheutils/feature_generation/cos_sine_features.py	f	2025-04-09T23:17:12Z
 src/cheutils/feature_generation/date_features.py	f	2025-04-07T08:58:07Z
 src/cheutils/feature_generation/extreme_states.py	f	2025-04-07T09:31:26Z
 src/cheutils/feature_generation/feature_trends.py	f	2025-04-07T09:27:11Z

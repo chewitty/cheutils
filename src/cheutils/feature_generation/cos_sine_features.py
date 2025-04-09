@@ -46,11 +46,11 @@ class PeriodicFeaturesAugmenter(BaseEstimator, TransformerMixin):
 
     def __sine_transformers(self):
         for rel_col, period in zip(self.rel_cols, self.periods):
-            self.sine_transformers[rel_col] = FunctionTransformer(lambda x: np.sin(x / period * 2 * np.pi))
+            self.sine_transformers[rel_col] = FunctionTransformer(func=lambda x: np.sin(x / float(period) * 2 * np.pi), )
 
     def __cosine_transformers(self):
         for rel_col, period in zip(self.rel_cols, self.periods):
-            self.cosine_transformers[rel_col] = FunctionTransformer(lambda x: np.cos(x / period * 2 * np.pi))
+            self.cosine_transformers[rel_col] = FunctionTransformer(func=lambda x: np.cos(x / float(period) * 2 * np.pi), )
 
     def __do_transform(self, X, y=None, **fit_params):
         if not self.fitted:
@@ -59,9 +59,11 @@ class PeriodicFeaturesAugmenter(BaseEstimator, TransformerMixin):
         new_X = X
         for rel_col in self.rel_cols:
             sine_tf = self.sine_transformers.get(rel_col)
+            input = new_X[[rel_col]]
+            input.loc[:, rel_col] = input[rel_col].astype(float)
             if sine_tf is not None:
-                new_X.loc[:, rel_col + '_sin'] = sine_tf.fit_transform(new_X[[rel_col]])[rel_col]
+                new_X.loc[:, rel_col + '_sin'] = sine_tf.fit_transform(input)[rel_col]
             cose_tf = self.cosine_transformers.get(rel_col)
             if cose_tf is not None:
-                new_X.loc[:, rel_col + '_cos'] = cose_tf.fit_transform(new_X[[rel_col]])[rel_col]
+                new_X.loc[:, rel_col + '_cos'] = cose_tf.fit_transform(input)[rel_col]
         return new_X
