@@ -65,12 +65,16 @@ class DateFeaturesAugmenter(BaseEstimator, TransformerMixin):
             new_X[prefix + 'wk'] = new_X[prefix + 'wk'].astype(int)
             new_X.loc[:, prefix + 'month'] = new_X[rel_col].dt.month
             new_X[prefix + 'month'] = new_X[prefix + 'month'].astype(int)
+            new_X.loc[:, prefix + 'year'] = new_X[rel_col].dt.year
+            new_X[prefix + 'year'] = new_X[prefix + 'year'].astype(int)
             new_X.loc[:, prefix + 'qtr'] = new_X[rel_col].dt.quarter
             new_X[prefix + 'qtr'] = new_X[prefix + 'qtr'].astype(int)
             new_X.loc[:, prefix + 'wkend'] = np.where(new_X[rel_col].dt.dayofweek.isin([5, 6]), 1, 0)
             new_X[prefix + 'wkend'] = new_X[prefix + 'wkend'].astype(int)
             new_X.loc[:, prefix + 'd15'] = np.where(new_X[rel_col].dt.dayofweek == 15, 1, 0)
             new_X[prefix + 'd15'] = new_X[prefix + 'd15'].astype(int)
+            new_X.loc[:, prefix + 'som'] = new_X[rel_col].dt.is_month_start
+            new_X[prefix + 'som'] = new_X[prefix + 'som'].astype(int)
             new_X.loc[:, prefix + 'eom'] = new_X[rel_col].dt.is_month_end
             new_X[prefix + 'eom'] = new_X[prefix + 'eom'].astype(int)
         if len(self.rel_cols) > 0:
