@@ -84,7 +84,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
                 object (which is the value), will be used instead of the default_fc_parameters. This means that kinds,
                 for which kind_of_fc_parameters doe not have any entries, will be ignored by the feature selection.
         :type kind_to_fc_parameters: dict
-        :param column_id: The column with the id. See :mod:`~tsfresh.feature_extraction.extraction`.
+        :param column_id: The name of the id column to group by. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_id: basestring
         :param column_sort: The column with the sort data. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_sort: basestring
@@ -276,7 +276,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
                 object (which is the value), will be used instead of the default_fc_parameters. This means that kinds,
                 for which kind_of_fc_parameters doe not have any entries, will be ignored by the feature selection.
         :type kind_to_fc_parameters: dict
-        :param column_id: The column with the id. See :mod:`~tsfresh.feature_extraction.extraction`.
+        :param column_id: The name of the id column to group by. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_id: basestring
         :param column_sort: The column with the sort data. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_sort: basestring
@@ -349,7 +349,8 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         freq = self.lag_features.get('freq')
         sort_by_cols = self.lag_features.get('sort_by_cols')
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
-        timeseries_container.set_index(self.column_ts_index, inplace=True)
+        timeseries_container['index'] = timeseries_container[self.column_ts_index]
+        timeseries_container.set_index('index', inplace=True)
         timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
         if timeseries_container is None:
             raise RuntimeError('You have to provide a time series container/dataframe before.')
@@ -443,7 +444,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type freq: str
         :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
         :type column_ts_index: basestring
-        :param filter_by: filter the data by this column label
+        :param filter_by: filter the data by this column label - the name of the id column to group by
         :type filter_by: basestring
         :param agg_func: The aggregation function to apply to each column
         :type agg_func: basestring

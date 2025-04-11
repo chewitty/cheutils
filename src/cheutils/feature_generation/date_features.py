@@ -78,13 +78,11 @@ class DateFeaturesAugmenter(BaseEstimator, TransformerMixin):
             new_X.loc[:, prefix + 'eom'] = new_X[rel_col].dt.is_month_end
             new_X[prefix + 'eom'] = new_X[prefix + 'eom'].astype(int)
         if len(self.rel_cols) > 0:
-            if self.drop_rel_cols is None or not self.drop_rel_cols:
-                new_X.drop(columns=self.rel_cols, inplace=True)
-            else:
-                to_drop_cols = []
-                for index, to_drop_col in enumerate(self.rel_cols):
-                    if self.drop_rel_cols[index]:
-                        to_drop_cols.append(to_drop_col)
+            to_drop_cols = []
+            for index, to_drop_col in enumerate(self.rel_cols):
+                if self.drop_rel_cols[index]:
+                    to_drop_cols.append(to_drop_col)
+            if not (not to_drop_cols):
                 new_X.drop(columns=to_drop_cols, inplace=True)
         return new_X
 

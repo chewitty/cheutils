@@ -400,7 +400,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
         # process columns with  strings to replace patterns
         if self.replace_patterns is not None:
             if len(self.replace_patterns) > 1:
-                result_out = Parallel(n_jobs=-1, backend='threading')(delayed(apply_replace_patterns)(new_X, replace_dict) for replace_dict in self.replace_patterns)
+                result_out = Parallel(n_jobs=-1)(delayed(apply_replace_patterns)(new_X, replace_dict) for replace_dict in self.replace_patterns)
                 for result in result_out:
                     new_X.loc[:, result[0]] = result[1]
                 # free up memory usage by joblib pool
@@ -553,7 +553,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
         if calc_features is not None:
             indices = X.index
             calc_feats = {}
-            results_out = Parallel(n_jobs=-1, backend='threading')(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in calc_features.items())
+            results_out = Parallel(n_jobs=-1)(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in calc_features.items())
             for result in results_out:
                 calc_feats[result[0]] = result[1]
                 is_numeric = calc_features.get(result[0]).get('is_numeric')
