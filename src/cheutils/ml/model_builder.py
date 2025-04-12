@@ -421,7 +421,7 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
     promising_feats = []
     for i, c1 in enumerate(candidate_feats):
         for j, c2 in enumerate(candidate_feats[i + 1:]):
-            n = f"{c1}_with_{c2}"
+            n = f'{c1}_with_{c2}'
             train[n] = train[c1] * train[c2]
             cv_score = cross_val_score(pipeline, train, y, scoring=__model_handler.get_cross_val_scoring(),
                                        cv=__model_handler.get_cross_val_num_folds(),
