@@ -3,3 +3,4 @@ from cheutils.feature_generation.geospatial_features import GeohashAugmenter
 from cheutils.feature_generation.cos_sine_features import PeriodicFeaturesAugmenter
 from cheutils.feature_generation.feature_trends import FeatureTrendsAugmenter
 from cheutils.feature_generation.extreme_states import ExtremeStateAugmenter
+from cheutils.feature_generation.pct_change_features import PctChangeInterceptor

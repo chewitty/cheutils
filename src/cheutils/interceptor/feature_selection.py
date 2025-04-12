@@ -15,7 +15,7 @@ def feature_selector(selector: str, estimator, passthrough: bool=False, ):
     """
     assert selector is not None, 'A valid configured feature selector option must be provided'
     __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
-    tf_base_class, tf_params = __data_handler.get_feat_sel_transformers(estimator).get(selector) # a tuple (trans_class, trans_params)
+    tf_base_class, tf_params = __data_handler.get_feat_selectors(estimator).get(selector) # a tuple (trans_class, trans_params)
     do_passthrough = passthrough | __data_handler.get_feat_sel_passthrough()
     override_sel = __data_handler.get_feat_sel_override()
     override_with_cols = __data_handler.get_feat_sel_selected()

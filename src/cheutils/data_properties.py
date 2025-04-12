@@ -51,11 +51,11 @@ class DataPropertiesHandler(AppPropertiesHandler):
     def _load_unspecified(self):
         raise PropertiesException('Attempting to load unspecified data property')
 
-    def _load_selective_column_transformers(self):
-        key = 'model.selective_column.transformers'
+    def _load_scalers(self):
+        key = 'model.feature.scalers'
         conf_pipelines = self.__app_props.get_list_properties(key)
         if (conf_pipelines is not None) and not (not conf_pipelines):
-            LOGGER.debug('Preparing configured column transformer pipelines: \n{}', conf_pipelines)
+            LOGGER.debug('Preparing configured feature scalers: \n{}', conf_pipelines)
             col_transformers = []
             for pipeline in conf_pipelines:
                 if pipeline is None:
@@ -80,10 +80,41 @@ class DataPropertiesHandler(AppPropertiesHandler):
                         LOGGER.error('Problem encountered instantiating transformer: {}, {}', tf_name, err)
                 col_pipeline: Pipeline = Pipeline(steps=pipeline_steps)
                 col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
-            self.__data_prep_properties['selective_column_transformers'] = col_transformers
+            self.__data_prep_properties['feature_scalers'] = col_transformers
 
-    def _load_binarizer_column_transformers(self):
-        key = 'model.binarizer_column.transformers'
+    def _load_encoders(self):
+        key = 'model.feature.encoders'
+        conf_pipelines = self.__app_props.get_list_properties(key)
+        if (conf_pipelines is not None) and not (not conf_pipelines):
+            LOGGER.debug('Preparing configured feature encoders: \n{}', conf_pipelines)
+            col_transformers = []
+            for pipeline in conf_pipelines:
+                if pipeline is None:
+                    break
+                pipe_name = pipeline.get('pipeline_name')
+                pipeline_tfs = pipeline.get('transformers') # list of transformers
+                pipeline_cols = pipeline.get('columns') # columns mapped to the pipeline
+                if pipeline_cols is None or (not pipeline_cols):
+                    continue
+                pipeline_steps = []
+                for item in pipeline_tfs:
+                    tf_name = item.get('name')
+                    tf_module = item.get('module')
+                    tf_package = item.get('package')
+                    tf_params = item.get('params')
+                    tf_params = {} if tf_params is None or (not tf_params) else tf_params
+                    tf_class = getattr(importlib.import_module(tf_package), tf_module)
+                    try:
+                        tf = tf_class(**tf_params)
+                        pipeline_steps.append((tf_name, tf))
+                    except TypeError as err:
+                        LOGGER.error('Problem encountered instantiating transformer: {}, {}', tf_name, err)
+                col_pipeline: Pipeline = Pipeline(steps=pipeline_steps)
+                col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
+            self.__data_prep_properties['feature_encoders'] = col_transformers
+
+    def _load_binarizers(self):
+        key = 'model.feature.binarizers'
         conf_pipelines = self.__app_props.get_list_properties(key)
         if (conf_pipelines is not None) and not (not conf_pipelines):
             LOGGER.debug('Preparing configured binarizer transformer pipelines: \n{}', conf_pipelines)
@@ -111,11 +142,11 @@ class DataPropertiesHandler(AppPropertiesHandler):
                         LOGGER.error('Problem encountered instantiating transformer: {}, {}', tf_name, err)
                 col_pipeline: Pipeline = Pipeline(steps=pipeline_steps)
                 col_transformers.append((pipe_name, col_pipeline, pipeline_cols))
-            self.__data_prep_properties['binarizer_column_transformers'] = col_transformers
+            self.__data_prep_properties['feature_binarizers'] = col_transformers
 
-    def _load_feat_sel_transformers(self, estimator):
+    def _load_feat_selectors(self, estimator):
         assert estimator is not None, 'A valid feature section estimator must be provided'
-        key = 'model.feat_selection.transformers'
+        key = 'model.feature.selectors'
         conf_transformers = self.__app_props.get_dict_properties(key)
         if (conf_transformers is not None) and not (not conf_transformers):
             LOGGER.debug('Preparing configured feature selection transformer options: \n{}', conf_transformers)
@@ -197,22 +228,28 @@ class DataPropertiesHandler(AppPropertiesHandler):
         prop_key = 'delete_table_' + ds_namespace + '_' + tb_name
         self.__data_prep_properties[prop_key] = self.__app_props.get_properties(key)
 
-    def get_selective_column_transformers(self):
-        value = self.__data_prep_properties.get('selective_column_transformers')
+    def get_scalers(self):
+        value = self.__data_prep_properties.get('feature_scalers')
         if value is None:
-            self._load_selective_column_transformers()
-        return self.__data_prep_properties.get('selective_column_transformers')
+            self._load_scalers()
+        return self.__data_prep_properties.get('feature_scalers')
 
-    def get_binarizer_column_transformers(self):
-        value = self.__data_prep_properties.get('binarizer_column_transformers')
+    def get_encoders(self):
+        value = self.__data_prep_properties.get('feature_encoders')
         if value is None:
-            self._load_binarizer_column_transformers()
-        return self.__data_prep_properties.get('binarizer_column_transformers')
+            self._load_encoders()
+        return self.__data_prep_properties.get('feature_encoders')
 
-    def get_feat_sel_transformers(self, estimator):
+    def get_binarizers(self):
+        value = self.__data_prep_properties.get('feature_binarizers')
+        if value is None:
+            self._load_binarizers()
+        return self.__data_prep_properties.get('feature_binarizers')
+
+    def get_feat_selectors(self, estimator):
         value = self.__data_prep_properties.get('feat_sel_transformers')
         if value is None:
-            self._load_feat_sel_transformers(estimator)
+            self._load_feat_selectors(estimator)
         return self.__data_prep_properties.get('feat_sel_transformers')
 
     def get_target_encoder(self):

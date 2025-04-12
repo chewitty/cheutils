@@ -59,7 +59,7 @@ A package with a set of basic reusable utilities and tools to facilitate quickly
 - Convenience methods to support common programming tasks, such as renaming or tagging file names- e.g., `label(file_name, label='some_label')`) or tagging and date-stamping files (e.g., `datestamp(file_name, fmt='%Y-%m-%d')`).
 - A debug or logging, timer, and singleton decorators - for enabling logging and method timing, as well as creating singleton instances.
 - Convenience methods available via the `DSWrapper` for managing datasource configuration or properties files - e.g. `ds-config.properties` - offering a set of generic datasource access methods such as `apply_to_datasource()` to persist data to any configured datasource or `read_from_datasource()` to read data from any configured datasources.
-- A set of custom `scikit-learn` transformers for preprocessing data such as `DataPrep` which can be added to a data pipeline for pre-process dataset - e.g., handling date conversions, type casting of columns, clipping data, generating special features from rows of text strings, generating calculated features, masking columns, dropping correlated or potential data leakage columns, and generating target variables from other features as needed (separet from target encoding). A `GeohashAugmenter` for generating geohash features from latitude and longitudes; a `ApplySelectiveFunction` and `TransformSelectiveColumns` for selectively transforming dataframe columns; a `DateFeaturesAugmenter` for generating date-related features for feature engineering, and `FeatureSelector` for feature selection using configured estimators such as `Lasso` or `LinearRegression`
+- A set of custom `scikit-learn` transformers for preprocessing data such as `PreOrPostDataPrep` which can be added to a data pipeline for pre-process dataset - e.g., handling date conversions, type casting of columns, clipping data, generating special features from rows of text strings, generating calculated features, masking columns, dropping correlated or potential data leakage columns, and generating target variables from other features as needed (separet from target encoding). A `GeohashAugmenter` for generating geohash features from latitude and longitudes; a `FunctionTransformerWrapper` and `SelectiveScaler` for selectively transforming dataframe columns; a `DateFeaturesAugmenter` for generating date-related features for feature engineering, and `FeatureSelector` for feature selection using configured estimators such as `Lasso` or `LinearRegression`
 - A set of generic or common utilities for summarizing dataframes and others - e.g., using `summarize()` or to winsorize using `winsorize_it()`
 - A set of convenience properties handlers to accessing generic configured properties relating to the project tree, data preparation, or model development and execution such as `ProjectTreeProperties`, `DataPropertiesHandler`, and `ModelProperties`. These handlers offer a convenient feature for reloading properties as needed, thereby refreshing properties without having to re-start the running VM (really only useful in development). However you may access any configured properties in the usual way via the `AppProperties` object.
 
@@ -78,23 +78,23 @@ The module supports application configuration via a properties file. As such, yo
 ##
 # Sample application properties file
 ##
-project.namespace=proj_namespace
+project.namespace=cheutils
 project.root.dir=./
 project.data.dir=./data/
 project.output.dir=./output/
 # properties handlers
-project.properties.prop_handler={'name': 'ProjectTreeProperties', 'package': 'cheutils', }
+project.properties.proj_handler={'name': 'ProjectTreeProperties', 'package': 'cheutils', }
 project.properties.data_handler={'name': 'DataPropertiesHandler', 'package': 'cheutils', }
 project.properties.model_handler={'name': 'ModelProperties', 'package': 'cheutils', }
 # SQLite DB - used for selected caching for efficiency
-project.sqlite3.db=proj_sqlite.db
+project.sqlite3.db=cheutils_sqlite.db
 project.dataset.list=[X_train.csv, X_test.csv, y_train.csv, y_test.csv]
 # estimator configuration: default parameters are those not necessarily included for any tuning or optimization
 # but are useful for instantiating instances of the estimator; all others in the estimator params_grid are
 # candidates for any optimization. If no default parameters are needed simply ignore or set default_params value to None
 project.models.supported={'xgb_boost': {'name': 'XGBRegressor', 'package': 'xgboost', 'default_params': None, }, \
-'random_forest': {'name': 'RandomForestRegressor', 'package': 'sklearn.ensemble', 'default_params': None, }, \
-'lasso': {'name': 'Lasso', 'package': 'sklearn.linear_model', 'default_params': None, }, }
+  'random_forest': {'name': 'RandomForestRegressor', 'package': 'sklearn.ensemble', 'default_params': None, }, \
+  'lasso': {'name': 'Lasso', 'package': 'sklearn.linear_model'}, 'default_params': {'alpha': 0.10}, }
 # selected estimator parameter grid options - these are included in any tuning or model optimization
 model.params_grid.xgb_boost={'learning_rate': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 10}, 'subsample': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 10}, 'min_child_weight': {'type': float, 'start': 0.1, 'end': 1.0, 'num': 10}, 'n_estimators': {'type': int, 'start': 10, 'end': 400, 'num': 10}, 'max_depth': {'type': int, 'start': 3, 'end': 17, 'num': 5}, 'colsample_bytree': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, 'gamma': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, 'reg_alpha': {'type': float, 'start': 0.0, 'end': 1.0, 'num': 5}, }
 model.params_grid.random_forest={'min_samples_leaf': {'type': int, 'start': 1, 'end': 60, 'num': 5}, 'max_features': {'type': int, 'start': 5, 'end': 1001, 'num': 10}, 'max_depth': {'type': int, 'start': 5, 'end': 31, 'num': 6}, 'n_estimators': {'type': int, 'start': 5, 'end': 201, 'num': 10}, 'min_samples_split': {'type': int, 'start': 2, 'end': 21, 'num': 5}, 'max_leaf_nodes': {'type': int, 'start': 5, 'end': 401, 'num': 10}, }
@@ -118,7 +118,28 @@ model.active.trial_timeout=60
 model.hyperopt.algos={'rand.suggest': 0.05, 'tpe.suggest': 0.75, 'anneal.suggest': 0.20, }
 # transformers - defined as a dictionary of pipelines containing dictionaries of transformers
 # note that each pipeline is mapped to a set of columns, and all transformers in a pipeline act on the set of columns
-model.selective_column.transformers=[{'pipeline_name': 'scalers_pipeline', 'transformers': [{'name': 'scaler_tf', 'module': 'StandardScaler', 'package': 'sklearn.preprocessing', 'params': None, }, ], 'columns': ['col1_label', 'col2_label']}, ]
+model.feature.scalers=[{'pipeline_name': 'scaler_pipeline', 'transformers': [{'name': 'scaler_tf', 'module': 'StandardScaler', 'package': 'sklearn.preprocessing', 'params': None, }, ], 'columns': ['col1_label', 'col2_label']}, ]
+model.feature.encoders=[{'pipeline_name': 'encoder_pipeline', 'transformers': [{'name': 'encoder_tf', 'module': 'OneHotEncoder', 'package': 'sklearn.preprocessing', 'params': None, }, ], 'columns': ['col1_label', 'col2_label']}, ]
+model.feature.binarizers=[{'pipeline_name': 'binarizers_pipeline', 'transformers': [{'name': 'binarizer_tf', 'module': 'Binarizer', 'package': 'sklearn.preprocessing', 'params': {'threshold': 0.5, }, }, ], 'columns': ['col1_label', 'col2_label']}, ]
+# transformers - defined as a dictionary of pipelines containing dictionaries of transformers
+# note that each pipeline is mapped to a set of columns, and all transformers in a pipeline act on the set of columns
+model.target.encoder={'pipeline_name': 'target_enc_pipeline', 'target_encoder': {'name': 'target_enc_tf', 'module': 'SelectiveTargetEncoder', 'package': 'sklearn.preprocessing', 'params': {'target_type': 'auto', 'smooth': 'auto', 'cv': 5, 'shuffle': True, }, }, 'columns': ['col1_label', 'col2_label'], }
+# configure feature selection transformers
+model.feature.selectors={\
+  'selector1': {'module': 'SelectFromModel', 'package': 'sklearn.feature_selection', 'params': {'threshold': 'median', }, }, \
+  'selector2': {'module': 'RFE', 'package': 'sklearn.feature_selection', 'params': {'n_features_to_select': 0.25, }, }, \
+  }
+model.feat_selection.passthrough=True
+model.feat_selection.selector=selector1
+# use the following once feature selection has been settled - extracted from feature selection to use going forward
+# an example situation where this is helpful is during tuning when the feature selection has been settled beforehand.
+# It means feature selection does not have to be a pipeline step, as that can introduce errors if cross-validation is as
+# different folds may select different feature subsets - we desire a consistent set of features for each fold.
+# So, set use_selected=False, run test pipeline notebook to generate list of selected features; then set use_selected=True
+# that enables the pipeline to simply take advantage of the selected features (which should be copied and pasted below).
+model.feat_selection.use_selected=False
+# once feature selection is done the output is copied and pasted below to be optionally used as selected
+model.feat_selection.selected=['col1', 'col2', ]
 # global winsorize default limits or specify desired property and use accordingly
 func.winsorize.limits=[0.05, 0.05]
 ```
@@ -229,7 +250,7 @@ The `cheutils` module comes with custom transformers for some preprocessing - e.
 You can add a data preprocessing transformer to your pipeline as follows:
 
 ```python
-from cheutils import DataPrep
+from cheutils import PreOrPostDataPrep
 
 date_cols = ['rental_date']
 int_cols = ['release_year', 'length', 'NC-17', 'PG', 'PG-13', 'R',
@@ -237,30 +258,30 @@ int_cols = ['release_year', 'length', 'NC-17', 'PG', 'PG-13', 'R',
 correlated_cols = ['rental_rate_2', 'length_2', 'amount_2']
 drop_missing = True  # drop rows with missing data
 clip_data = None  # no data clipping; but you could clip outliers based on category aggregates with something like clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'cat_col', }
-exp_tf = DataPrep(date_cols=date_cols,
-                  int_cols=int_cols,
-                  drop_missing=drop_missing,
-                  clip_data=clip_data,
-                  correlated_cols=correlated_cols, )
+exp_tf = PreOrPostDataPrep(date_cols=date_cols,
+                           int_cols=int_cols,
+                           drop_missing=drop_missing,
+                           clip_data=clip_data,
+                           correlated_cols=correlated_cols, )
 data_prep_pipeline_steps = [('data_prep_step', exp_tf)]  # this can be added to a model pipeline
 ```
 You can also include feature selection by adding the following to the pipeline:
 
 ```python
-from cheutils import feature_selector, get_estimator, AppProperties, ModelProperties, TransformSelectiveColumns
+from cheutils import feature_selector, get_estimator, AppProperties, ModelProperties, SelectiveScaler
 
 standard_pipeline_steps = ['some previously defined pipeline steps']
 model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
 feat_sel_tf = feature_selector(estimator=get_estimator(model_option='xgboost'),
-                              random_state=model_handler.get_random_seed())
+                               random_state=model_handler.get_random_seed())
 # add feature selection to pipeline
 standard_pipeline_steps.append(('feat_selection_step', feat_sel_tf))
 # You can also add a configured selective column transforme.
 # e.g., if you already have configured a list of column transformers in the `app-config.properties` such as in the sample properties file above,
-# you can add it to the pipeline as below. The `TransformSelectiveColumns` uses the configured property to determine 
+# you can add it to the pipeline as below. The `SelectiveScaler` uses the configured property to determine 
 # the transformer(s), and the corresponding columns affected, to add to the pipeline. 
 # Each configured transformer only applies any transformations to the specified columns and others are simply passed through.
-scaler_tf = TransformSelectiveColumns()
+scaler_tf = SelectiveScaler()
 standard_pipeline_steps.append(('scale_feats_step', scaler_tf))
 ```
 Ultimately, you may create a model pipeline and execute using steps similar to the following:

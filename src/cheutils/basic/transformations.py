@@ -13,47 +13,31 @@ from joblib import Parallel, delayed
 from pandas.api.types import is_datetime64_any_dtype
 from scipy.stats import iqr
 from typing import cast
+from abc import ABC, abstractmethod
 
 LOGGER = LoguruWrapper().get_logger()
+class AbstractBasicTransformer(ABC):
+    def __init__(self):
+        super().__init__()
 
-class TransformSelectiveColumns(ColumnTransformer):
-    def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
-                 verbose=False, n_jobs=None, **kwargs):
-        # if configuring more than one column transformer make sure verbose_feature_names_out=True
-        # to ensure the prefixes ensure uniqueness in the feature names
-        __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
-        conf_transformers = __data_handler.get_selective_column_transformers()
-        super().__init__(transformers=conf_transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.num_transformers = len(conf_transformers)
-        self.feature_names = None
+    @classmethod
+    def __subclasshook__(cls, subclass):
+        return (hasattr(subclass, 'prepare') and
+                callable(subclass.prepare) or
+                NotImplemented)
 
-    def fit(self, X, y=None, **fit_params):
-        LOGGER.debug('TransformSelectiveColumns: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        super().fit(X, y, **fit_params)
-        return self
+    @abstractmethod
+    def prepare(self, transformed_X: pd.DataFrame, y: [pd.Series, None], feature_names_out: list,
+                multiple_transformers: bool=False, **params) -> (pd.DataFrame, list):
+        raise NotImplementedError
 
-    def transform(self, X, **fit_params):
-        LOGGER.debug('TransformSelectiveColumns: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('TransformSelectiveColumns: Transformed dataset, shape = {}, {}', X.shape, fit_params)
-        return new_X
+class BasicTransformer(AbstractBasicTransformer):
+    def __init__(self,):
+        super().__init__()
 
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('TransformSelectiveColumns: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TransformSelectiveColumns: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        return new_X
-
-    def __do_transform(self, X, y=None, **fit_params):
-        if y is None:
-            transformed_X = super().transform(X, **fit_params)
-        else:
-            transformed_X = super().fit_transform(X, y, **fit_params)
-        feature_names_out = super().get_feature_names_out().tolist()
-        if self.num_transformers > 1:
+    def prepare(self, transformed_X: pd.DataFrame, y: [pd.Series, None],
+                feature_names_out: list, multiple_transformers: bool=False, **params) -> (pd.DataFrame, list):
+        if multiple_transformers > 1:
             feature_names_out.reverse()
             # sort out any potential duplicates - noting how column transformers concatenate transformed and
             # passthrough columns
@@ -75,70 +59,71 @@ class TransformSelectiveColumns(ColumnTransformer):
             desired_feature_names = feature_names_out
         desired_feature_names = [feature_name.split('__')[-1] for feature_name in desired_feature_names]
         new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
-        self.feature_names = desired_feature_names
-        return new_X
+        return new_X, desired_feature_names
 
-class BinarizerColumns(ColumnTransformer):
-    def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
+class ColumnTransformerWrapper(ColumnTransformer):
+    def __init__(self, worker: AbstractBasicTransformer, transformers, remainder='passthrough', force_int_remainder_cols: bool = False,
                  verbose=False, n_jobs=None, **kwargs):
-        # if configuring more than one column transformer make sure verbose_feature_names_out=True
-        # to ensure the prefixes ensure uniqueness in the feature names
-        __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
-        conf_transformers = __data_handler.get_binarizer_column_transformers()
-        super().__init__(transformers=conf_transformers,
+        super().__init__(transformers=transformers,
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True if len(conf_transformers) > 1 else False,
                          verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.num_transformers = len(conf_transformers)
-        self.feature_names = None
+        self.worker = worker
+        self.fitted = False
 
     def fit(self, X, y=None, **fit_params):
-        LOGGER.debug('BinarizerColumns: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        if self.fitted:
+            return self
+        LOGGER.debug('ColumnTransformerWrapper: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         super().fit(X, y, **fit_params)
+        self.fitted = True
         return self
 
     def transform(self, X, **fit_params):
-        LOGGER.debug('BinarizerColumns: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('BinarizerColumns: Transformed dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('ColumnTransformerWrapper: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = super().transform(X, **fit_params)
+        feature_names_out = super().get_feature_names_out().tolist()
+        new_X, feature_names = self.worker.prepare(new_X, y=None, feature_names_out=feature_names_out,
+                                    multiple_transformers=len(self.transformers) > 1, **fit_params)
+        LOGGER.debug('ColumnTransformerWrapper: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('BinarizerColumns: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('BinarizerColumns: Fit-transformed dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        return new_X
-
-    def __do_transform(self, X, y=None, **fit_params):
-        if y is None:
-            transformed_X = super().transform(X, **fit_params)
-        else:
-            transformed_X = super().fit_transform(X, y, **fit_params)
+        LOGGER.debug('ColumnTransformerWrapper: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        new_X = super().fit_transform(X, y, **fit_params)
         feature_names_out = super().get_feature_names_out().tolist()
-        if self.num_transformers > 1:
-            feature_names_out.reverse()
-            # sort out any potential duplicates - noting how column transformers concatenate transformed and
-            # passthrough columns
-            feature_names = [feature_name.split('__')[-1] for feature_name in feature_names_out]
-            duplicate_feature_idxs = []
-            desired_feature_names_s = set()
-            desired_feature_names = []
-            for idx, feature_name in enumerate(feature_names):
-                if feature_name not in desired_feature_names_s:
-                    desired_feature_names_s.add(feature_name)
-                    desired_feature_names.append(feature_name)
-                else:
-                    duplicate_feature_idxs.append(idx)
-            desired_feature_names.reverse()
-            duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
-            transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
-        else:
-            desired_feature_names = feature_names_out
-        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
-        self.feature_names = desired_feature_names
+        new_X, feature_names = self.worker.prepare(new_X, y, feature_names_out=feature_names_out,
+                                    multiple_transformers=len(self.transformers) > 1, **fit_params)
+        LOGGER.debug('ColumnTransformerWrapper: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
-class DataPrep(BaseEstimator, TransformerMixin):
+class SelectiveScaler(ColumnTransformerWrapper, BasicTransformer):
+    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        assert transformers is not None and len(transformers) > 0, 'Valid transfomers required'
+        super().__init__(self, transformers=transformers,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+
+class SelectiveEncoder(ColumnTransformerWrapper, BasicTransformer):
+    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        assert transformers is not None and len(transformers) > 0, 'Valid transfomers required'
+        super().__init__(self, transformers=transformers,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+
+class SelectiveBinarizer(ColumnTransformerWrapper, BasicTransformer):
+    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        assert transformers is not None and len(transformers) > 0, 'Valid transfomers required'
+        super().__init__(self, transformers=transformers,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True if len(transformers) > 1 else False,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+
+class PreOrPostDataPrep(BaseEstimator, TransformerMixin):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
                  calc_features: dict=None, synthetic_features: dict=None, lag_features: dict=None,
@@ -200,7 +185,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None, **fit_params):
         if self.fitted:
             return self
-        LOGGER.debug('DataPrep: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('PreOrPostDataPrep: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         # do any necessary pre-processing
         new_X, new_y = self.__pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols,
                                           float_cols=self.float_cols,
@@ -223,20 +208,20 @@ class DataPrep(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X):
-        LOGGER.debug('DataPrep: Transforming dataset, shape = {}', X.shape)
+        LOGGER.debug('PreOrPostDataPrep: Transforming dataset, shape = {}', X.shape)
         # be sure to patch in any generated target column
         new_X, new_y = self.__do_transform(X)
         self.target = new_y if new_y is not None else self.target
-        LOGGER.debug('DataPrep: Transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        LOGGER.debug('PreOrPostDataPrep: Transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('DataPrep: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('PreOrPostDataPrep: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         # be sure to patch in any generated target column
         self.fit(X, y, **fit_params)
         new_X, new_y = self.__do_transform(X, y)
         self.target = new_y
-        LOGGER.debug('DataPrep: Fit-transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        LOGGER.debug('PreOrPostDataPrep: Fit-transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
 
     def __generate_features(self, X: pd.DataFrame, y: pd.Series = None, gen_cols: dict = None, return_y: bool = False,
@@ -351,7 +336,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
         :return: Processed dataframe and updated target Series
         :rtype: tuple(pd.DataFrame, pd.Series or None)
         """
-        LOGGER.debug('DataPrep: Pre-processing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('PreOrPostDataPrep: Pre-processing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = X
         new_y = y
         # process columns with  strings to replace patterns
@@ -429,7 +414,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
         # future variable is not available at the time of testing, then ignore the target generation as it ought
         # to be predicted
         new_X, new_y = self.__generate_target(new_X, new_y, gen_target=gen_target, include_target=include_target, )
-        LOGGER.debug('DataPrep: Pre-processed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        LOGGER.debug('PreOrPostDataPrep: Pre-processed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X, new_y
 
     def __post_process(self, X, correlated_cols: list = None, pot_leak_cols: list = None, ):
@@ -444,7 +429,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
         :return:
         :rtype:
         """
-        LOGGER.debug('DataPrep: Post-processing dataset, out shape = {}', X.shape)
+        LOGGER.debug('PreOrPostDataPrep: Post-processing dataset, out shape = {}', X.shape)
         new_X = X
         if correlated_cols is not None or not (not correlated_cols):
             to_drop = [col for col in correlated_cols if col in new_X.columns]
@@ -452,7 +437,7 @@ class DataPrep(BaseEstimator, TransformerMixin):
         if pot_leak_cols is not None or not (not pot_leak_cols):
             to_drop = [col for col in pot_leak_cols if col in new_X.columns]
             new_X.drop(columns=to_drop, inplace=True)
-        LOGGER.debug('DataPrep: Post-processed dataset, out shape = {}', new_X.shape)
+        LOGGER.debug('PreOrPostDataPrep: Post-processed dataset, out shape = {}', new_X.shape)
         return new_X
 
     def __gen_lag_features(self, X, y=None):
@@ -605,27 +590,27 @@ class DataPrep(BaseEstimator, TransformerMixin):
             'include_target': self.include_target,
         }
 
-class ApplySelectiveFunction(FunctionTransformer):
+class FunctionTransformerWrapper(FunctionTransformer):
     def __init__(self, rel_cols: list, **kwargs):
         super().__init__(**kwargs)
         self.rel_cols = rel_cols
 
     def fit(self, X, y=None):
-        LOGGER.debug('ApplySelectiveFunction: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('FunctionTransformerWrapper: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         to_fit = safe_copy(X[self.rel_cols])
         super().fit(to_fit, y)
         return self
 
     def transform(self, X):
-        LOGGER.debug('ApplySelectiveFunction: Transforming dataset, shape = {}', X.shape)
+        LOGGER.debug('FunctionTransformerWrapper: Transforming dataset, shape = {}', X.shape)
         new_X = self.__do_transform(X)
-        LOGGER.debug('ApplySelectiveFunction: Transformed dataset, out shape = {}', new_X.shape)
+        LOGGER.debug('FunctionTransformerWrapper: Transformed dataset, out shape = {}', new_X.shape)
         return new_X
 
     def fit_transform(self, X, y=None, **kwargs):
-        LOGGER.debug('ApplySelectiveFunction: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('FunctionTransformerWrapper: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = self.__do_transform(X, y, **kwargs)
-        LOGGER.debug('ApplySelectiveFunction: Fit-transformed dataset, out shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        LOGGER.debug('FunctionTransformerWrapper: Fit-transformed dataset, out shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **kwargs):
@@ -649,68 +634,19 @@ class ApplySelectiveFunction(FunctionTransformer):
             new_X[col] = inversed_X[col].values if isinstance(inversed_X, pd.DataFrame) else inversed_X
         return new_X
 
-class TargetEncoderCats(ColumnTransformer):
-    def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
+class SelectiveTargetEncoder(ColumnTransformerWrapper, BasicTransformer):
+    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose=False, n_jobs=None, **kwargs):
-        # if configuring more than one column transformer make sure verbose_feature_names_out=True
-        # to ensure the prefixes ensure uniqueness in the feature names
-        __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
-        conf_target_encs = __data_handler.get_target_encoder() # a list with a single tuple (with target encoder pipeline)
-        super().__init__(transformers=conf_target_encs,
+        super().__init__(self, transformers=transformers,
                          remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True if len(conf_target_encs) > 1 else False,
+                         verbose_feature_names_out=True if len(transformers) > 1 else False,
                          verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.num_transformers = len(conf_target_encs)
-        self.feature_names = conf_target_encs[0][2]
-        self.fitted = False
+        self.feature_names = transformers[0][2]
 
-    def fit(self, X, y=None, **fit_params):
-        if self.fitted:
-            return self
-        LOGGER.debug('TargetEncoderCats: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        super().fit(X, y, **fit_params)
-        self.fitted = True
-        return self
-
-    def transform(self, X, **fit_params):
-        LOGGER.debug('TargetEncoderCats: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('TargetEncoderCats: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        #self.fit(X, y, **fit_params) # cannot make this call as a superclass call creates an unending loop
-        LOGGER.debug('TargetEncoderCats: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TargetEncoderCats: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
-    def __do_transform(self, X, y=None, **fit_params):
-        if y is None or self.fitted:
-            transformed_X = super().transform(X, **fit_params)
-        else:
-            transformed_X = super().fit_transform(X, y, **fit_params)
-        feature_names_out = super().get_feature_names_out().tolist()
-        if self.num_transformers > 1:
-            feature_names_out.reverse()
-            # sort out any potential duplicates - noting how column transformers concatenate transformed and
-            # passthrough columns
-            feature_names = [feature_name.split('__')[-1] for feature_name in feature_names_out]
-            duplicate_feature_idxs = []
-            desired_feature_names_s = set()
-            desired_feature_names = []
-            for idx, feature_name in enumerate(feature_names):
-                if feature_name not in desired_feature_names_s:
-                    desired_feature_names_s.add(feature_name)
-                    desired_feature_names.append(feature_name)
-                else:
-                    duplicate_feature_idxs.append(idx)
-            desired_feature_names.reverse()
-            duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
-            transformed_X = np.delete(transformed_X, duplicate_feature_idxs, axis=1)
-        else:
-            desired_feature_names = feature_names_out
-        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
+    def prepare(self, transformed_X, y: [pd.Series,None], feature_names_out: list,
+                multiple_transformers: bool=False, **params) -> (pd.DataFrame, list):
+        new_X, desired_feature_names = super().prepare(transformed_X, y, feature_names_out=feature_names_out,
+                                                       multiple_transformers=multiple_transformers, **params)
         # re-order columns, so the altered columns appear at the end
         for feature_name in self.feature_names:
             if feature_name in desired_feature_names:
@@ -720,13 +656,13 @@ class TargetEncoderCats(ColumnTransformer):
             except ValueError as ignore:
                 LOGGER.warning('Potential dtype issue: {}', ignore)
         desired_feature_names.extend(self.feature_names)
-        return new_X[desired_feature_names]
+        return new_X[desired_feature_names], desired_feature_names
 
-class ClipOutliers(BaseEstimator, TransformerMixin):
+class OutlierClipper(BaseEstimator, TransformerMixin):
     def __init__(self, rel_cols: list, group_by: list,
                  l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
         """
-        Create a new ClipOutliers instance.
+        Create a new OutlierClipper instance.
         :param rel_cols: the list of columns to clip
         :param group_by: list of columns to group by or filter the data by
         :param l_quartile: the lower quartile (float between 0 and 1)
@@ -747,7 +683,7 @@ class ClipOutliers(BaseEstimator, TransformerMixin):
     def fit(self, X=None, y=None):
         if self.fitted:
             return self
-        LOGGER.debug('ClipOutliers: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('OutlierClipper: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         # generate category thresholds
         self.extracted_cat_thres = get_outlier_cat_thresholds(X, self.rel_cols, self.group_by,
                                                               self.l_quartile, self.u_quartile, self.pos_thres)
@@ -763,16 +699,16 @@ class ClipOutliers(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, **fit_params):
-        LOGGER.debug('ClipOutliers: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        LOGGER.debug('OutlierClipper: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
-        LOGGER.debug('ClipOutliers: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
+        LOGGER.debug('OutlierClipper: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
     def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('ClipOutliers: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('OutlierClipper: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.fit(X, y)
         new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('ClipOutliers: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
+        LOGGER.debug('OutlierClipper: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):
@@ -797,3 +733,39 @@ class ClipOutliers(BaseEstimator, TransformerMixin):
         clipped_srs = pd.concat(clipped_subset, ignore_index=False)
         new_X.loc[:, self.rel_cols] = clipped_srs
         return new_X
+
+def get_scaler(remainder='passthrough', force_int_remainder_cols: bool=False,
+               verbose=False, n_jobs=None, **kwargs):
+    # if configuring more than one column transformer make sure verbose_feature_names_out=True
+    # to ensure the prefixes ensure uniqueness in the feature names
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
+    conf_transformers = __data_handler.get_scalers()
+    return SelectiveScaler(transformers=conf_transformers, remainder=remainder,
+                           force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
+
+def get_encoder(remainder='passthrough', force_int_remainder_cols: bool=False,
+               verbose=False, n_jobs=None, **kwargs):
+    # if configuring more than one column transformer make sure verbose_feature_names_out=True
+    # to ensure the prefixes ensure uniqueness in the feature names
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
+    conf_transformers = __data_handler.get_encoders()
+    return SelectiveEncoder(transformers=conf_transformers, remainder=remainder,
+                           force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
+
+def get_binarizer(remainder='passthrough', force_int_remainder_cols: bool=False,
+                  verbose=False, n_jobs=None, **kwargs):
+    # if configuring more than one column transformer make sure verbose_feature_names_out=True
+    # to ensure the prefixes ensure uniqueness in the feature names
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
+    conf_transformers = __data_handler.get_binarizers()
+    return SelectiveBinarizer(transformers=conf_transformers, remainder=remainder,
+                              force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
+
+def get_target_encoder(remainder='passthrough', force_int_remainder_cols: bool=False,
+                       verbose=False, n_jobs=None, **kwargs):
+    # if configuring more than one column transformer make sure verbose_feature_names_out=True
+    # to ensure the prefixes ensure uniqueness in the feature names
+    __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
+    conf_transformers = __data_handler.get_target_encoder()
+    return SelectiveTargetEncoder(transformers=conf_transformers, remainder=remainder,
+                                  force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
