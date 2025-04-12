@@ -478,7 +478,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.extracted_features = self.extracted_features.bfill()
         self.extracted_features.fillna(0, inplace=True)
         self.extracted_features = self.extracted_features.reset_index()
-        col_map = {roll_col: roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + '_lag_rolling_' + self.agg_func) for roll_col in all_cols_to_roll}
+        col_map = {roll_col: roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + '_rolling_lag_' + self.agg_func) for roll_col in all_cols_to_roll}
         self.extracted_features.rename(columns=col_map, inplace=True)
         cols = list(self.extracted_features.columns)
         self.extracted_features.loc[:, cols[-len(all_cols_to_roll):]] = self.extracted_features[cols[-len(all_cols_to_roll):]].bfill()

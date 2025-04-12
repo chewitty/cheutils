@@ -13,7 +13,7 @@ from .common_base import CheutilsBase
 from .progress_tracking import create_timer, timer_stats, progress
 from .decorator_timer import track_duration
 from .decorator_debug import debug_func
-from .basic import (TransformSelectiveColumns, ApplySelectiveFunction, DropSelectedCols,
+from .basic import (TransformSelectiveColumns, ApplySelectiveFunction,
                     DataPrep, TargetEncoderCats, BinarizerColumns, ClipOutliers)
 from .ml.model_support import parse_grid_types
 from .sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db,
@@ -28,7 +28,7 @@ from .ml import (get_estimator, exclude_nulls,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
                  print_classification_report, recreate_labels, rmsle, nan_rmsle, promising_interactions)
 from .interceptor import (PipelineInterceptor, NumericDataInterceptor, DataPipelineInterceptor,
-                          FeatureSelectionInterceptor, feature_selector)
+                          FeatureSelectionInterceptor, feature_selector, DropSelectedColsInterceptor)
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .feature_generation import (FeatureTrendsAugmenter, PeriodicFeaturesAugmenter, DateFeaturesAugmenter,
                                  GeohashAugmenter, ExtremeStateAugmenter)

@@ -16,49 +16,6 @@ from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
 
-class DropSelectedCols(BaseEstimator, TransformerMixin):
-    """
-    Drops selected columns from the dataframe.
-    """
-    def __init__(self, rel_cols: list, **kwargs):
-        super().__init__(**kwargs)
-        self.rel_cols = rel_cols
-        self.target = None
-        self.fitted = False
-
-    def fit(self, X, y=None):
-        if self.fitted:
-            return self
-        LOGGER.debug('DropSelectedCols: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.target = y
-        self.fitted = True
-        return self
-
-    def transform(self, X, y=None):
-        LOGGER.debug('DropSelectedCols: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.target = y
-        new_X = self.__do_transform(X, y)
-        LOGGER.debug('DropSelectedCols: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        LOGGER.debug('DropSelectedCols: Columns dropped = {}', self.rel_cols)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        self.fit(X, y)
-        LOGGER.debug('DropSelectedCols: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = self.__do_transform(X, y, **fit_params)
-        return new_X
-
-    def __do_transform(self, X, y=None, **fit_params):
-        new_X = X.drop(columns=self.rel_cols) if self.rel_cols is not None and not (not self.rel_cols) else X
-        return new_X
-
-    def get_target(self):
-        """
-        Returns the transformed target if any
-        :return:
-        """
-        return self.target
-
 class TransformSelectiveColumns(ColumnTransformer):
     def __init__(self, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose=False, n_jobs=None, **kwargs):
