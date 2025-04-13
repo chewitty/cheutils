@@ -12,11 +12,12 @@ class InteractionFeaturesInterceptor(PipelineInterceptor):
         assert len(left_cols) == len(right_cols), 'Left and right columns must have same length'
         self.left_cols = left_cols
         self.right_cols = right_cols
-        self.interaction_feats = []
+        self.interaction_feats = None
 
     def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> (pd.DataFrame, pd.Series):
         assert X is not None, 'Valid dataframe with data required'
         LOGGER.debug('InteractionFeaturesInterceptor: dataset in, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.interaction_feats = []
         new_X = X
         for c1, c2 in zip(self.left_cols, self.right_cols):
             n = f'{c1}_with_{c2}'

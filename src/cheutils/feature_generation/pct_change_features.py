@@ -32,8 +32,8 @@ class PctChangeInterceptor(PipelineInterceptor):
         new_X = X
         for rel_col in self.rel_cols:
             if self.group_by is not None:
-                new_X.loc[:, rel_col + '_pct_change'] = new_X.groupby(self.group_by)[rel_col].pct_change(freq=self.freq).bfill()
+                new_X.loc[:, rel_col + '_pct_change'] = new_X.groupby(self.group_by)[rel_col].pct_change(freq=self.freq).infer_objects(copy=False).bfill()
             else:
-                new_X.loc[:, rel_col + '_pct_change'] = new_X[rel_col].pct_change(freq=self.freq).bfill()
+                new_X.loc[:, rel_col + '_pct_change'] = new_X[rel_col].pct_change(freq=self.freq).infer_objects(copy=False).bfill()
         LOGGER.debug('PctChangeInterceptor: dataset out, shape = {}, {}\nFeatures applied:\n{}', new_X.shape, y.shape if y is not None else None, self.rel_cols)
         return new_X, y
