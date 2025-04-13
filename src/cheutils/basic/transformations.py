@@ -658,6 +658,53 @@ class SelectiveTargetEncoder(ColumnTransformerWrapper, BasicTransformer):
         desired_feature_names.extend(self.feature_names)
         return new_X[desired_feature_names], desired_feature_names
 
+class TSSelectiveTargetEncoder(SelectiveTargetEncoder, BasicTransformer):
+    def __init__(self, transformers, lag_features: dict, column_ts_index, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        """
+        create instance of TSSelectiveTargetEncoder.
+        :param transformers: configured transformers
+        :type transformers:
+        :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'sort_by_cols': ['sort_by_col1', 'sort_by_col2'], period=1, 'freq': 'D', 'drop_rel_cols': False, }
+        :type lag_features: dict
+        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type column_ts_index: basestring
+        :param remainder:
+        :type remainder:
+        :param force_int_remainder_cols:
+        :type force_int_remainder_cols:
+        :param verbose:
+        :type verbose:
+        :param n_jobs:
+        :type n_jobs:
+        :param kwargs:
+        :type kwargs:
+        """
+        assert lag_features is not None and not (not lag_features), 'Lag features specification must be provided'
+        assert column_ts_index is not None, 'A date feature/column must be provided'
+        super().__init__(transformers=transformers,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        self.lag_features = lag_features
+        self.column_ts_index = column_ts_index
+
+    def fit(self, X, y=None, **fit_params):
+        if self.fitted:
+            return self
+        timeseries_container = safe_copy(X)
+        timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+        target_name = y.name
+        periods = self.lag_features.get('periods')
+        freq = self.lag_features.get('freq')
+        sort_by_cols = self.lag_features.get('sort_by_cols')
+        timeseries_container.sort_values(by=sort_by_cols, inplace=True)
+        timeseries_container.set_index(self.column_ts_index, inplace=True)
+        timeseries_container.loc[:, target_name] = timeseries_container[target_name].shift(periods=periods + 1, freq=freq).bfill()
+        new_y = timeseries_container[timeseries_container.columns[-1]]
+        timeseries_container = timeseries_container[timeseries_container.columns[:-1]]
+        super().fit(timeseries_container, new_y, **fit_params)
+        return self
+
 class OutlierClipper(BaseEstimator, TransformerMixin):
     def __init__(self, rel_cols: list, group_by: list,
                  l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
@@ -761,11 +808,16 @@ def get_binarizer(remainder='passthrough', force_int_remainder_cols: bool=False,
     return SelectiveBinarizer(transformers=conf_transformers, remainder=remainder,
                               force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
 
-def get_target_encoder(remainder='passthrough', force_int_remainder_cols: bool=False,
+def get_target_encoder(lag_features: dict=None, column_ts_index: str=None,
+                       remainder='passthrough', force_int_remainder_cols: bool=False,
                        verbose=False, n_jobs=None, **kwargs):
     # if configuring more than one column transformer make sure verbose_feature_names_out=True
     # to ensure the prefixes ensure uniqueness in the feature names
     __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     conf_transformers = __data_handler.get_target_encoder()
-    return SelectiveTargetEncoder(transformers=conf_transformers, remainder=remainder,
-                                  force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
+    if lag_features is not None:
+        return TSSelectiveTargetEncoder(transformers=conf_transformers, lag_features=lag_features, column_ts_index=column_ts_index,
+                                        remainder=remainder, force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )
+    else:
+        return SelectiveTargetEncoder(transformers=conf_transformers, remainder=remainder,
+                                      force_int_remainder_cols=force_int_remainder_cols, verbose=verbose, )

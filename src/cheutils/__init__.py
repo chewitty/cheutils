@@ -14,7 +14,7 @@ from .progress_tracking import create_timer, timer_stats, progress
 from .decorator_timer import track_duration
 from .decorator_debug import debug_func
 from .basic import (SelectiveScaler, FunctionTransformerWrapper, SelectiveEncoder,
-                    PreOrPostDataPrep, SelectiveTargetEncoder, SelectiveBinarizer, OutlierClipper,
+                    PreOrPostDataPrep, SelectiveTargetEncoder, TSSelectiveTargetEncoder, SelectiveBinarizer, OutlierClipper,
                     get_target_encoder, get_binarizer, get_encoder, get_scaler)
 from .ml.model_support import parse_grid_types
 from .sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db,
