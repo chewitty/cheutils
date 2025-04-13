@@ -687,23 +687,29 @@ class TSSelectiveTargetEncoder(SelectiveTargetEncoder, BasicTransformer):
                          verbose=verbose, n_jobs=n_jobs, **kwargs)
         self.lag_features = lag_features
         self.column_ts_index = column_ts_index
+        self.fitted = False
 
     def fit(self, X, y=None, **fit_params):
         if self.fitted:
             return self
-        timeseries_container = safe_copy(X)
-        timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
         target_name = y.name
         periods = self.lag_features.get('periods')
         freq = self.lag_features.get('freq')
         sort_by_cols = self.lag_features.get('sort_by_cols')
+        timeseries_container: pd.DataFrame = safe_copy(X)
+        timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
-        timeseries_container.set_index(self.column_ts_index, inplace=True)
-        timeseries_container.loc[:, target_name] = timeseries_container[target_name].shift(periods=periods + 1, freq=freq).bfill()
-        new_y = timeseries_container[timeseries_container.columns[-1]]
-        timeseries_container = timeseries_container[timeseries_container.columns[:-1]]
-        super().fit(timeseries_container, new_y, **fit_params)
-        return self
+        timeseries_container['index'] = timeseries_container[self.column_ts_index]
+        timeseries_container.set_index('index', inplace=True)
+        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
+        new_y = pd.Series(timeseries_container[target_name].values, index=y.index, name=target_name)
+        del timeseries_container
+        self.fitted = True
+        return super().fit(X, new_y, **fit_params)
+
+    def fit_transform(self, X, y=None, **fit_params):
+        self.fit(X, y, **fit_params)
+        return super().fit_transform(X, y, **fit_params)
 
 class OutlierClipper(BaseEstimator, TransformerMixin):
     def __init__(self, rel_cols: list, group_by: list,
