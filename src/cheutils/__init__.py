@@ -39,9 +39,12 @@ from .check import check_logger, check_exception, sample_hyperopt_space
 from .target_encoder import mean_target_encoding, train_mean_target_encoding, test_mean_target_encoding
 from typing import cast
 
-__proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
-log_handler = {'sink': os.path.join(__proj_handler.get_proj_output(), 'app-log.log'), 'serialize': False, 'backtrace': True,
-               'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}', 'level': 'TRACE',
-               'rotation': '00:00', 'colorize': True, 'enqueue': True, }
-LoguruWrapper().addHandler(log_handler)
-LoguruWrapper().set_prefix(prefix=__proj_handler.get_proj_namespace())
+try:
+    __proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
+    log_handler = {'sink': os.path.join(__proj_handler.get_proj_output(), 'app-log.log'), 'serialize': False, 'backtrace': True,
+                   'format': '{extra[prefix]} |{level} |{time:YYYY-MM-DD HH:mm:ss} | {file}:{line} | {message}', 'level': 'TRACE',
+                   'rotation': '00:00', 'colorize': True, 'enqueue': True, }
+    LoguruWrapper().addHandler(log_handler)
+    LoguruWrapper().set_prefix(prefix=__proj_handler.get_proj_namespace())
+except PropertiesException as prop_ex:
+    print('A suitable project properties file (app-config.properties) may not have been located anywhere in the project folder tree: ', prop_ex)

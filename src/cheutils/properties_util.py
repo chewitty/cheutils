@@ -436,6 +436,7 @@ class AppProperties(object):
         :return:
         :rtype:
         """
+        self.app_props__ = Properties() # initialize to jproperties properties
         # prepare to load app-config.properties
         LOGGER.info('Searching for application config = {}', APP_CONFIG)
         # walk through the directory tree and try to locate correct resource suggest
@@ -448,18 +449,16 @@ class AppProperties(object):
                 LOGGER.info('Using project-specific application config = {}', path_to_app_config)
                 break
         if not found_resource:
-            path_to_app_config = os.path.join(self.get_subscriber('proj_handler').get_proj_root(), APP_CONFIG)
+            path_to_app_config = os.path.join('./', APP_CONFIG) # assume it may be found in the root of the current folder
             LOGGER.warning('Attempting to use global application config = {}', path_to_app_config)
         try:
-            self.app_props__ = Properties()
             LOGGER.info('Loading {}', path_to_app_config)
             with open(path_to_app_config, 'rb') as prop_file:
                 self.app_props__.load(prop_file)
+            # log message on completion
+            LOGGER.info('Application properties loaded = {}', path_to_app_config)
         except Exception as ex:
-            LOGGER.exception(ex)
-            raise PropertiesException(ex)
-        # log message on completion
-        LOGGER.info('Application properties loaded = {}', path_to_app_config)
+            LOGGER.critical('It has not been possible to find any app-config.properties file for the project', ex)
 
     def subscribe(self, handler: AppPropertiesHandler):
         """
