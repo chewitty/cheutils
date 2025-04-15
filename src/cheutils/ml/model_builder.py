@@ -427,7 +427,7 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
                                        cv=__model_handler.get_cross_val_num_folds(),
                                        n_jobs=__model_handler.get_n_jobs(), error_score='raise')
             min_score = -np.nanmean(cv_score) if is_classifier(pipeline) else abs(np.nanmean(cv_score))
-            LOGGER.debug('Mean score = {}\n', min_score)
+            LOGGER.debug('Mean score = {}, [{}] with [{}]\n', round(min_score, 4), c1, c2)
             if min_score < baseline_score:
                 promising_feats.append(n)
             train.drop(columns=[n], inplace=True)
