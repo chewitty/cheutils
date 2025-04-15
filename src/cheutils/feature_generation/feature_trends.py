@@ -6,7 +6,7 @@ from cheutils.loggers import LoguruWrapper
 LOGGER = LoguruWrapper().get_logger()
 
 class FeatureTrendsAugmenter(BaseEstimator, TransformerMixin):
-    def __init__(self, rel_cols: list, periods: list, impute_vals:list = None):
+    def __init__(self, rel_cols: list, periods: list, impute_vals:list = None, **kwargs):
         """
         Create a new FeatureTrendsAugmenter instance.
         :param rel_cols: the list of columns with series features to encode using a sine and cosine transformation
@@ -16,6 +16,7 @@ class FeatureTrendsAugmenter(BaseEstimator, TransformerMixin):
         """
         assert rel_cols is not None or not (not rel_cols), 'Valid numeric periodic feature columns must be specified'
         assert periods is not None or not (not periods), 'Valid periods for the periodic features must be specified'
+        super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.periods = periods
         self.impute_vals = impute_vals if impute_vals is not None and not (not impute_vals) else [0]*len(rel_cols)
@@ -32,13 +33,6 @@ class FeatureTrendsAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('FeatureTrendsAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('FeatureTrendsAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('FeatureTrendsAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('FeatureTrendsAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):

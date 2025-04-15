@@ -5,11 +5,11 @@ from cheutils.loggers import LoguruWrapper
 LOGGER = LoguruWrapper().get_logger()
 
 class InteractionFeaturesInterceptor(PipelineInterceptor):
-    def __init__(self, left_cols: list, right_cols: list, ):
-        super().__init__()
+    def __init__(self, left_cols: list, right_cols: list, **kwargs):
         assert left_cols is not None and not(not left_cols), 'Valid left columns/features must be provided'
         assert right_cols is not None and not (not right_cols), 'Valid right columns/features must be provided'
         assert len(left_cols) == len(right_cols), 'Left and right columns must have same length'
+        super().__init__(**kwargs)
         self.left_cols = left_cols
         self.right_cols = right_cols
         self.interaction_feats = None

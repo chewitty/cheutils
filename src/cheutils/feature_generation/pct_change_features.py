@@ -6,7 +6,7 @@ from cheutils.loggers import LoguruWrapper
 LOGGER = LoguruWrapper().get_logger()
 
 class PctChangeInterceptor(PipelineInterceptor):
-    def __init__(self, rel_cols: list, date_index: str, group_by: list = None, freq = None):
+    def __init__(self, rel_cols: list, date_index: str, group_by: list = None, freq = None, **kwargs):
         """
         Create a new PctChangeInterceptor instance.
         :param rel_cols: the list of columns on which to compute percentage changes
@@ -19,7 +19,7 @@ class PctChangeInterceptor(PipelineInterceptor):
         """
         assert rel_cols is not None and not (not rel_cols), 'Valid list of features required'
         assert date_index is not None, 'Date feature (datetime format) must be provided'
-        super().__init__()
+        super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.date_index = date_index
         self.group_by = group_by

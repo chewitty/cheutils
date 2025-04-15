@@ -71,7 +71,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
                  impute_function=tsfresh.defaults.IMPUTE_FUNCTION, profile=tsfresh.defaults.PROFILING,
                  profiling_filename=tsfresh.defaults.PROFILING_FILENAME,
                  profiling_sorting=tsfresh.defaults.PROFILING_SORTING, drop_rel_cols: dict=None,
-                 include_target:bool=False, ):
+                 include_target:bool=False, **kwargs):
         """
         Create a new TSFeatureAugmenter instance.
         :param default_fc_parameters: mapping from feature calculator names to parameters. Only those names
@@ -120,6 +120,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         :param drop_rel_cols: flags indicating whether to drop the time series source features
         :type drop_rel_cols: dict
         """
+        super().__init__(**kwargs)
         self.default_fc_parameters = default_fc_parameters
         self.kind_to_fc_parameters = kind_to_fc_parameters
         self.column_id = column_id
@@ -190,13 +191,6 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('TSFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('TSFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TSFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
     def __do_transform(self, X, y=None, **fit_params):
         if self.extracted_features is None:
             raise RuntimeError('You have to call fit on the transformer before')
@@ -260,7 +254,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
                  impute_function=tsfresh.defaults.IMPUTE_FUNCTION, profile=tsfresh.defaults.PROFILING,
                  profiling_filename=tsfresh.defaults.PROFILING_FILENAME,
                  profiling_sorting=tsfresh.defaults.PROFILING_SORTING,
-                 drop_rel_cols: dict=None, lag_target: bool=False, ):
+                 drop_rel_cols: dict=None, lag_target: bool=False, **kwargs):
         """
         Create a new TSLagFeatureAugmenter instance.
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'sort_by_cols': ['sort_by_col1', 'sort_by_col2'], period=1, 'freq': 'D', 'drop_rel_cols': False, }
@@ -316,6 +310,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :param lag_target: flag indicating whether to include lagged target values as features
         """
         assert lag_features is not None and not (not lag_features), 'Lag features specification must be provided'
+        super().__init__(**kwargs)
         self.lag_features = lag_features
         self.default_fc_parameters = default_fc_parameters
         self.kind_to_fc_parameters = kind_to_fc_parameters
@@ -399,13 +394,6 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('TSLagFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('TSLagFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TSLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
     def __do_transform(self, X, y=None, **fit_params):
         if self.extracted_features is None:
             raise RuntimeError('You have to call fit on the transformer before')
@@ -429,7 +417,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
     """
     def __init__(self, roll_cols: list, roll_target: bool=False, window: int=15,
                  shift_periods: int=15, freq: str=None, column_ts_index: str=None,
-                 filter_by:str='date', agg_func: str='mean', ):
+                 filter_by:str='date', agg_func: str='mean', **kwargs):
         """
         Create a new TSRollingLagFeatureAugmenter instance.
         :param roll_cols: The columns to aggregate - if not specified it is assumed that the target variable is rolled
@@ -450,6 +438,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type agg_func: basestring
         """
         assert roll_cols is not None, 'Valid roll columns or features must be specified'
+        super().__init__(**kwargs)
         self.roll_cols = roll_cols
         self.roll_target = roll_target
         self.window = window
@@ -504,13 +493,6 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('TSRollingLagFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('TSRollingLagFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('TSRollingLagFeatureAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('TSRollingLagFeatureAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):

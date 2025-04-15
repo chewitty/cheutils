@@ -16,28 +16,28 @@ from typing import cast
 from abc import ABC, abstractmethod
 
 LOGGER = LoguruWrapper().get_logger()
-class AbstractBasicTransformer(ABC):
+class OutputTidying(ABC):
     def __init__(self):
         super().__init__()
 
     @classmethod
     def __subclasshook__(cls, subclass):
-        return (hasattr(subclass, 'prepare') and
-                callable(subclass.prepare) or
+        return (hasattr(subclass, 'tidy') and
+                callable(subclass.tidy) or
                 NotImplemented)
 
     @abstractmethod
-    def prepare(self, transformed_X: pd.DataFrame, y: [pd.Series, None], feature_names_out: list,
-                multiple_transformers: bool=False, **params) -> (pd.DataFrame, list):
+    def tidy(self, transformed_X: [pd.DataFrame, np.ndarray], feature_names_out: list, **params) -> (pd.DataFrame, list):
         raise NotImplementedError
 
-class BasicTransformer(AbstractBasicTransformer):
-    def __init__(self,):
+class OutputWrapper(OutputTidying):
+    def __init__(self, num_transformers: int=1, feature_names: list=None,):
         super().__init__()
+        self.num_transformers = num_transformers
+        self.feature_names = feature_names
 
-    def prepare(self, transformed_X: pd.DataFrame, y: [pd.Series, None],
-                feature_names_out: list, multiple_transformers: bool=False, **params) -> (pd.DataFrame, list):
-        if multiple_transformers > 1:
+    def tidy(self, transformed_X: [pd.DataFrame, np.ndarray], feature_names_out: list, **params) -> (pd.DataFrame, list):
+        if self.num_transformers > 1:
             feature_names_out.reverse()
             # sort out any potential duplicates - noting how column transformers concatenate transformed and
             # passthrough columns
@@ -59,71 +59,136 @@ class BasicTransformer(AbstractBasicTransformer):
             desired_feature_names = feature_names_out
         desired_feature_names = [feature_name.split('__')[-1] for feature_name in desired_feature_names]
         new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
-        return new_X, desired_feature_names
+        # re-order columns, so the altered columns appear at the end
+        add_back_feats = []
+        for feature_name in self.feature_names:
+            if feature_name in desired_feature_names:
+                desired_feature_names.remove(feature_name)
+                add_back_feats.append(feature_name)
+        desired_feature_names.extend(add_back_feats)
+        return new_X[desired_feature_names]
 
-class ColumnTransformerWrapper(ColumnTransformer):
-    def __init__(self, worker: AbstractBasicTransformer, transformers, remainder='passthrough', force_int_remainder_cols: bool = False,
-                 verbose=False, n_jobs=None, **kwargs):
-        super().__init__(transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+class BasicTransformer(TransformerMixin, BaseEstimator):
+    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool = False,
+                 verbose=False, n_jobs=None, worker: OutputTidying=None, **kwargs):
+        super().__init__()
+        self.transformers = transformers
+        self.remainder = remainder
+        self.force_int_remainder_cols = force_int_remainder_cols
+        self.verbose = verbose
+        self.n_jobs = n_jobs
         self.worker = worker
+        self.underlying_transformer = ColumnTransformer(transformers=transformers, remainder=remainder,
+                                                        force_int_remainder_cols=force_int_remainder_cols,
+                                                        verbose=verbose, n_jobs=n_jobs, **kwargs)
         self.fitted = False
 
     def fit(self, X, y=None, **fit_params):
         if self.fitted:
             return self
-        LOGGER.debug('ColumnTransformerWrapper: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        super().fit(X, y, **fit_params)
+        LOGGER.debug('BasicTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.underlying_transformer.fit(X, y, **fit_params)
         self.fitted = True
         return self
 
     def transform(self, X, **fit_params):
-        LOGGER.debug('ColumnTransformerWrapper: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X = super().transform(X, **fit_params)
-        feature_names_out = super().get_feature_names_out().tolist()
-        new_X, feature_names = self.worker.prepare(new_X, y=None, feature_names_out=feature_names_out,
-                                    multiple_transformers=len(self.transformers) > 1, **fit_params)
-        LOGGER.debug('ColumnTransformerWrapper: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
+        LOGGER.debug('BasicTransformer: Transforming dataset, shape = {}', X.shape)
+        new_X = self.underlying_transformer.transform(X)
+        if self.worker is not None:
+            feature_names_out = self.underlying_transformer.get_feature_names_out().tolist()
+            new_X = self.worker.tidy(new_X, feature_names_out=feature_names_out, **fit_params)
+        LOGGER.debug('BasicTransformer: Transformed dataset, out shape = {}', new_X.shape)
         return new_X
 
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('ColumnTransformerWrapper: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = super().fit_transform(X, y, **fit_params)
-        feature_names_out = super().get_feature_names_out().tolist()
-        new_X, feature_names = self.worker.prepare(new_X, y, feature_names_out=feature_names_out,
-                                    multiple_transformers=len(self.transformers) > 1, **fit_params)
-        LOGGER.debug('ColumnTransformerWrapper: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
-class SelectiveScaler(ColumnTransformerWrapper, BasicTransformer):
+class SelectiveScaler(BasicTransformer):
     def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose=False, n_jobs=None, **kwargs):
         assert transformers is not None and len(transformers) > 0, 'Valid transfomers required'
-        super().__init__(self, transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        super().__init__(transformers=transformers, remainder=remainder,
+                         force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
+                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         **kwargs)
 
-class SelectiveEncoder(ColumnTransformerWrapper, BasicTransformer):
+class SelectiveEncoder(BasicTransformer):
     def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose=False, n_jobs=None, **kwargs):
         assert transformers is not None and len(transformers) > 0, 'Valid transfomers required'
-        super().__init__(self, transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        super().__init__(transformers=transformers, remainder=remainder,
+                         force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
+                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         **kwargs)
 
-class SelectiveBinarizer(ColumnTransformerWrapper, BasicTransformer):
+class SelectiveBinarizer(BasicTransformer):
     def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose=False, n_jobs=None, **kwargs):
         assert transformers is not None and len(transformers) > 0, 'Valid transfomers required'
-        super().__init__(self, transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True if len(transformers) > 1 else False,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        super().__init__(transformers=transformers, remainder=remainder,
+                         force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
+                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         **kwargs)
 
-class PreOrPostDataPrep(BaseEstimator, TransformerMixin):
+class SelectiveTargetEncoder(BasicTransformer):
+    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        super().__init__(transformers=transformers, remainder=remainder,
+                         force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
+                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         **kwargs)
+
+class TSSelectiveTargetEncoder(SelectiveTargetEncoder):
+    def __init__(self, transformers, lag_features: dict, column_ts_index, remainder='passthrough', force_int_remainder_cols: bool=False,
+                 verbose=False, n_jobs=None, **kwargs):
+        """
+        create instance of TSSelectiveTargetEncoder.
+        :param transformers: configured transformers
+        :type transformers:
+        :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'sort_by_cols': ['sort_by_col1', 'sort_by_col2'], period=1, 'freq': 'D', 'drop_rel_cols': False, }
+        :type lag_features: dict
+        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type column_ts_index: basestring
+        :param remainder:
+        :type remainder:
+        :param force_int_remainder_cols:
+        :type force_int_remainder_cols:
+        :param verbose:
+        :type verbose:
+        :param n_jobs:
+        :type n_jobs:
+        :param kwargs:
+        :type kwargs:
+        """
+        assert lag_features is not None and not (not lag_features), 'Lag features specification must be provided'
+        assert column_ts_index is not None, 'A date feature/column must be provided'
+        super().__init__(transformers=transformers,
+                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
+                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        self.lag_features = lag_features
+        self.column_ts_index = column_ts_index
+        self.fitted = False
+
+    def fit(self, X, y=None, **fit_params):
+        if self.fitted:
+            return self
+        target_name = y.name
+        periods = self.lag_features.get('periods')
+        freq = self.lag_features.get('freq')
+        sort_by_cols = self.lag_features.get('sort_by_cols')
+        timeseries_container: pd.DataFrame = safe_copy(X)
+        timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+        timeseries_container.sort_values(by=sort_by_cols, inplace=True)
+        timeseries_container['index'] = timeseries_container[self.column_ts_index]
+        timeseries_container.set_index('index', inplace=True)
+        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
+        new_y = pd.Series(timeseries_container[target_name].values, index=y.index, name=target_name)
+        del timeseries_container
+        self.fitted = True
+        return super().fit(X, new_y, **fit_params)
+
+class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
                  calc_features: dict=None, synthetic_features: dict=None, lag_features: dict=None,
@@ -158,6 +223,7 @@ class PreOrPostDataPrep(BaseEstimator, TransformerMixin):
         :param kwargs:
         :type kwargs:
         """
+        super().__init__(**kwargs)
         self.date_cols = date_cols
         self.int_cols = int_cols
         self.float_cols = float_cols
@@ -213,15 +279,6 @@ class PreOrPostDataPrep(BaseEstimator, TransformerMixin):
         new_X, new_y = self.__do_transform(X)
         self.target = new_y if new_y is not None else self.target
         LOGGER.debug('PreOrPostDataPrep: Transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('PreOrPostDataPrep: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        # be sure to patch in any generated target column
-        self.fit(X, y, **fit_params)
-        new_X, new_y = self.__do_transform(X, y)
-        self.target = new_y
-        LOGGER.debug('PreOrPostDataPrep: Fit-transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
         return new_X
 
     def __generate_features(self, X: pd.DataFrame, y: pd.Series = None, gen_cols: dict = None, return_y: bool = False,
@@ -590,130 +647,9 @@ class PreOrPostDataPrep(BaseEstimator, TransformerMixin):
             'include_target': self.include_target,
         }
 
-class FunctionTransformerWrapper(FunctionTransformer):
-    def __init__(self, rel_cols: list, **kwargs):
-        super().__init__(**kwargs)
-        self.rel_cols = rel_cols
-
-    def fit(self, X, y=None):
-        LOGGER.debug('FunctionTransformerWrapper: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        to_fit = safe_copy(X[self.rel_cols])
-        super().fit(to_fit, y)
-        return self
-
-    def transform(self, X):
-        LOGGER.debug('FunctionTransformerWrapper: Transforming dataset, shape = {}', X.shape)
-        new_X = self.__do_transform(X)
-        LOGGER.debug('FunctionTransformerWrapper: Transformed dataset, out shape = {}', new_X.shape)
-        return new_X
-
-    def fit_transform(self, X, y=None, **kwargs):
-        LOGGER.debug('FunctionTransformerWrapper: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        new_X = self.__do_transform(X, y, **kwargs)
-        LOGGER.debug('FunctionTransformerWrapper: Fit-transformed dataset, out shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
-    def __do_transform(self, X, y=None, **kwargs):
-        new_X = safe_copy(X)
-        for col in self.rel_cols:
-            to_transform = safe_copy(X[col])
-            fitted_X = super().transform(to_transform)
-            if isinstance(fitted_X, np.ndarray):
-                fitted_X = pd.DataFrame(fitted_X, columns=[col])
-            new_X[col] = fitted_X[col].values if isinstance(fitted_X, pd.DataFrame) else fitted_X
-        new_X.fillna(0, inplace=True)
-        return new_X
-
-    def __inverse_transform(self, X):
-        new_X = safe_copy(X)
-        for col in self.rel_cols:
-            to_inverse = safe_copy(X[col])
-            inversed_X = super().inverse_transform(to_inverse)
-            if isinstance(inversed_X, np.ndarray):
-                inversed_X = pd.DataFrame(inversed_X, columns=self.rel_cols)
-            new_X[col] = inversed_X[col].values if isinstance(inversed_X, pd.DataFrame) else inversed_X
-        return new_X
-
-class SelectiveTargetEncoder(ColumnTransformerWrapper, BasicTransformer):
-    def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool=False,
-                 verbose=False, n_jobs=None, **kwargs):
-        super().__init__(self, transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose_feature_names_out=True if len(transformers) > 1 else False,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.feature_names = transformers[0][2]
-
-    def prepare(self, transformed_X, y: [pd.Series,None], feature_names_out: list,
-                multiple_transformers: bool=False, **params) -> (pd.DataFrame, list):
-        new_X, desired_feature_names = super().prepare(transformed_X, y, feature_names_out=feature_names_out,
-                                                       multiple_transformers=multiple_transformers, **params)
-        # re-order columns, so the altered columns appear at the end
-        for feature_name in self.feature_names:
-            if feature_name in desired_feature_names:
-                desired_feature_names.remove(feature_name)
-            try:
-                new_X[feature_name] = pd.to_numeric(new_X[feature_name], )
-            except ValueError as ignore:
-                LOGGER.warning('Potential dtype issue: {}', ignore)
-        desired_feature_names.extend(self.feature_names)
-        return new_X[desired_feature_names], desired_feature_names
-
-class TSSelectiveTargetEncoder(SelectiveTargetEncoder, BasicTransformer):
-    def __init__(self, transformers, lag_features: dict, column_ts_index, remainder='passthrough', force_int_remainder_cols: bool=False,
-                 verbose=False, n_jobs=None, **kwargs):
-        """
-        create instance of TSSelectiveTargetEncoder.
-        :param transformers: configured transformers
-        :type transformers:
-        :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'sort_by_cols': ['sort_by_col1', 'sort_by_col2'], period=1, 'freq': 'D', 'drop_rel_cols': False, }
-        :type lag_features: dict
-        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
-        :type column_ts_index: basestring
-        :param remainder:
-        :type remainder:
-        :param force_int_remainder_cols:
-        :type force_int_remainder_cols:
-        :param verbose:
-        :type verbose:
-        :param n_jobs:
-        :type n_jobs:
-        :param kwargs:
-        :type kwargs:
-        """
-        assert lag_features is not None and not (not lag_features), 'Lag features specification must be provided'
-        assert column_ts_index is not None, 'A date feature/column must be provided'
-        super().__init__(transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.lag_features = lag_features
-        self.column_ts_index = column_ts_index
-        self.fitted = False
-
-    def fit(self, X, y=None, **fit_params):
-        if self.fitted:
-            return self
-        target_name = y.name
-        periods = self.lag_features.get('periods')
-        freq = self.lag_features.get('freq')
-        sort_by_cols = self.lag_features.get('sort_by_cols')
-        timeseries_container: pd.DataFrame = safe_copy(X)
-        timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
-        timeseries_container.sort_values(by=sort_by_cols, inplace=True)
-        timeseries_container['index'] = timeseries_container[self.column_ts_index]
-        timeseries_container.set_index('index', inplace=True)
-        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
-        new_y = pd.Series(timeseries_container[target_name].values, index=y.index, name=target_name)
-        del timeseries_container
-        self.fitted = True
-        return super().fit(X, new_y, **fit_params)
-
-    def fit_transform(self, X, y=None, **fit_params):
-        self.fit(X, y, **fit_params)
-        return super().fit_transform(X, y, **fit_params)
-
-class OutlierClipper(BaseEstimator, TransformerMixin):
+class OutlierClipper(TransformerMixin, BaseEstimator):
     def __init__(self, rel_cols: list, group_by: list,
-                 l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, ):
+                 l_quartile: float = 0.25, u_quartile: float = 0.75, pos_thres: bool=False, **kwargs):
         """
         Create a new OutlierClipper instance.
         :param rel_cols: the list of columns to clip
@@ -724,6 +660,7 @@ class OutlierClipper(BaseEstimator, TransformerMixin):
         """
         assert rel_cols is not None or not (not rel_cols), 'Valid numeric feature columns must be specified'
         assert group_by is not None or not (not group_by), 'Valid numeric feature columns must be specified'
+        super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.group_by = group_by
         self.l_quartile = l_quartile
@@ -755,13 +692,6 @@ class OutlierClipper(BaseEstimator, TransformerMixin):
         LOGGER.debug('OutlierClipper: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('OutlierClipper: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('OutlierClipper: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('OutlierClipper: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):

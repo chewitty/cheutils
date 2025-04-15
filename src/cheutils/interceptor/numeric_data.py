@@ -12,7 +12,7 @@ class NumericDataInterceptor(PipelineInterceptor):
     def __init__(self):
         super().__init__()
 
-    def apply(self, X: pd.DataFrame, y: pd.Series) -> (pd.DataFrame, pd.Series):
+    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> (pd.DataFrame, pd.Series):
         """
         Transforms all features or relevant columns to numeric types in readiness for the last pipeline step or estimator.
         :param X: dataframe with features

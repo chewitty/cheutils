@@ -8,7 +8,7 @@ from scipy.stats import iqr
 LOGGER = LoguruWrapper().get_logger()
 
 class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
-    def __init__(self, rel_cols: list, lower_quartiles: list, upper_quartiles: list, group_by: list=None, ):
+    def __init__(self, rel_cols: list, lower_quartiles: list, upper_quartiles: list, group_by: list=None, **kwargs):
         """
         Create a new ExtremeStateAugmenter instance.
         :param rel_cols: the list of columns with features to examine for extree values
@@ -19,6 +19,7 @@ class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
         assert rel_cols is not None or not (not rel_cols), 'Valid numeric feature columns must be specified'
         assert lower_quartiles is not None or not (not lower_quartiles), 'Valid lower quartiles for the numeric features must be specified'
         assert upper_quartiles is not None or not (not upper_quartiles), 'Valid upper quartiles for the numeric features must be specified'
+        super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.lower_quartiles = lower_quartiles
         self.upper_quartiles = upper_quartiles
@@ -56,13 +57,6 @@ class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('ExtremeStateAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('ExtremeStateAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('ExtremeStateAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('ExtremeStateAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __do_transform(self, X, y=None, **fit_params):

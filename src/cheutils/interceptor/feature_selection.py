@@ -53,14 +53,6 @@ def feature_selector(selector: str, estimator, passthrough: bool=False, ):
             LOGGER.debug('FeatureSelector: Transformed dataset, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_cols)
             return new_X
 
-        def fit_transform(self, X, y=None, **fit_params):
-            LOGGER.debug('FeatureSelector: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-            self.fit(X, y, **fit_params)
-            self.target = y
-            new_X = self.__do_transform(X, y, **fit_params)
-            LOGGER.debug('FeatureSelector: Fit-transformed dataset, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_cols)
-            return new_X
-
         def __do_transform(self, X, y=None, **fit_params):
             if self.selected_cols is None and not self.passthrough:
                 if self.override_sel:
@@ -114,8 +106,8 @@ def feature_selector(selector: str, estimator, passthrough: bool=False, ):
     return tf_instance
 
 class FeatureSelectionInterceptor(PipelineInterceptor):
-    def __init__(self, selected_features: list):
-        super().__init__()
+    def __init__(self, selected_features: list, **kwargs):
+        super().__init__(**kwargs)
         assert selected_features is not None and not (not selected_features), 'Valid selected features list required'
         self.selected_features = selected_features
 

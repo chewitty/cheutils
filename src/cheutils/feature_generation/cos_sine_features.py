@@ -7,7 +7,7 @@ from cheutils.loggers import LoguruWrapper
 LOGGER = LoguruWrapper().get_logger()
 
 class PeriodicFeaturesAugmenter(BaseEstimator, TransformerMixin):
-    def __init__(self, rel_cols: list, periods: list, ):
+    def __init__(self, rel_cols: list, periods: list, **kwargs):
         """
         Create a new PeriodicFeaturesAugmenter instance.
         :param rel_cols: the list of columns with periodic features to encode using a sine and cosine transformation
@@ -16,6 +16,7 @@ class PeriodicFeaturesAugmenter(BaseEstimator, TransformerMixin):
         """
         assert rel_cols is not None or not (not rel_cols), 'Valid numeric periodic feature columns must be specified'
         assert periods is not None or not (not periods), 'Valid periods for the periodic features must be specified'
+        super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.periods = periods
         self.sine_transformers = {}
@@ -35,13 +36,6 @@ class PeriodicFeaturesAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('PeriodicFeaturesAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
         new_X = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('PeriodicFeaturesAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
-        return new_X
-
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('PeriodicFeaturesAugmenter: Fitting and transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.fit(X, y)
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('PeriodicFeaturesAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
     def __sine_transformers(self):

@@ -72,7 +72,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
     def __init__(self, estimator, max_evals: int=100, algo=None,
                  cv=None, n_jobs: int=-1, params_space: dict= None, trial_timeout: int=60,
                  random_state: int=100, mlflow_exp: dict=None, **kwargs):
-        super().__init__()
+        super().__init__(**kwargs)
         self.max_evals = max_evals
         self.cv = cv
         self.n_jobs = n_jobs

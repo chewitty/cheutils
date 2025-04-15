@@ -43,16 +43,9 @@ class DateFeaturesAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('DateFeaturesAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('DateFeaturesAugmenter: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.target = y
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('DateFeaturesAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
     def __do_transform(self, X, y=None, **fit_params):
         new_X = safe_copy(X)
-        new_X.reset_index(drop=True, inplace=True)
+        new_X.reset_index(drop=True, inplace=True) if isinstance(new_X, pd.DataFrame) else new_X
         # otherwise also generate the following features
         for rel_col, prefix in zip(self.rel_cols, self.prefixes):
             if not is_datetime64_any_dtype(new_X[rel_col]):

@@ -55,13 +55,6 @@ class GeohashAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('GeohashAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X
 
-    def fit_transform(self, X, y=None, **fit_params):
-        LOGGER.debug('GeohashAugmenter: Fit-transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.__do_fit(X, y, )
-        new_X = self.__do_transform(X, y, **fit_params)
-        LOGGER.debug('GeohashAugmenter: Fit-transformed dataset, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X
-
     def __do_transform(self, X, y=None, **fit_params):
         new_X = self.__generate_geohashes(X, **fit_params)
         if y is not None:
