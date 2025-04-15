@@ -81,14 +81,10 @@ class BasicTransformer(TransformerMixin, BaseEstimator):
         self.underlying_transformer = ColumnTransformer(transformers=transformers, remainder=remainder,
                                                         force_int_remainder_cols=force_int_remainder_cols,
                                                         verbose=verbose, n_jobs=n_jobs, **kwargs)
-        self.fitted = False
 
     def fit(self, X, y=None, **fit_params):
-        if self.fitted:
-            return self
         LOGGER.debug('BasicTransformer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.underlying_transformer.fit(X, y, **fit_params)
-        self.fitted = True
         return self
 
     def transform(self, X, **fit_params):
@@ -139,7 +135,7 @@ class SelectiveTargetEncoder(BasicTransformer):
                          worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
                          **kwargs)
 
-class TSSelectiveTargetEncoder(SelectiveTargetEncoder):
+class TSSelectiveTargetEncoder(BasicTransformer):
     def __init__(self, transformers, lag_features: dict, column_ts_index, remainder='passthrough', force_int_remainder_cols: bool=False,
                  verbose=False, n_jobs=None, **kwargs):
         """
@@ -163,9 +159,11 @@ class TSSelectiveTargetEncoder(SelectiveTargetEncoder):
         """
         assert lag_features is not None and not (not lag_features), 'Lag features specification must be provided'
         assert column_ts_index is not None, 'A date feature/column must be provided'
-        super().__init__(transformers=transformers,
-                         remainder=remainder, force_int_remainder_cols=force_int_remainder_cols,
-                         verbose=verbose, n_jobs=n_jobs, **kwargs)
+        super().__init__(transformers=transformers, remainder=remainder,
+                         force_int_remainder_cols=force_int_remainder_cols,
+                         verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
+                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         **kwargs)
         self.lag_features = lag_features
         self.column_ts_index = column_ts_index
         self.fitted = False

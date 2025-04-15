@@ -372,7 +372,7 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
 
 @track_duration(name='promising_interactions')
 def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, candidate_feats: list,
-                           grid_resolution: int=None, prefix: str = None, tb_name: str=None,
+                           error_margin: float=0.01, grid_resolution: int=None, prefix: str = None, tb_name: str=None,
                            random_state: int=None, **kwargs):
     """
     Perform a cross-validation search for promising feature interactions - identify which feature interactions improve
@@ -384,6 +384,7 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
     :param y: pandas Series or numpy array
     :type y:
     :param baseline_score: the simple model current performance score
+    :param error_margin: a small offset margin tolerable (proportion recommended between 0 and 0.10) on the simple model current performance score
     :param candidate_feats: list of candidate feature columns provisionally selected for the feature interactions investigation.
     :param grid_resolution: the grid resolution or maximum number of values per parameter
     :param prefix: any model prefix - the default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
@@ -428,7 +429,8 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
                                        n_jobs=__model_handler.get_n_jobs(), error_score='raise')
             min_score = -np.nanmean(cv_score) if is_classifier(pipeline) else abs(np.nanmean(cv_score))
             LOGGER.debug('Mean score = {}, [{}] with [{}]\n', round(min_score, 4), c1, c2)
-            if min_score < baseline_score:
+            test_val = baseline_score * (1 - error_margin) if is_classifier(pipeline) else baseline_score * (1 + error_margin)
+            if min_score >= test_val if is_classifier(pipeline) else min_score < test_val:
                 promising_feats.append(n)
             train.drop(columns=[n], inplace=True)
     del train
@@ -439,7 +441,7 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
         else:
             save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, )
     promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
-    return promising_feats
+    return promising_feats if promising_feats is not None and not (not promising_feats) else []
 
 def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
     """
