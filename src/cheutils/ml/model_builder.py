@@ -14,7 +14,7 @@ from hyperopt.pyll import scope
 from cheutils.common_utils import safe_copy
 from cheutils.project_tree import save_excel
 from cheutils.decorator_timer import track_duration
-from cheutils.ml.bayesian_search import HyperoptSearch, HyperoptSearchCV
+from cheutils.ml.bayesian_search import HyperoptSearchCV
 from cheutils.ml.model_support import get_params_grid, get_params_pounds
 from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
@@ -42,7 +42,7 @@ def recreate_labels(pred_probas: pd.Series, desired_thres: float, class_labels: 
     """
     if class_labels is None:
         class_labels = ['True', 'False']
-    new_labels = (pred_probas >= desired_thres)
+    new_labels: pd.Series = cast(pd.Series, pred_probas >= desired_thres)
     new_labels = new_labels.astype(int)
     new_labels = new_labels.apply(lambda x: class_labels[0] if x==1 else class_labels[1])
     return new_labels
@@ -194,16 +194,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict,
     if __model_handler.get_find_grid_resolution():
         num_params = get_optimal_grid_resolution(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
                                                  fine_search=fine_search, random_state=random_state)
-    if 'hyperoptsk' == fine_search:
-        search_cv = HyperoptSearch(params_space=__parse_params(narrow_param_grid,
-                                                               num_params=num_params,
-                                                               params_bounds=params_bounds,
-                                                               fine_search=fine_search,
-                                                               random_state=random_state),
-                                   model_option=__model_handler.get_model_option(), max_evals=__model_handler.get_n_trials(),
-                                   algo=__get_hyperopt_algos(), cv=cv_strategy,
-                                   trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
-    elif "hyperoptcv" == fine_search:
+    if "hyperoptcv" == fine_search:
         search_cv = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(narrow_param_grid,
                                                                                      num_params=num_params,
                                                                                      params_bounds=params_bounds,
@@ -266,16 +257,7 @@ def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, pa
         param_ids = range(start, end, step)
         for n_params in param_ids:
             finder = None
-            if 'hyperoptsk' == fine_search:
-
-                finder = HyperoptSearch(params_space=__parse_params(search_space,
-                                                                    num_params=n_params,
-                                                                    params_bounds=params_bounds,
-                                                                    fine_search=fine_search,
-                                                                    random_state=random_state),
-                                        model_option=__model_handler.get_model_option(), max_evals=10, algo=__get_hyperopt_algos(), cv=with_cv,
-                                        trial_timeout=__model_handler.get_trial_timeout(), random_state=random_state)
-            elif 'hyperoptcv' == fine_search:
+            if 'hyperoptcv' == fine_search:
                 finder = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(search_space,
                                                                                           num_params=n_params,
                                                                                           params_bounds=params_bounds,

@@ -5,65 +5,13 @@ from hyperopt import fmin, space_eval, STATUS_OK, Trials
 from sklearn.base import BaseEstimator, clone
 from sklearn.metrics import mean_squared_error, roc_auc_score
 from sklearn.model_selection import cross_val_score
-from hpsklearn import HyperoptEstimator
-from sklearn.base import is_classifier, is_regressor
+from sklearn.base import is_classifier
 from sklearn.pipeline import Pipeline
 from cheutils.common_base import CheutilsBase
-from cheutils.ml.model_support import get_hyperopt_estimator, get_estimator
 from cheutils.loggers import LoguruWrapper
 from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
-
-"""
-Special thanks to https://hyperopt.github.io/hyperopt-sklearn/ for the idea of using HyperoptEstimator to perform hyperparameter optimization.
-"""
-class HyperoptSearch(CheutilsBase):
-    def __init__(self, model_option:str=None, max_evals: int=100, params_space: dict= None, loss_fn=mean_squared_error,
-                 preprocessing: list=None, n_jobs: int=-1, algo=None, cv=None,
-                 random_state: int=100, trial_timeout: int=None, **kwargs):
-        super().__init__()
-        self.model_option = model_option
-        self.max_evals = max_evals
-        self.cv = cv
-        self.preprocessing = [] if preprocessing is None else preprocessing
-        self.random_state = random_state
-        self.trial_timeout = trial_timeout
-        self.n_jobs = n_jobs
-        self.base_estimator_ = None
-        self.best_estimator_ = None
-        self.best_params_ = None
-        self.best_score_ = None
-        self.cv_results_ = None
-        self.trials_ = None
-        self.params_space = params_space if params_space is not None else {}
-        self.loss_fn = mean_squared_error if loss_fn is None else loss_fn
-        self.algo = algo
-
-    def fit(self, X, y=None, **kwargs):
-        LOGGER.debug('HyperoptSearch: Fitting dataset, shape {}, {}', X.shape, y.shape if y is not None else None)
-        # Perform the optimization
-        self.best_estimator_ = HyperoptEstimator(regressor=get_hyperopt_estimator(self.model_option, **self.params_space),
-                                                 preprocessing=self.preprocessing, loss_fn=self.loss_fn,
-                                                 algo=self.algo, max_evals=self.max_evals,
-                                                 trial_timeout=self.trial_timeout, refit=True, n_jobs=self.n_jobs,
-                                                 seed=self.random_state, )
-        self.best_estimator_.fit(X, y, n_folds=self.cv, cv_shuffle=True if self.cv is not None else False)
-        self.base_estimator_ = self.best_estimator_.best_model().get('learner')
-        self.best_score_ = min(self.best_estimator_.trials.losses())
-        self.best_params_ = self.base_estimator_.get_params()
-        self.trials_ = self.best_estimator_.trials
-        self.cv_results_ = self.best_estimator_.trials
-        LOGGER.debug('HyperoptSearch: Best hyperparameters  = \n{}', self.best_params_)
-        return self
-
-    def predict(self, X):
-        assert X is not None, 'A valid X expected'
-        return self.base_estimator_.predict(X)
-
-    def predict_proba(self, X):
-        assert X is not None, 'A valid X expected'
-        return self.base_estimator_.predict_proba(X)
 
 """
 Based on https://hyperopt.github.io/hyperopt/. A hyperopt implementation that includes using cross validation during optimization
@@ -72,7 +20,7 @@ class HyperoptSearchCV(CheutilsBase, BaseEstimator):
     def __init__(self, estimator, max_evals: int=100, algo=None,
                  cv=None, n_jobs: int=-1, params_space: dict= None, trial_timeout: int=60,
                  random_state: int=100, mlflow_exp: dict=None, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__()
         self.max_evals = max_evals
         self.cv = cv
         self.n_jobs = n_jobs
