@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import FunctionTransformer
 from sklearn.base import BaseEstimator, TransformerMixin
 from cheutils.common_utils import apply_clipping, parse_special_features, safe_copy, get_outlier_cat_thresholds, get_quantiles
 from cheutils.loggers import LoguruWrapper
