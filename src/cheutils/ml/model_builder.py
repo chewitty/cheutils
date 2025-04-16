@@ -353,14 +353,13 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     return param_grid
 
 @track_duration(name='promising_interactions')
-def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, candidate_feats: list,
-                           error_margin: float=0.01, grid_resolution: int=None, prefix: str = None, tb_name: str=None,
-                           random_state: int=None, **kwargs):
+def promising_interactions(estimator, X, y, candidate_feats: list, baseline_score: float, error_margin: float=0.01,
+                           tb_name: str=None, ):
     """
     Perform a cross-validation search for promising feature interactions - identify which feature interactions improve
     the simple model performance (i.e., the simple model being the model with the obvious features derived from the training dataset).
-    :param pipeline: estimator or pipeline instance with estimator
-    :type pipeline:
+    :param estimator: a clean estimator instance - i.e., not a pipeline with estimator
+    :type estimator:
     :param X: pandas DataFrame or numpy array
     :type X:
     :param y: pandas Series or numpy array
@@ -368,51 +367,30 @@ def promising_interactions(pipeline: Pipeline, X, y, baseline_score: float, cand
     :param baseline_score: the simple model current performance score
     :param error_margin: a small offset margin tolerable (proportion recommended between 0 and 0.10) on the simple model current performance score
     :param candidate_feats: list of candidate feature columns provisionally selected for the feature interactions investigation.
-    :param grid_resolution: the grid resolution or maximum number of values per parameter
-    :param prefix: any model prefix - the default is None; but could be estimator name in pipeline or pipeline instance - e.g., "main_model"
-    :param random_state: random seed for reproducibility
     :param tb_name: the name of the underlying sqlite table for saving any promising interactions
-    :param kwargs:
-    :type kwargs:
-    :return: dictionary of promising hyperparameters
-    :rtype: dict
+    :return: list of promising interaction tuples - i.e., each tuple represents an interaction between a lhs feature and a rhs feature in the interaction
+    :rtype: list
     """
-    assert pipeline is not None, 'Valid pipeline with an estimator required'
+    assert estimator is not None, 'Valid pipeline with an estimator required'
     assert baseline_score is not None, 'A baseline performance score is required'
     assert candidate_feats is not None and len(candidate_feats) > 1, 'A valid list of at least two features required'
     __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
-    assert pipeline is not None, "A valid pipeline instance expected"
-    if random_state is None:
-        random_state = __model_handler.get_random_seed()
-    name = None
-    if "name" in kwargs:
-        name = kwargs.get("name")
-        del kwargs["name"]
     promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
     if promising_feats is not None and not(not promising_feats):
         return promising_feats
-    params_grid = get_params_grid(__model_handler.get_model_option(), prefix=prefix)
-    LOGGER.debug('Configured hyperparameters = \n{}', params_grid)
-    num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
-    # attempt to fetch promising grid from SQLite DB
-    best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_grid),
-                                                model_option=__model_handler.get_model_option(), model_prefix=prefix,
-                                                tb_name=__model_handler.get_model_option())
-    # use the configured grid
-    best_params = params_grid if best_params is None else best_params
     train = safe_copy(X)
     promising_feats = []
     for i, c1 in enumerate(candidate_feats):
         for j, c2 in enumerate(candidate_feats[i + 1:]):
             n = f'{c1}_with_{c2}'
             train[n] = train[c1] * train[c2]
-            cv_score = cross_val_score(pipeline, train, y, scoring=__model_handler.get_cross_val_scoring(),
+            cv_score = cross_val_score(estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
                                        cv=__model_handler.get_cross_val_num_folds(),
                                        n_jobs=__model_handler.get_n_jobs(), error_score='raise')
-            min_score = -np.nanmean(cv_score) if is_classifier(pipeline) else abs(np.nanmean(cv_score))
-            LOGGER.debug('Mean score = {}, [{}] with [{}]\n', round(min_score, 4), c1, c2)
-            test_val = baseline_score * (1 - error_margin) if is_classifier(pipeline) else baseline_score * (1 + error_margin)
-            if min_score >= test_val if is_classifier(pipeline) else min_score < test_val:
+            mean_score = -np.nanmean(cv_score) if is_classifier(estimator) else abs(np.nanmean(cv_score))
+            LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), n)
+            test_val = baseline_score * (1 - error_margin) if is_classifier(estimator) else baseline_score * (1 + error_margin)
+            if mean_score >= test_val if is_classifier(estimator) else mean_score < test_val:
                 promising_feats.append(n)
             train.drop(columns=[n], inplace=True)
     del train
