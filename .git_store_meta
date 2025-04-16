@@ -6,8 +6,8 @@ build and installing custom packages.txt	f	2024-12-03T17:45:30Z
 dist	d	2025-04-16T15:38:19Z
 dist/cheutils-2.8.7-py3-none-any.whl	f	2025-04-15T20:09:26Z
 dist/cheutils-2.8.7.tar.gz	f	2025-04-15T20:09:01Z
-dist/cheutils-2.8.8-py3-none-any.whl	f	2025-04-16T20:32:26Z
-dist/cheutils-2.8.8.tar.gz	f	2025-04-16T20:31:37Z
+dist/cheutils-2.8.8-py3-none-any.whl	f	2025-04-16T20:36:06Z
+dist/cheutils-2.8.8.tar.gz	f	2025-04-16T20:35:39Z
 pyproject.toml	f	2025-04-16T13:36:20Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2025-04-12T21:13:50Z
@@ -58,7 +58,7 @@ src/cheutils/ml/ml_utils.egg-info/SOURCES.txt	f	2024-07-20T18:24:34Z
 src/cheutils/ml/ml_utils.egg-info/dependency_links.txt	f	2024-07-20T18:24:34Z
 src/cheutils/ml/ml_utils.egg-info/requires.txt	f	2024-07-20T18:24:34Z
 src/cheutils/ml/ml_utils.egg-info/top_level.txt	f	2024-07-20T18:24:34Z
-src/cheutils/ml/model_builder.py	f	2025-04-16T20:29:52Z
+src/cheutils/ml/model_builder.py	f	2025-04-16T20:34:49Z
 src/cheutils/ml/model_properties.py	f	2025-04-07T14:51:42Z
 src/cheutils/ml/model_support.py	f	2025-04-08T09:14:11Z
 src/cheutils/ml/pipeline_details.py	f	2024-12-02T10:14:58Z

@@ -353,15 +353,15 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     return param_grid
 
 @track_duration(name='promising_interactions')
-def promising_interactions(estimator, X, y, candidate_feats: list, baseline_score: float, error_margin: float=0.01,
+def promising_interactions(estimator, transformed_X, y, candidate_feats: list, baseline_score: float, error_margin: float=0.01,
                            tb_name: str=None, ):
     """
     Perform a cross-validation search for promising feature interactions - identify which feature interactions improve
     the simple model performance (i.e., the simple model being the model with the obvious features derived from the training dataset).
     :param estimator: a clean estimator instance - i.e., not a pipeline with estimator
     :type estimator:
-    :param X: pandas DataFrame or numpy array
-    :type X:
+    :param transformed_X: pandas DataFrame of already transformed features as needed or numpy array
+    :type transformed_X:
     :param y: pandas Series or numpy array
     :type y:
     :param baseline_score: the simple model current performance score
@@ -378,7 +378,7 @@ def promising_interactions(estimator, X, y, candidate_feats: list, baseline_scor
     promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
     if promising_feats is not None and not(not promising_feats):
         return promising_feats
-    train = safe_copy(X)
+    train = safe_copy(transformed_X)
     promising_feats = []
     for i, c1 in enumerate(candidate_feats):
         for j, c2 in enumerate(candidate_feats[i + 1:]):
