@@ -1,8 +1,171 @@
+import numpy as np
 import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin, is_classifier
+from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import Pipeline
+from typing import cast
+from cheutils import ModelProperties, AppProperties
+from cheutils.common_utils import safe_copy
+from cheutils.sqlite_util import get_promising_interactions_from_sqlite_db, save_promising_interactions_to_sqlite_db
 from cheutils.interceptor import PipelineInterceptor
 from cheutils.loggers import LoguruWrapper
 
 LOGGER = LoguruWrapper().get_logger()
+
+def parse_promising_interactions(promising_interactions: list) -> (list, list):
+    """
+    Creates left and right lists of corresponding feature interactions from list of interaction tuples
+    :param promising_interactions:
+    :type promising_interactions:
+    :return:
+    :rtype:
+    """
+    assert promising_interactions is not None, 'Promising interactions must not be None'
+    quali_left, quali_right = [[*quali_feat] for quali_feat in zip(*promising_interactions)]
+    return quali_left, quali_right
+
+def parse_selected_interactions(selected_feats: list, separator: str='_with_') -> (list, list):
+    """
+    Creates a tuple of lists of left and right feature interactions
+    :param selected_feats: list of features, to extract qualifying left/right feature interactions, if name contains the separator
+    :type selected_feats: list
+    :param separator:
+    :type separator:
+    :return:
+    :rtype:
+    """
+    assert selected_feats is not None and not (not selected_feats), 'Valid list of tuples containing left, right feature interactions must be provided'
+    qualify_feats = [tuple(quali_feat.split(separator)) for quali_feat in selected_feats if separator in quali_feat]
+    quali_left, quali_right = parse_promising_interactions(qualify_feats)
+    return quali_left, quali_right
+
+def augment_with_interactions(X: pd.DataFrame, quali_left_cols: list, quali_right_cols: list, separator: str='_with_', ) -> pd.DataFrame:
+    new_X = X
+    interaction_srs = [new_X]
+    interaction_feats = []
+    for c1, c2 in zip(quali_left_cols, quali_right_cols):
+        n = f'{c1}{separator}{c2}'
+        new_sr = new_X[c1] * new_X[c2]
+        new_sr.name = n
+        interaction_srs.append(new_sr)
+        interaction_feats.append(n)
+    new_X = pd.concat(interaction_srs, axis=1)
+    LOGGER.debug('\nInteraction features:\n{}', interaction_feats)
+    return new_X
+
+class PromisingInteractions(BaseEstimator, TransformerMixin):
+    def __init__(self, estimator, candidate_feats: list, scoring, transform_pipeline: Pipeline=None,
+                 cv=3, error_margin: float=0.01, selected_feats: list=None, separator: str='_with_', tb_name: str=None, n_jobs: int=-1, ):
+        """
+        Create an instance of PromisingInteractions - which can be used to run a standalone transformation to identify feature interactions.
+        >>> from cheutils import PromisingInteractions
+        >>> model_option = MAIN_ESTIMATOR
+        >>> model_prefix = model_option
+        >>> baseline_model = get_estimator(model_option=model_option)
+        >>> baseline_pipeline_steps = standard_pipeline_steps.copy()
+        >>> transform_pipeline = Pipeline(steps=baseline_pipeline_steps, verbose=True)
+        >>> baseline_pipeline_steps.append((model_prefix, baseline_model))
+        >>> baseline_pipeline = Pipeline(steps=baseline_pipeline_steps, verbose=True)
+        >>> candidate_feats = APP_PROPS.get_list('model.feature.interaction.candidates')
+        >>> # if no pipeline the transform_pipeline should be ignored
+        >>> interaction_tf = PromisingInteractions(baseline_pipeline, candidate_feats, transform_pipeline=transform_pipeline, scoring=SCORING, cv=3, n_jobs=-1, )
+        >>> # the transformed dataframe includes identified interactions
+        >>> X_train_transformed = interaction_tf.fit_transform(X_train, y_train)
+        :param estimator: the estimator, which can be a pipeline
+        :type estimator:
+        :param candidate_feats: the candidate interaction features worth investigating if they would likely improve model performance if included.
+        :type candidate_feats:
+        :param scoring: the scoring - e.g., make_scorer(rmsle, greater_is_better=False)
+        :type scoring:
+        :param transform_pipeline: the transform pipeline - usually, the same pipeline without the last estimator (classifier or regressor)
+        :type transform_pipeline:
+        :param cv: number of folds or splitting strategy
+        :type cv:
+        :param error_margin: error margin tolerable (betweeon 0 and 0.10, recommended) on the calculated baseline score
+        :type error_margin:
+        :param selected_feats: important features previously identified through feature selection
+        :type selected_feats:
+        :param separator: feature interaction str separator - defaults to '_with_'
+        :param tb_name: any optional underlying sqlite table name
+        :type tb_name:
+        :param n_jobs: optional n_jobs
+        :type n_jobs:
+        """
+        assert estimator is not None, 'Valid estimator or pipeline required'
+        assert candidate_feats is not None and not (not candidate_feats), 'Valid candidate features required'
+        assert scoring is not None, 'A valid scoring function required'
+        super().__init__()
+        self.estimator = estimator
+        self.candidate_feats = candidate_feats
+        self.scoring = scoring
+        self.transform_pipeline = estimator if transform_pipeline is None else transform_pipeline # optionally provided when pipeline of transformers is terminated with an estimator
+        self.cv = cv
+        self.error_margin = error_margin
+        self.selected_feats = selected_feats # any a priori features from a feature selection process
+        self.tb_name = tb_name
+        self.n_jobs = n_jobs
+        self.baseline_score = None
+        self.fitted = False
+        self.promising_interactions = None
+        self.separator = separator
+
+    def fit(self, X, y=None, **fit_params):
+        if self.fitted:
+            return self
+        LOGGER.debug('PromisingInteractions: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name) if self.tb_name is not None else get_promising_interactions_from_sqlite_db()
+        # if there is a prevailing set of interaction features that was previously cached, then use those for efficiency
+        if self.promising_interactions is not None and not (not self.promising_interactions):
+            self.fitted = True
+            return self
+        # otherwise, re-generate those and save in sqlite for future reuse.
+        cv_score = cross_val_score(self.estimator, X, y, scoring=self.scoring, cv=self.cv, n_jobs=self.n_jobs,
+                                   error_score='raise',
+                                   verbose=10, )
+        LOGGER.debug('PromisingInteractions: Baseline CV Score = \n{}, \n{}, \n{}', -cv_score, -cv_score.mean(), -cv_score.std())
+        self.baseline_score = abs(cv_score.mean())
+        new_X = self.transform_pipeline.fit_transform(X, y, **fit_params)
+        __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
+        promising_feats = []
+        train = safe_copy(X)
+        for i, c1 in enumerate(self.candidate_feats):
+            for j, c2 in enumerate(self.candidate_feats[i + 1:]):
+                n = f'{c1}_with_{c2}'
+                train[n] = (new_X[c1] * new_X[c2]).values
+                cv_score = cross_val_score(self.estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
+                                           cv=__model_handler.get_cross_val_num_folds(),
+                                           n_jobs=__model_handler.get_n_jobs(), error_score='raise')
+                mean_score = -np.nanmean(cv_score) if is_classifier(self.estimator) else abs(np.nanmean(cv_score))
+                LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), n)
+                test_val = self.baseline_score * (1 - self.error_margin) if is_classifier(
+                    self.estimator) else self.baseline_score * (1 + self.error_margin)
+                if mean_score >= test_val if is_classifier(self.estimator) else mean_score < test_val:
+                    promising_feats.append(n)
+                train.drop(columns=[n], inplace=True)
+        del train
+        # cache the promising interaction features to SQLite
+        if len(promising_feats) > 0:
+            if self.tb_name is not None:
+                save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, tb_name=self.tb_name)
+            else:
+                save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, )
+        self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name) if self.tb_name is not None else get_promising_interactions_from_sqlite_db()
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('PromisingInteractions: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.transform_pipeline.transform(X, **fit_params)
+        if self.promising_interactions is not None and not (not self.promising_interactions):
+            # add promising features to dataframe
+            quali_left, quali_right = parse_promising_interactions(self.promising_interactions)
+            # if there was a previously found selected features from a feature selection process provided
+            # then limit the promising interactions by the qualifying interactions included in those
+            if self.selected_feats is not None and not (not self.selected_feats):
+                quali_left, quali_right = parse_selected_interactions(self.selected_feats, separator=self.separator)
+            new_X = augment_with_interactions(new_X, quali_left, quali_right, separator=self.separator)
+        LOGGER.debug('PromisingInteractions: Transformed dataset, shape = {}', new_X.shape)
+        return new_X
 
 class InteractionFeaturesInterceptor(PipelineInterceptor):
     def __init__(self, left_cols: list, right_cols: list, selected_feats: list=None, **kwargs):
@@ -32,21 +195,9 @@ class InteractionFeaturesInterceptor(PipelineInterceptor):
         assert X is not None, 'Valid dataframe with data required'
         LOGGER.debug('InteractionFeaturesInterceptor: dataset in, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.interaction_feats = []
-        new_X = X
-        def parse_selected():
-            qualify_feats = [tuple(quali_feat.split(self.separator)) for quali_feat in self.selected_feats if self.separator in quali_feat]
-            quali_left, quali_right = [[*quali_feat] for quali_feat in zip(*qualify_feats)]
-            return quali_left, quali_right
         quali_left_cols, quali_right_cols = self.left_cols, self.right_cols
         if self.selected_feats is not None and not (not self.selected_feats):
-            quali_left_cols, quali_right_cols = parse_selected()
-        interaction_srs = [new_X]
-        for c1, c2 in zip(quali_left_cols, quali_right_cols):
-            n = f'{c1}{self.separator}{c2}'
-            new_sr = new_X[c1] * new_X[c2]
-            new_sr.name = n
-            interaction_srs.append(new_sr)
-            self.interaction_feats.append(n)
-        new_X = pd.concat(interaction_srs, axis=1)
-        LOGGER.debug('InteractionFeaturesInterceptor: dataset out, shape = {}, {}\nInteraction features:\n{}', new_X.shape, y.shape if y is not None else None, self.interaction_feats)
+            quali_left_cols, quali_right_cols = parse_selected_interactions(self.selected_feats, separator=self.separator)
+        new_X = augment_with_interactions(X, quali_left_cols, quali_right_cols, separator=self.separator)
+        LOGGER.debug('InteractionFeaturesInterceptor: dataset out, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X, y

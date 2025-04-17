@@ -15,7 +15,7 @@ class DataPipelineInterceptor(BaseEstimator, TransformerMixin):
         :param interceptors: the list of data pipeline interceptors to be applied in order
         :param apply_numeric: indicates if the numeric data interceptor should be applied as the final step
         """
-        super().__init__(**kwargs)
+        super().__init__()
         self.interceptors = interceptors if interceptors is not None else []
         self.apply_numeric = apply_numeric
         if self.apply_numeric:
