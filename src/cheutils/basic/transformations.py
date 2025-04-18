@@ -57,7 +57,8 @@ class OutputWrapper(OutputTidying):
         else:
             desired_feature_names = feature_names_out
         desired_feature_names = [feature_name.split('__')[-1] for feature_name in desired_feature_names]
-        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names)
+        df_indx = transformed_X.index if isinstance(transformed_X, pd.DataFrame) else params.get('prevailing_index')
+        new_X = pd.DataFrame(transformed_X, columns=desired_feature_names, index=df_indx)
         # re-order columns, so the altered columns appear at the end
         add_back_feats = []
         for feature_name in self.feature_names:
@@ -91,6 +92,7 @@ class BasicTransformer(TransformerMixin, BaseEstimator):
         new_X = self.underlying_transformer.transform(X)
         if self.worker is not None:
             feature_names_out = self.underlying_transformer.get_feature_names_out().tolist()
+            fit_params['prevailing_index'] = X.index
             new_X = self.worker.tidy(new_X, feature_names_out=feature_names_out, **fit_params)
         LOGGER.debug('BasicTransformer: Transformed dataset, out shape = {}', new_X.shape)
         return new_X
