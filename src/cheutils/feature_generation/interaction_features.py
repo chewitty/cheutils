@@ -24,7 +24,7 @@ def parse_promising_interactions(promising_interactions: list) -> (list, list):
     quali_left, quali_right = [[*quali_feat] for quali_feat in zip(*promising_interactions)]
     return quali_left, quali_right
 
-def parse_selected_interactions(selected_feats: list, separator: str='_with_') -> (list, list):
+def extract_interactions(selected_feats: list, separator: str= '_with_') -> (list, list):
     """
     Creates a tuple of lists of left and right feature interactions
     :param selected_feats: list of features, to extract qualifying left/right feature interactions, if name contains the separator
@@ -36,7 +36,10 @@ def parse_selected_interactions(selected_feats: list, separator: str='_with_') -
     """
     assert selected_feats is not None and not (not selected_feats), 'Valid list of tuples containing left, right feature interactions must be provided'
     qualify_feats = [tuple(quali_feat.split(separator)) for quali_feat in selected_feats if separator in quali_feat]
-    quali_left, quali_right = parse_promising_interactions(qualify_feats)
+    if qualify_feats is not None and not (not qualify_feats):
+        quali_left, quali_right = parse_promising_interactions(qualify_feats)
+    else:
+        quali_left, quali_right = [], []
     return quali_left, quali_right
 
 def augment_with_interactions(X: pd.DataFrame, quali_left_cols: list, quali_right_cols: list, separator: str='_with_', ) -> pd.DataFrame:
@@ -48,8 +51,9 @@ def augment_with_interactions(X: pd.DataFrame, quali_left_cols: list, quali_righ
         new_sr = new_X[c1] * new_X[c2]
         new_sr.name = n
         interaction_srs.append(new_sr)
-        interaction_feats.append(n)
-    new_X = pd.concat(interaction_srs, axis=1)
+        interaction_feats.append((c1, c2))
+    if len(interaction_srs) > 1:
+        new_X = pd.concat(interaction_srs, axis=1)
     LOGGER.debug('\nInteraction features:\n{}', interaction_feats)
     return new_X
 
@@ -168,7 +172,7 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
             # if there was a previously found selected features from a feature selection process provided
             # then limit the promising interactions by the qualifying interactions included in those
             if self.selected_feats is not None and not (not self.selected_feats):
-                quali_left, quali_right = parse_selected_interactions(self.selected_feats, separator=self.separator)
+                quali_left, quali_right = extract_interactions(self.selected_feats, separator=self.separator)
             new_X = augment_with_interactions(new_X, quali_left, quali_right, separator=self.separator)
         LOGGER.debug('PromisingInteractions: Transformed dataset, shape = {}', new_X.shape)
         return new_X
@@ -203,7 +207,7 @@ class InteractionFeaturesInterceptor(PipelineInterceptor):
         self.interaction_feats = []
         quali_left_cols, quali_right_cols = self.left_cols, self.right_cols
         if self.selected_feats is not None and not (not self.selected_feats):
-            quali_left_cols, quali_right_cols = parse_selected_interactions(self.selected_feats, separator=self.separator)
+            quali_left_cols, quali_right_cols = extract_interactions(self.selected_feats, separator=self.separator)
         new_X = augment_with_interactions(X, quali_left_cols, quali_right_cols, separator=self.separator)
         LOGGER.debug('InteractionFeaturesInterceptor: dataset out, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
         return new_X, y
