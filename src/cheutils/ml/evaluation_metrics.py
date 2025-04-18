@@ -18,7 +18,7 @@ def rmsle(y_true, y_pred):
     y_true_in = y_true.values if isinstance(y_true, pd.Series) else y_true
     y_pred_in = y_pred.values if isinstance(y_pred, pd.Series) else y_pred
     err = np.sqrt(mean_squared_log_error(y_true_in, y_pred_in))
-    LOGGER.debug('\nRMSLE score = {}\n', err)
+    #LOGGER.debug('\nRMSLE score = {}\n', err)
     return err
 
 def nan_rmsle(y_true, y_pred):
@@ -34,5 +34,5 @@ def nan_rmsle(y_true, y_pred):
     y_true_in = y_true.values if isinstance(y_true, pd.Series) else y_true
     y_pred_in = y_pred.values if isinstance(y_pred, pd.Series) else y_pred
     err = np.sqrt(mean_squared_log_error(y_true_in, np.maximum(0, y_pred_in)))
-    LOGGER.debug('\nRMSLE score = {}\n', err)
+    #LOGGER.debug('\nRMSLE score = {}\n', err)
     return err
