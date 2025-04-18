@@ -108,6 +108,7 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         self.fitted = False
         self.promising_interactions = None
         self.separator = separator
+        self.transformed_X = None
 
     def fit(self, X, y=None, **fit_params):
         if self.fitted:
@@ -116,6 +117,8 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name) if self.tb_name is not None else get_promising_interactions_from_sqlite_db()
         # if there is a prevailing set of interaction features that was previously cached, then use those for efficiency
         if self.promising_interactions is not None and not (not self.promising_interactions):
+            if self.transformed_X is None:
+                self.transformed_X = self.transform_pipeline.fit_transform(X, y, **fit_params) if isinstance(self.transform_pipeline, Pipeline) else X
             self.fitted = True
             return self
         # otherwise, re-generate those and save in sqlite for future reuse.
@@ -124,14 +127,14 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
                                    verbose=10, )
         LOGGER.debug('PromisingInteractions: Baseline CV Score = \n{}, \n{}, \n{}', -cv_score, -cv_score.mean(), -cv_score.std())
         self.baseline_score = abs(cv_score.mean())
-        new_X = self.transform_pipeline.fit_transform(X, y, **fit_params)
+        self.transformed_X = self.transform_pipeline.fit_transform(X, y, **fit_params) if isinstance(self.transform_pipeline, Pipeline) else X
         __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
         promising_feats = []
         train = safe_copy(X)
         for i, c1 in enumerate(self.candidate_feats):
             for j, c2 in enumerate(self.candidate_feats[i + 1:]):
                 n = f'{c1}_with_{c2}'
-                train[n] = (new_X[c1] * new_X[c2]).values
+                train[n] = (self.transformed_X[c1] * self.transformed_X[c2]).values
                 cv_score = cross_val_score(self.estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
                                            cv=__model_handler.get_cross_val_num_folds(),
                                            n_jobs=__model_handler.get_n_jobs(), error_score='raise')
@@ -155,7 +158,10 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
 
     def transform(self, X, **fit_params):
         LOGGER.debug('PromisingInteractions: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X = self.transform_pipeline.transform(X, **fit_params)
+        if self.transformed_X is not None:
+            new_X = self.transformed_X
+        else:
+            new_X = self.transform_pipeline.transform(X, **fit_params) if isinstance(self.transform_pipeline, Pipeline) else X
         if self.promising_interactions is not None and not (not self.promising_interactions):
             # add promising features to dataframe
             quali_left, quali_right = parse_promising_interactions(self.promising_interactions)

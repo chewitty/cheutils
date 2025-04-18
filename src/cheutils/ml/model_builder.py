@@ -352,57 +352,6 @@ def get_narrow_param_grid(promising_params: dict, num_params:int, scaling_factor
     LOGGER.debug('Narrower hyperparameters = \n{}', param_grid)
     return param_grid
 
-@track_duration(name='promising_interactions')
-def promising_interactions(estimator, transformed_X, y, candidate_feats: list, baseline_score: float, error_margin: float=0.01,
-                           tb_name: str=None, ):
-    """
-    Perform a cross-validation search for promising feature interactions - identify which feature interactions improve
-    the simple model performance (i.e., the simple model being the model with the obvious features derived from the training dataset).
-    :param estimator: a clean estimator instance - i.e., not a pipeline with estimator
-    :type estimator:
-    :param transformed_X: pandas DataFrame of already transformed features as needed or numpy array
-    :type transformed_X:
-    :param y: pandas Series or numpy array
-    :type y:
-    :param baseline_score: the simple model current performance score
-    :param error_margin: a small offset margin tolerable (proportion recommended between 0 and 0.10) on the simple model current performance score
-    :param candidate_feats: list of candidate feature columns provisionally selected for the feature interactions investigation.
-    :param tb_name: the name of the underlying sqlite table for saving any promising interactions
-    :return: list of promising interaction tuples - i.e., each tuple represents an interaction between a lhs feature and a rhs feature in the interaction
-    :rtype: list
-    """
-    assert estimator is not None, 'Valid pipeline with an estimator required'
-    assert baseline_score is not None, 'A baseline performance score is required'
-    assert candidate_feats is not None and len(candidate_feats) > 1, 'A valid list of at least two features required'
-    __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
-    promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
-    if promising_feats is not None and not(not promising_feats):
-        return promising_feats
-    train = safe_copy(transformed_X)
-    promising_feats = []
-    for i, c1 in enumerate(candidate_feats):
-        for j, c2 in enumerate(candidate_feats[i + 1:]):
-            n = f'{c1}_with_{c2}'
-            train[n] = train[c1] * train[c2]
-            cv_score = cross_val_score(estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
-                                       cv=__model_handler.get_cross_val_num_folds(),
-                                       n_jobs=__model_handler.get_n_jobs(), error_score='raise')
-            mean_score = -np.nanmean(cv_score) if is_classifier(estimator) else abs(np.nanmean(cv_score))
-            LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), n)
-            test_val = baseline_score * (1 - error_margin) if is_classifier(estimator) else baseline_score * (1 + error_margin)
-            if mean_score >= test_val if is_classifier(estimator) else mean_score < test_val:
-                promising_feats.append(n)
-            train.drop(columns=[n], inplace=True)
-    del train
-    # cache the promising interaction features to SQLite
-    if len(promising_feats) > 0:
-        if tb_name is not None:
-            save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, tb_name=tb_name)
-        else:
-            save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, )
-    promising_feats = get_promising_interactions_from_sqlite_db(tb_name=tb_name) if tb_name is not None else get_promising_interactions_from_sqlite_db()
-    return promising_feats if promising_feats is not None and not (not promising_feats) else []
-
 def __parse_params(default_grid: dict, params_bounds: dict=None, num_params: int=3, fine_search: str = 'hyperoptcv', random_state: int=100) -> dict:
     """
     Prepares the set of hyperparameters for the underlying estimator algorithm based on the specified hyperparameter search space.
