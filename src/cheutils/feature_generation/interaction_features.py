@@ -118,7 +118,8 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         if self.fitted:
             return self
         LOGGER.debug('PromisingInteractions: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name) if self.tb_name is not None else get_promising_interactions_from_sqlite_db()
+        __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
+        self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name, model_prefix=__model_handler.get_model_option()) if self.tb_name is not None else get_promising_interactions_from_sqlite_db(model_prefix=__model_handler.get_model_option())
         # if there is a prevailing set of interaction features that was previously cached, then use those for efficiency
         if self.promising_interactions is not None and not (not self.promising_interactions):
             if self.transformed_X is None:
@@ -153,10 +154,10 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         # cache the promising interaction features to SQLite
         if len(promising_feats) > 0:
             if self.tb_name is not None:
-                save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, tb_name=self.tb_name)
+                save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, tb_name=self.tb_name, model_prefix=__model_handler.get_model_option(), )
             else:
-                save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, )
-        self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name) if self.tb_name is not None else get_promising_interactions_from_sqlite_db()
+                save_promising_interactions_to_sqlite_db(promising_interactions=promising_feats, model_prefix=__model_handler.get_model_option(), )
+        self.promising_interactions = get_promising_interactions_from_sqlite_db(tb_name=self.tb_name, model_prefix=__model_handler.get_model_option()) if self.tb_name is not None else get_promising_interactions_from_sqlite_db(model_prefix=__model_handler.get_model_option())
         self.fitted = True
         return self
 

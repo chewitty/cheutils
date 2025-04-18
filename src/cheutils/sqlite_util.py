@@ -249,12 +249,13 @@ def get_narrow_grid_from_sqlite_db(tb_name: str=None, cache_key: str=None, model
         except:
             pass
 
-def save_promising_interactions_to_sqlite_db(promising_interactions: list, tb_name: str='promising_interactions', **kwargs):
+def save_promising_interactions_to_sqlite_db(promising_interactions: list, tb_name: str='promising_interactions', model_prefix: str=None, **kwargs):
     """
     Save the input data to the underlying project SQLite database (see app-config.properties for DB details).
     :param promising_interactions: promising feature interactions to be saved or persisted
     :param tb_name: the name of the table - this could be a project-specific name, for example, the configured
     estimator name if caching promising hyperparameter grid
+    :param model_prefix: model prefix
     :param kwargs:
     :return:
     :rtype: list
@@ -265,7 +266,7 @@ def save_promising_interactions_to_sqlite_db(promising_interactions: list, tb_na
     cursor = None
     __data_handler: DataPropertiesHandler = cast(DataPropertiesHandler, AppProperties().get_subscriber('data_handler'))
     sqlite_db = os.path.join(get_data_dir(), __data_handler.get_sqlite3_db())
-    underlying_tb_name = tb_name
+    underlying_tb_name = tb_name if model_prefix is None else model_prefix + '_' + tb_name
     try:
         tb_cols = ['feature']
         data_df = pd.DataFrame({tb_cols[0]: promising_interactions, }, )
@@ -298,10 +299,11 @@ def save_promising_interactions_to_sqlite_db(promising_interactions: list, tb_na
         except:
             pass
 
-def get_promising_interactions_from_sqlite_db(tb_name: str='promising_interactions', **kwargs):
+def get_promising_interactions_from_sqlite_db(tb_name: str='promising_interactions', model_prefix: str=None, **kwargs):
     """
     Fetches data from the underlying SQLite DB using the query string.
     :param tb_name: the table name to be queried
+    :param model_prefix: model prefix
     :param kwargs:
     :type kwargs:
     :return:
@@ -317,7 +319,7 @@ def get_promising_interactions_from_sqlite_db(tb_name: str='promising_interactio
         conn = sqlite3.connect(sqlite_db)
         # Create a cursor object using the cursor() method
         cursor = conn.cursor()
-        underlying_tb_name = tb_name
+        underlying_tb_name = tb_name if model_prefix is None else model_prefix + '_' + tb_name
         query_str = 'SELECT * FROM ' + underlying_tb_name
         result_cur = cursor.execute(query_str)
         data_rows = cursor.fetchall()
