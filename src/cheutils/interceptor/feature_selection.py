@@ -111,11 +111,10 @@ class FeatureSelectionInterceptor(PipelineInterceptor):
         assert selected_features is not None and not (not selected_features), 'Valid selected features list required'
         self.selected_features = selected_features
 
-    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> (pd.DataFrame, pd.Series):
+    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> pd.DataFrame:
         assert X is not None, 'Valid dataframe with data required'
         LOGGER.debug('FeatureSelectionInterceptor: dataset in, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = X[self.selected_features]
-        new_y = y
         LOGGER.debug('FeatureSelectionInterceptor: dataset out, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_features)
-        return new_X, new_y
+        return new_X
 

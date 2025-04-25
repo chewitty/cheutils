@@ -6,13 +6,14 @@ from cheutils.loggers import LoguruWrapper
 LOGGER = LoguruWrapper().get_logger()
 
 class FeatureTrendsAugmenter(BaseEstimator, TransformerMixin):
-    def __init__(self, rel_cols: list, periods: list, impute_vals:list = None, **kwargs):
+    def __init__(self, rel_cols: list, periods: list, impute_vals:list = None, suffix: str='_trend', **kwargs):
         """
         Create a new FeatureTrendsAugmenter instance.
         :param rel_cols: the list of columns with series features to encode using a sine and cosine transformation
         with the corresponding matching periods
         :param periods: list of corresponding period values, matching the relevant series feature columns specified
         :param impute_vals: list of corresponding values to impute missing values for the corresponding features
+        :param suffix: suffix to add to column names
         """
         assert rel_cols is not None or not (not rel_cols), 'Valid numeric periodic feature columns must be specified'
         assert periods is not None or not (not periods), 'Valid periods for the periodic features must be specified'
@@ -20,6 +21,7 @@ class FeatureTrendsAugmenter(BaseEstimator, TransformerMixin):
         self.rel_cols = rel_cols
         self.periods = periods
         self.impute_vals = impute_vals if impute_vals is not None and not (not impute_vals) else [0]*len(rel_cols)
+        self.suffix = suffix
         self.fitted = False
 
     def fit(self, X=None, y=None):
@@ -41,5 +43,5 @@ class FeatureTrendsAugmenter(BaseEstimator, TransformerMixin):
         # apply trend features
         new_X = X
         for idx, rel_col in enumerate(self.rel_cols):
-            new_X.loc[:, rel_col + '_' + str(self.periods[idx]) + 'p_trend'] = new_X[rel_col].diff(self.periods[idx]).fillna(self.impute_vals[idx])
+            new_X.loc[:, rel_col + '_' + str(self.periods[idx]) + self.suffix] = new_X[rel_col].diff(self.periods[idx]).fillna(self.impute_vals[idx])
         return new_X

@@ -12,7 +12,7 @@ class NumericDataInterceptor(PipelineInterceptor):
     def __init__(self):
         super().__init__()
 
-    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> (pd.DataFrame, pd.Series):
+    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> pd.DataFrame:
         """
         Transforms all features or relevant columns to numeric types in readiness for the last pipeline step or estimator.
         :param X: dataframe with features
@@ -20,14 +20,13 @@ class NumericDataInterceptor(PipelineInterceptor):
         :param y: series with target values
         :type y: pd.Series
         :return: a tuple of transformed X and y (which remains untouched in this case)
-        :rtype: (pd.DataFrame, pd.Series)
+        :rtype: pd.DataFrame
         """
         assert X is not None, 'Valid dataframe with data required'
         new_X = safe_copy(X)
-        new_y = y
         for col in new_X.columns:
             try:
                 new_X[col] = pd.to_numeric(new_X[col], )
             except ValueError as ignore:
                 LOGGER.warning('Potential dtype issue: {}', ignore)
-        return new_X, new_y
+        return new_X

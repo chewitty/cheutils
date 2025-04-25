@@ -28,11 +28,11 @@ class DataPipelineInterceptor(BaseEstimator, TransformerMixin):
 
     def transform(self, X, **fit_params):
         LOGGER.debug('DataPipelineInterceptor: Transforming dataset, shape = {}, {}', X.shape, fit_params)
-        new_X, new_y = self.__do_transform(X, y=None, **fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
         LOGGER.debug('DataPipelineInterceptor: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
-    def __do_transform(self, X, y=None, **fit_params) -> (pd.DataFrame, pd.Series):
+    def __do_transform(self, X, y=None, **fit_params) -> pd.DataFrame:
         """
         Apply the data pipeline interceptors in order, with the numeric interceptor as last step as needed.
         :param X: dataframe with data to transform
@@ -41,11 +41,10 @@ class DataPipelineInterceptor(BaseEstimator, TransformerMixin):
         :type y:
         :param fit_params: any additional special parameters that may be required by the specific interceptor processing
         :type fit_params:
-        :return: the transformed X and y (which may be untouched)
-        :rtype: (pd.DataFrame, pd.Series)
+        :return: the transformed X
+        :rtype: pd.DataFrame
         """
         new_X = X
-        new_y = y
         for interceptor in self.interceptors:
-            new_X, new_y = interceptor.apply(new_X, new_y, **fit_params)
-        return new_X, new_y
+            new_X = interceptor.apply(new_X, y, **fit_params)
+        return new_X

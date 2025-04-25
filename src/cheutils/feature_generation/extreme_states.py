@@ -8,13 +8,14 @@ from scipy.stats import iqr
 LOGGER = LoguruWrapper().get_logger()
 
 class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
-    def __init__(self, rel_cols: list, lower_quartiles: list, upper_quartiles: list, group_by: list=None, **kwargs):
+    def __init__(self, rel_cols: list, lower_quartiles: list, upper_quartiles: list, group_by: list=None, suffix: str='_extreme', **kwargs):
         """
         Create a new ExtremeStateAugmenter instance.
         :param rel_cols: the list of columns with features to examine for extree values
         :param lower_quartiles: list of corresponding lower quartile (float between 0 and 1), matching the relevant feature columns specified
         :param upper_quartiles: list of corresponding upper quartile (float between 0 and 1 but higher than the lower quartiles), matching the relevant feature columns specified
         :param group_by: any necessary category to group aggregate stats by - default is None
+        :param suffix: suffix to add to column names
         """
         assert rel_cols is not None or not (not rel_cols), 'Valid numeric feature columns must be specified'
         assert lower_quartiles is not None or not (not lower_quartiles), 'Valid lower quartiles for the numeric features must be specified'
@@ -24,6 +25,7 @@ class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
         self.lower_quartiles = lower_quartiles
         self.upper_quartiles = upper_quartiles
         self.group_by = group_by
+        self.suffix = suffix
         self.inter_quartile_ranges = {}
         self.global_inter_quartile_ranges = {}
         self.fitted = False
@@ -67,7 +69,7 @@ class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
         if self.group_by is not None and not (not self.group_by):
             cur_groups = X.groupby(self.group_by)
             grp_subset = []
-            renamed_cols = [rel_col + '_extreme' for rel_col in self.rel_cols]
+            renamed_cols = [rel_col + self.suffix for rel_col in self.rel_cols]
             for grp_name, group in cur_groups:
                 grp_iqrs = self.inter_quartile_ranges[grp_name]
                 for col_name, rel_col in zip(renamed_cols, self.rel_cols):
@@ -79,5 +81,5 @@ class ExtremeStateAugmenter(BaseEstimator, TransformerMixin):
         else:
             for rel_col in self.rel_cols:
                 prevailing_iqrs = self.global_inter_quartile_ranges.get(rel_col)
-                new_X.loc[:, rel_col + '_extreme'] = new_X[[rel_col]] < prevailing_iqrs[0] or new_X[[rel_col]] > prevailing_iqrs[1]
+                new_X.loc[:, rel_col + self.suffix] = new_X[[rel_col]] < prevailing_iqrs[0] or new_X[[rel_col]] > prevailing_iqrs[1]
         return new_X

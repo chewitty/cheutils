@@ -12,5 +12,5 @@ class PipelineInterceptor(ABC):
                 NotImplemented)
 
     @abstractmethod
-    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> (pd.DataFrame, pd.Series):
+    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> pd.DataFrame:
         raise NotImplementedError

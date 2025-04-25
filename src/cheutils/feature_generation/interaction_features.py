@@ -202,7 +202,7 @@ class InteractionFeaturesInterceptor(PipelineInterceptor):
         self.selected_feats = selected_feats
         self.separator = '_with_'
 
-    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> (pd.DataFrame, pd.Series):
+    def apply(self, X: pd.DataFrame, y: pd.Series, **params) -> pd.DataFrame:
         assert X is not None, 'Valid dataframe with data required'
         LOGGER.debug('InteractionFeaturesInterceptor: dataset in, shape = {}, {}', X.shape, y.shape if y is not None else None)
         self.interaction_feats = []
@@ -211,4 +211,4 @@ class InteractionFeaturesInterceptor(PipelineInterceptor):
             quali_left_cols, quali_right_cols = extract_interactions(self.selected_feats, separator=self.separator)
         new_X = augment_with_interactions(X, quali_left_cols, quali_right_cols, separator=self.separator)
         LOGGER.debug('InteractionFeaturesInterceptor: dataset out, shape = {}, {}', new_X.shape, y.shape if y is not None else None)
-        return new_X, y
+        return new_X
