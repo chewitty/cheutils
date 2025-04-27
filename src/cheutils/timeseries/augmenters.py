@@ -417,7 +417,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
     """
     def __init__(self, roll_cols: list, roll_target: bool=False, window: int=15,
                  shift_periods: int=15, freq: str=None, column_ts_index: str=None,
-                 filter_by:str='date', agg_func: str='mean', **kwargs):
+                 filter_by:str='date', agg_func: str=None, suffix: str='_rol', **kwargs):
         """
         Create a new TSRollingLagFeatureAugmenter instance.
         :param roll_cols: The columns to aggregate - if not specified it is assumed that the target variable is rolled
@@ -436,6 +436,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type filter_by: basestring
         :param agg_func: The aggregation function to apply to each column
         :type agg_func: basestring
+        :param suffix: the suffix to add to the column names
         """
         assert roll_cols is not None, 'Valid roll columns or features must be specified'
         super().__init__(**kwargs)
@@ -446,7 +447,8 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.freq = freq
         self.column_ts_index = column_ts_index
         self.filter_by = filter_by
-        self.agg_func = agg_func
+        self.agg_func = agg_func if agg_func is not None else ['mean', 'std']
+        self.suffix = suffix
         self.extracted_features = None # holder for extracted features
         self.extracted_global_aggs = {}
         self.fitted = False
@@ -466,13 +468,30 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.extracted_features = timeseries_container.groupby(self.filter_by)[all_cols_to_roll].apply(lambda x: x.shift(self.shift_periods, freq=self.freq)).rolling(window=self.window + 1, min_periods=1).agg(self.agg_func)
         self.extracted_features = self.extracted_features.bfill()
         self.extracted_features.fillna(0, inplace=True)
-        self.extracted_features = self.extracted_features.reset_index()
-        col_map = {roll_col: roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + '_rolling_lag_' + self.agg_func) for roll_col in all_cols_to_roll}
+        if isinstance(self.agg_func, list) and len(self.agg_func) > 1:
+            self.extracted_features = self.extracted_features.reset_index(names=[self.filter_by, self.column_ts_index])
+            self.extracted_features.columns = self.extracted_features.columns.map('_'.join)
+            col_map = {roll_col + '_mean': roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + self.suffix + '_mean') for roll_col in all_cols_to_roll}
+            col_map_std = {roll_col + '_std': roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + self.suffix + '_std') for roll_col in all_cols_to_roll}
+            for entry_key, entry_value in col_map_std.items():
+                col_map[entry_key] = entry_value
+        else:
+            self.extracted_features = self.extracted_features.reset_index()
+            col_map = {roll_col: roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + self.suffix + '_' + self.agg_func) for roll_col in all_cols_to_roll}
         self.extracted_features.rename(columns=col_map, inplace=True)
         cols = list(self.extracted_features.columns)
         self.extracted_features.loc[:, cols[-len(all_cols_to_roll):]] = self.extracted_features[cols[-len(all_cols_to_roll):]].bfill()
-        for col in cols[-len(all_cols_to_roll):]:
-            self.extracted_global_aggs[col] = self.extracted_features[col].agg(self.agg_func)
+        if isinstance(self.agg_func, list) and len(self.agg_func) > 1:
+            self.extracted_features.columns = [col_name.rstrip('_') for col_name in self.extracted_features.columns]
+            cols = list(self.extracted_features.columns)[-len(all_cols_to_roll)*len(self.agg_func):]
+            for col_indx in range(len(all_cols_to_roll)):
+                indx = col_indx
+                for agg_func in self.agg_func:
+                    self.extracted_global_aggs[cols[col_indx+indx]] = self.extracted_features[cols[col_indx+indx]].agg(agg_func)
+                    indx += 1
+        else:
+            for col in cols[-len(all_cols_to_roll):]:
+                self.extracted_global_aggs[col] = self.extracted_features[col].agg(self.agg_func)
         del timeseries_container
         self.extracted_features.drop_duplicates(subset=[self.filter_by, self.column_ts_index], keep='last', inplace=True)
         self.fitted = True
