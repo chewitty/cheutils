@@ -5,6 +5,7 @@ from cheutils.basic.transformations import SelectiveBinarizer
 from cheutils.basic.transformations import OutlierClipper
 from cheutils.basic.transformations import SelectiveScaler
 from cheutils.basic.transformations import SelectiveEncoder
+from cheutils.basic.transformations import BasicImputer
 from cheutils.basic.transformations import get_scaler
 from cheutils.basic.transformations import get_encoder
 from cheutils.basic.transformations import get_binarizer

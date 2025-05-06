@@ -716,6 +716,66 @@ class OutlierClipper(TransformerMixin, BaseEstimator):
         new_X.loc[:, self.rel_cols] = clipped_srs
         return new_X
 
+class BasicImputer(TransformerMixin, BaseEstimator):
+    def __init__(self, rel_cols: list, agg_funcs: list, group_by: list, **kwargs):
+        """
+        Impute the specified features/columns based on specified aggregate funcs and group by
+        :param rel_cols: the relevant columns with potentially missing values requiring imputation
+        :type rel_cols: list
+        :param agg_funcs: the corresponding aggregate functions for the relevant columns
+        :type agg_funcs: list
+        :param group_by: any necessary group by or filters
+        :type group_by: list
+        :param kwargs:
+        :type kwargs:
+        """
+        assert rel_cols is not None and not (not rel_cols), 'Columns with potential missing values required'
+        assert agg_funcs is not None and len(agg_funcs) == len(rel_cols), 'Corresponding aggregate funcs required'
+        self.rel_cols = rel_cols
+        self.agg_funcs = agg_funcs
+        self.group_by = group_by
+        self.fitted = False
+        self.feature_aggs = None
+        self.agg_col_names = None
+        self.suffix = '_agg'
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('BasicImputer: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        if self.group_by is None:
+            self.feature_aggs = X[self.rel_cols].agg({col: agg_func for col, agg_func in zip(self.rel_cols, self.agg_funcs)}).reset_index()
+        elif len(self.group_by) == 1:
+            self.feature_aggs = X.groupby(self.group_by[0])[self.rel_cols].agg({col: agg_func for col, agg_func in zip(self.rel_cols, self.agg_funcs)})
+        else:
+            self.feature_aggs = X.groupby(self.group_by)[self.rel_cols].agg({col: agg_func for col, agg_func in zip(self.rel_cols, self.agg_funcs)})
+        self.agg_col_names = [col + self.suffix for col in self.rel_cols]
+        self.feature_aggs.columns = self.agg_col_names
+        self.feature_aggs = self.feature_aggs.reset_index()
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('BasicImputer: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('BasicImputer: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if not self.fitted or self.feature_aggs is None:
+            raise RuntimeError('You have to call fit before transform')
+        new_X = safe_copy(X)
+        if self.group_by is None:
+            for col in self.rel_cols:
+                new_X[col] = new_X[col].fillna(self.feature_aggs[col].values[0])
+        else:
+            new_X = pd.merge(new_X, self.feature_aggs, how='left', on=self.group_by, )
+            new_X.set_index(X.index, inplace=True)
+            for col in self.rel_cols:
+                new_X[col] = new_X[col].fillna(new_X[col + self.suffix])
+            new_X.drop(columns=self.agg_col_names, inplace=True)
+        return new_X
+
 def get_scaler(remainder='passthrough', force_int_remainder_cols: bool=False,
                verbose=False, n_jobs=None, **kwargs):
     # if configuring more than one column transformer make sure verbose_feature_names_out=True
