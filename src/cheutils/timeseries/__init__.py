@@ -1,3 +1,4 @@
 from cheutils.timeseries.augmenters import TSFeatureAugmenter
 from cheutils.timeseries.augmenters import TSLagFeatureAugmenter
 from cheutils.timeseries.augmenters import TSRollingLagFeatureAugmenter
+from cheutils.timeseries.augmenters import TSBasicFeatureAugmenter

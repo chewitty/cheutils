@@ -34,7 +34,7 @@ from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .feature_generation import (FeatureTrendsAugmenter, PeriodicFeaturesAugmenter, DateFeaturesAugmenter,
                                  GeohashAugmenter, ExtremeStateAugmenter, PctChangeInterceptor, InteractionFeaturesInterceptor,
                                  PromisingInteractions, parse_promising_interactions, extract_interactions)
-from .timeseries import TSFeatureAugmenter, TSLagFeatureAugmenter, TSRollingLagFeatureAugmenter
+from .timeseries import TSFeatureAugmenter, TSLagFeatureAugmenter, TSRollingLagFeatureAugmenter, TSBasicFeatureAugmenter
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space
 from .target_encoder import mean_target_encoding, train_mean_target_encoding, test_mean_target_encoding

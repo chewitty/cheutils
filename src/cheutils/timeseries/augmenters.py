@@ -9,6 +9,85 @@ from tsfresh.feature_extraction import extract_features
 
 LOGGER = LoguruWrapper().get_logger()
 
+class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
+    def __init__(self, rel_cols: list, col_periods: list, group_by: list, ts_index_col: str=None, freq: str=None,
+                 include_target: bool=False, **kwargs):
+        assert rel_cols is not None and not (not rel_cols), 'Features requiring lag must be provided'
+        assert col_periods is not None and not (not col_periods), 'Lag periods to be applied to each feature must be provided'
+        assert group_by is not None and not (not group_by), 'Feature(s) to id or group by must be provided'
+        super().__init__(**kwargs)
+        self.rel_cols = rel_cols
+        self.col_periods = col_periods
+        self.group_by = group_by
+        self.ts_index_col = ts_index_col if ts_index_col is not None else 'date'
+        self.freq = freq
+        self.include_target = include_target
+        self.lagged_features = None
+        self.suffix = '_lag'
+        self.additional_feats = []
+        self.fitted = False
+
+    def fit(self, X=None, y=None):
+        if self.fitted:
+            return self
+        LOGGER.debug('TSBasicFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        base_feats = self.group_by.copy()
+        base_feats.append(self.ts_index_col)
+        self.lagged_features = safe_copy(X[base_feats])
+        timeseries_container = safe_copy(X)
+        if self.include_target:
+            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+        if self.ts_index_col in timeseries_container.columns:
+            timeseries_container.set_index(self.ts_index_col, inplace=True)
+        timeseries_container = timeseries_container.sort_values(base_feats)
+        for col in self.rel_cols:
+            for period in self.col_periods:
+                if self.freq is not None:
+                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()
+                else:
+                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()
+                suffix = f'{self.suffix}_{period}'
+                self.lagged_features.loc[:, col + suffix] = shifted_data[col].values
+                self.additional_feats.append(col + suffix)
+        self.lagged_features.bfill(inplace=True)
+        self.fitted = True
+        return self
+
+    def transform(self, X, **fit_params):
+        LOGGER.debug('TSBasicFeatureAugmenter: Transforming dataset, shape = {}, {}', X.shape, fit_params)
+        new_X = self.__do_transform(X, y=None, **fit_params)
+        LOGGER.debug('TSBasicFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
+        return new_X
+
+    def __do_transform(self, X, y=None, **fit_params):
+        if self.lagged_features is None:
+            raise RuntimeError('You have to call fit on the transformer before')
+        # add newly created features to dataset
+        column_id = self.group_by.copy()
+        column_id.append(self.ts_index_col)
+        additional_lag_feats = X[column_id]
+        timeseries_container = safe_copy(X)
+        if self.include_target:
+            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+        if self.ts_index_col in timeseries_container.columns:
+            timeseries_container.set_index(self.ts_index_col, inplace=True)
+        timeseries_container = timeseries_container.sort_values(column_id)
+        for col in self.rel_cols:
+            for period in self.col_periods:
+                if self.freq is not None:
+                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()
+                else:
+                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()
+                suffix = f'{self.suffix}_{period}'
+                additional_lag_feats.loc[:, col + suffix] = shifted_data[col].values
+        new_X = pd.merge(X, additional_lag_feats, left_on=column_id, right_on=column_id, how='left')
+        new_X.set_index(X.index, inplace=True)
+        for col in self.additional_feats:
+            new_X[col].fillna(self.lagged_features[col], inplace=True)
+            new_X[col].fillna(self.lagged_features[col].mean(), inplace=True)
+        del timeseries_container
+        return new_X
+
 """
 Adapted from https://tsfresh.readthedocs.io/en/latest/_modules/tsfresh/transformers/feature_augmenter.html
 """
