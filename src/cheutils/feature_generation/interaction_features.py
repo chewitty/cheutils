@@ -145,8 +145,8 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
                                            n_jobs=__model_handler.get_n_jobs(), error_score='raise')
                 mean_score = -np.nanmean(cv_score) if is_classifier(self.estimator) else abs(np.nanmean(cv_score))
                 LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), n)
-                test_val = self.baseline_score * (1 - self.error_margin) if is_classifier(
-                    self.estimator) else self.baseline_score * (1 + self.error_margin)
+                test_val = self.baseline_score * (1 + self.error_margin) if is_classifier(
+                    self.estimator) else self.baseline_score * (1 - self.error_margin)
                 if mean_score >= test_val if is_classifier(self.estimator) else mean_score < test_val:
                     promising_feats.append(n)
                 train.drop(columns=[n], inplace=True)

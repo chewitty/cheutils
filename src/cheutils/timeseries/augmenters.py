@@ -83,8 +83,8 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         new_X = pd.merge(X, additional_lag_feats, left_on=column_id, right_on=column_id, how='left')
         new_X.set_index(X.index, inplace=True)
         for col in self.additional_feats:
-            new_X[col].fillna(self.lagged_features[col], inplace=True)
-            new_X[col].fillna(self.lagged_features[col].mean(), inplace=True)
+            new_X.loc[:, col] = new_X[col].fillna(self.lagged_features[col])
+            new_X.loc[:, col] = new_X[col].fillna(self.lagged_features[col].mean())
         del timeseries_container
         return new_X
 
