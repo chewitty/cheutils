@@ -34,9 +34,11 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         base_feats = self.group_by.copy()
         base_feats.append(self.ts_index_col)
         self.lagged_features = safe_copy(X[base_feats])
+        self.lagged_with_target = safe_copy(X[base_feats])
         timeseries_container = safe_copy(X)
         if self.include_target:
             timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+            self.lagged_with_target = pd.concat([self.lagged_with_target, safe_copy(y)], axis=1)
         if self.ts_index_col in timeseries_container.columns:
             timeseries_container.set_index(self.ts_index_col, inplace=True)
         timeseries_container = timeseries_container.sort_values(base_feats)
@@ -68,7 +70,10 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         additional_lag_feats = X[column_id]
         timeseries_container = safe_copy(X)
         if self.include_target:
-            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+            dataset_with_target = pd.merge(timeseries_container, self.lagged_with_target, on=column_id, how='left')
+            dataset_with_target.set_index(X.index, inplace=True)
+            timeseries_container = pd.concat([timeseries_container, dataset_with_target[dataset_with_target.columns[-1]]], axis=1)
+            del dataset_with_target
         if self.ts_index_col in timeseries_container.columns:
             timeseries_container.set_index(self.ts_index_col, inplace=True)
         timeseries_container = timeseries_container.sort_values(column_id)
@@ -326,7 +331,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         """
 
     def __init__(self, lag_features: dict, default_fc_parameters=None, kind_to_fc_parameters=None, column_id=None,
-                 column_sort=None, column_kind=None, column_value=None, column_ts_index: str=None,
+                 column_sort=None, column_kind=None, column_value=None, ts_index_col: str=None,
                  chunksize=tsfresh.defaults.CHUNKSIZE, n_jobs=tsfresh.defaults.N_PROCESSES,
                  show_warnings=tsfresh.defaults.SHOW_WARNINGS,
                  disable_progressbar=tsfresh.defaults.DISABLE_PROGRESSBAR,
@@ -357,8 +362,8 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type column_kind: basestring
         :param column_value: The column with the values. See :mod:`~tsfresh.feature_extraction.extraction`.
         :type column_value: basestring
-        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
-        :type column_ts_index: basestring
+        :param ts_index_col: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type ts_index_col: basestring
         :param n_jobs: The number of processes to use for parallelization. If zero, no parallelization is used.
         :type n_jobs: int
         :param chunksize: The size of one chunk that is submitted to the worker
@@ -397,7 +402,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.column_sort = column_sort
         self.column_kind = column_kind
         self.column_value = column_value
-        self.column_ts_index = column_ts_index if column_ts_index is not None else column_sort
+        self.ts_index_col = ts_index_col if ts_index_col is not None else column_sort
         self.n_jobs = n_jobs
         self.chunksize = chunksize
         self.show_warnings = show_warnings
@@ -410,49 +415,17 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.extracted_features = None # holder for extracted features
         self.extracted_global_aggs = {}
         self.lag_target = lag_target
+        self.target_name = None
         self.fitted = False
 
-    def fit(self, X=None, y=None):
+    def fit(self, X=None, y=None, **fit_params):
         if self.fitted:
             return self
         LOGGER.debug('TSLagFeatureAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-        timeseries_container: pd.DataFrame = safe_copy(X)
-        if self.lag_target:
-            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
-        periods = self.lag_features.get('periods')
-        freq = self.lag_features.get('freq')
-        sort_by_cols = self.lag_features.get('sort_by_cols')
-        timeseries_container.sort_values(by=sort_by_cols, inplace=True)
-        timeseries_container['index'] = timeseries_container[self.column_ts_index]
-        timeseries_container.set_index('index', inplace=True)
-        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
-        if timeseries_container is None:
-            raise RuntimeError('You have to provide a time series container/dataframe before.')
-        # extract the features
-        self.extracted_features = extract_features(timeseries_container,
-                                                  default_fc_parameters=self.default_fc_parameters,
-                                                  kind_to_fc_parameters=self.kind_to_fc_parameters,
-                                                  column_id=self.column_id,
-                                                  column_sort=self.column_sort,
-                                                  column_kind=self.column_kind,
-                                                  column_value=self.column_value,
-                                                  chunksize=self.chunksize,
-                                                  n_jobs=self.n_jobs,
-                                                  show_warnings=self.show_warnings,
-                                                  disable_progressbar=self.disable_progressbar,
-                                                  impute_function=self.impute_function,
-                                                  profile=self.profile,
-                                                  profiling_filename=self.profiling_filename,
-                                                  profiling_sorting=self.profiling_sorting, )
-        self.extracted_features = self.extracted_features.bfill()
-        self.extracted_features.fillna(0, inplace=True)
-        self.extracted_features.index.rename(self.column_id, inplace=True)
-        cols = list(self.extracted_features.columns)
-        col_map = {col: col.replace('__', '_lag_') for col in cols}
-        self.extracted_features.rename(columns=col_map, inplace=True)
+        self.target_name = y.name
+        self.extracted_features = self.__extract_features(X, y, **fit_params)
         for col in list(self.extracted_features.columns):
             self.extracted_global_aggs[col] = self.extracted_features.reset_index()[col].agg('median')
-        del timeseries_container
         self.fitted = True
         return self
 
@@ -473,11 +446,54 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         LOGGER.debug('TSLagFeatureAugmenter: Transformed dataset, shape = {}, {}', new_X.shape, fit_params)
         return new_X
 
+    def __extract_features(self, X, y=None, **fit_params):
+        timeseries_container: pd.DataFrame = safe_copy(X)
+        if self.lag_target:
+            if y is not None:
+                timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+            else:
+                timeseries_container.loc[:, self.target_name] = 0
+        periods = self.lag_features.get('periods')
+        freq = self.lag_features.get('freq')
+        sort_by_cols = list(self.lag_features.get('sort_by_cols'))
+        sort_by_cols.append(self.ts_index_col)
+        timeseries_container.sort_values(by=sort_by_cols, inplace=True)
+        timeseries_container['index'] = timeseries_container[self.ts_index_col]
+        timeseries_container.set_index('index', inplace=True)
+        timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
+        if timeseries_container is None:
+            raise RuntimeError('You have to provide a time series container/dataframe before.')
+        # extract the features
+        extracted_features = extract_features(timeseries_container,
+                                                   default_fc_parameters=self.default_fc_parameters,
+                                                   kind_to_fc_parameters=self.kind_to_fc_parameters,
+                                                   column_id=self.column_id,
+                                                   column_sort=self.column_sort,
+                                                   column_kind=self.column_kind,
+                                                   column_value=self.column_value,
+                                                   chunksize=self.chunksize,
+                                                   n_jobs=self.n_jobs,
+                                                   show_warnings=self.show_warnings,
+                                                   disable_progressbar=self.disable_progressbar,
+                                                   impute_function=self.impute_function,
+                                                   profile=self.profile,
+                                                   profiling_filename=self.profiling_filename,
+                                                   profiling_sorting=self.profiling_sorting, )
+        extracted_features = extracted_features.bfill()
+        extracted_features.fillna(0, inplace=True)
+        extracted_features.index.rename(self.column_id, inplace=True)
+        cols = list(extracted_features.columns)
+        col_map = {col: col.replace('__', '_lag_') for col in cols}
+        extracted_features.rename(columns=col_map, inplace=True)
+        del timeseries_container
+        return extracted_features
+
     def __do_transform(self, X, y=None, **fit_params):
         if self.extracted_features is None:
             raise RuntimeError('You have to call fit on the transformer before')
         # add newly created features to dataset
         new_X = pd.merge(X, self.extracted_features, left_on=self.column_id, right_index=True, how='left')
+        new_X.set_index(X.index, inplace=True)
         feat_cols = list(self.extracted_features.columns)
         for col in feat_cols:
             new_X[col] = new_X[col].fillna(self.extracted_global_aggs.get(col))
@@ -495,7 +511,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
     See also TSLagFeatureAugmenter.
     """
     def __init__(self, roll_cols: list, roll_target: bool=False, window: int=15,
-                 shift_periods: int=15, freq: str=None, column_ts_index: str=None,
+                 shift_periods: int=15, freq: str=None, ts_index_col: str=None,
                  filter_by:str='date', agg_func: str=None, suffix: str='_rol', **kwargs):
         """
         Create a new TSRollingLagFeatureAugmenter instance.
@@ -509,8 +525,8 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         :type shift_periods: int
         :param freq: the frequency of the rolling window
         :type freq: str
-        :param column_ts_index: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
-        :type column_ts_index: basestring
+        :param ts_index_col: The column with the time series date feature relevant for sorting; if not specified assumed to be the same as column_sort
+        :type ts_index_col: basestring
         :param filter_by: filter the data by this column label - the name of the id column to group by
         :type filter_by: basestring
         :param agg_func: The aggregation function to apply to each column
@@ -524,7 +540,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.window = window
         self.shift_periods = shift_periods
         self.freq = freq
-        self.column_ts_index = column_ts_index
+        self.ts_index_col = ts_index_col
         self.filter_by = filter_by
         self.agg_func = agg_func if agg_func is not None else ['mean', 'std']
         self.suffix = suffix
@@ -542,13 +558,13 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
             # roll target variable/feature
             timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
             all_cols_to_roll.append(y.name)
-        timeseries_container.set_index(self.column_ts_index, inplace=True)
+        timeseries_container.set_index(self.ts_index_col, inplace=True)
         # extract the features
         self.extracted_features = timeseries_container.groupby(self.filter_by)[all_cols_to_roll].apply(lambda x: x.shift(self.shift_periods, freq=self.freq)).rolling(window=self.window + 1, min_periods=1).agg(self.agg_func)
         self.extracted_features = self.extracted_features.bfill()
         self.extracted_features.fillna(0, inplace=True)
         if isinstance(self.agg_func, list) and len(self.agg_func) > 1:
-            self.extracted_features = self.extracted_features.reset_index(names=[self.filter_by, self.column_ts_index])
+            self.extracted_features = self.extracted_features.reset_index(names=[self.filter_by, self.ts_index_col])
             self.extracted_features.columns = self.extracted_features.columns.map('_'.join)
             col_map = {roll_col + '_mean': roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + self.suffix + '_mean') for roll_col in all_cols_to_roll}
             col_map_std = {roll_col + '_std': roll_col.replace(roll_col, roll_col + '_' + str(self.shift_periods) + self.suffix + '_std') for roll_col in all_cols_to_roll}
@@ -572,7 +588,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
             for col in cols[-len(all_cols_to_roll):]:
                 self.extracted_global_aggs[col] = self.extracted_features[col].agg(self.agg_func)
         del timeseries_container
-        self.extracted_features.drop_duplicates(subset=[self.filter_by, self.column_ts_index], keep='last', inplace=True)
+        self.extracted_features.drop_duplicates(subset=[self.filter_by, self.ts_index_col], keep='last', inplace=True)
         self.fitted = True
         return self
 
@@ -597,7 +613,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         if self.extracted_features is None:
             raise RuntimeError('You have to call fit on the transformer before')
         # add newly created features to dataset
-        common_key = [self.filter_by, self.column_ts_index]
+        common_key = [self.filter_by, self.ts_index_col]
         new_X = pd.merge(X, self.extracted_features, how='left', left_on=common_key, right_on=common_key)
         feat_cols = list(self.extracted_features.columns)
         for feat_col in feat_cols:

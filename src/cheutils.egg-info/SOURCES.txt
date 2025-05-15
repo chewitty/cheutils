@@ -32,6 +32,7 @@ src/cheutils/feature_generation/__init__.py
 src/cheutils/feature_generation/cos_sine_features.py
 src/cheutils/feature_generation/date_features.py
 src/cheutils/feature_generation/extreme_states.py
+src/cheutils/feature_generation/feature_intensity.py
 src/cheutils/feature_generation/feature_trends.py
 src/cheutils/feature_generation/geospatial_features.py
 src/cheutils/feature_generation/interaction_features.py
