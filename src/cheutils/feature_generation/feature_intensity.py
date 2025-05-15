@@ -21,8 +21,8 @@ class FeatureIntensityAugmenter(BaseEstimator, TransformerMixin):
         super().__init__(**kwargs)
         self.rel_cols = rel_cols
         self.group_by = group_by
-        self.suffix = suffix if agg_func is None else '_inten_proxy'
-        self.agg_func = agg_func if agg_func is not None else 'sum'
+        self.suffix = suffix
+        self.agg_func = agg_func
         self.feature_aggs = None
         self.fitted = False
 
@@ -30,6 +30,10 @@ class FeatureIntensityAugmenter(BaseEstimator, TransformerMixin):
         if self.fitted:
             return self
         LOGGER.debug('FeatureIntensityAugmenter: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        if self.agg_func is not None:
+            self.suffix = '_inten_proxy'
+        else:
+            self.agg_func = 'sum'
         self.feature_aggs = X.groupby(self.group_by)[self.rel_cols].transform(self.agg_func) + 1e-6
         self.fitted = True
         return self

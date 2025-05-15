@@ -7,7 +7,10 @@ LOGGER = LoguruWrapper().get_logger()
 
 def rmsle(y_true, y_pred):
     """
-    The Root Mean Squared Logarithmic Error (RMSLE) evaluation metric.
+    The Root Mean Squared Logarithmic Error (RMSLE) evaluation metric. Note that, when using Root Mean Squared Logarithmic Error (RMSLE),
+    it's crucial to log-transform the target variable before evaluating the model. RMSLE is essentially the RMSE of the
+    log-transformed target, so minimizing RMSLE is the same as minimizing the RMSE of the logged target. This transformation
+    helps to reduce the impact of large errors and makes the metric more sensitive to proportional differences.
     :param y_true: True values
     :type y_true:
     :param y_pred: Predicted values
