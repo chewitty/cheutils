@@ -29,11 +29,11 @@ from .ml import (get_estimator, exclude_nulls,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
                  print_classification_report, recreate_labels, rmsle, nan_rmsle)
 from .interceptor import (PipelineInterceptor, NumericDataInterceptor, DataPipelineInterceptor,
-                          FeatureSelectionInterceptor, feature_selector, DropSelectedColsInterceptor)
+                          FeatureSelectionInterceptor, feature_selector, DropSelectedColsInterceptor, FeatureIntensityInterceptor, )
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper
 from .feature_generation import (FeatureTrendsAugmenter, PeriodicFeaturesAugmenter, DateFeaturesAugmenter,
                                  GeohashAugmenter, ExtremeStateAugmenter, PctChangeInterceptor, InteractionFeaturesInterceptor,
-                                 PromisingInteractions, parse_promising_interactions, extract_interactions, FeatureIntensityAugmenter, )
+                                 PromisingInteractions, parse_promising_interactions, extract_interactions, )
 from .timeseries import TSFeatureAugmenter, TSLagFeatureAugmenter, TSRollingLagFeatureAugmenter, TSBasicFeatureAugmenter
 from .loggers import LoguruWrapper
 from .check import check_logger, check_exception, sample_hyperopt_space

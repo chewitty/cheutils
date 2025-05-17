@@ -77,19 +77,17 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         if self.ts_index_col in timeseries_container.columns:
             timeseries_container.set_index(self.ts_index_col, inplace=True)
         timeseries_container = timeseries_container.sort_values(column_id)
+        new_X = safe_copy(X)
         for col in self.rel_cols:
             for period in self.col_periods:
-                if self.freq is not None:
-                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()
-                else:
-                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()
                 suffix = f'{self.suffix}_{period}'
-                additional_lag_feats.loc[:, col + suffix] = shifted_data[col].values
-        new_X = pd.merge(X, additional_lag_feats, left_on=column_id, right_on=column_id, how='left')
-        new_X.set_index(X.index, inplace=True)
-        for col in self.additional_feats:
-            new_X.loc[:, col] = new_X[col].fillna(self.lagged_features[col])
-            new_X.loc[:, col] = new_X[col].fillna(self.lagged_features[col].mean())
+                if self.freq is not None:
+                    new_X.loc[:, col + suffix] = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()[col].values
+                else:
+                    new_X.loc[:, col + suffix] = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()[col].values
+                new_X.loc[:, col + suffix] = new_X[col + suffix].fillna(self.lagged_features[col + suffix])
+                new_X.loc[:, col + suffix] = new_X[col + suffix].fillna(self.lagged_features[col + suffix].mean())
+        #new_X.set_index(X.index, inplace=True)
         del timeseries_container
         return new_X
 

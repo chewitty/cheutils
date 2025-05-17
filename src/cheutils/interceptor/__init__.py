@@ -4,3 +4,4 @@ from cheutils.interceptor.feature_selection import FeatureSelectionInterceptor
 from cheutils.interceptor.feature_selection import feature_selector
 from cheutils.interceptor.interceptors import DataPipelineInterceptor
 from cheutils.interceptor.drop_selected_cols import DropSelectedColsInterceptor
+from cheutils.interceptor.feature_intensity import FeatureIntensityInterceptor

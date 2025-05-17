@@ -32,13 +32,13 @@ src/cheutils/feature_generation/__init__.py
 src/cheutils/feature_generation/cos_sine_features.py
 src/cheutils/feature_generation/date_features.py
 src/cheutils/feature_generation/extreme_states.py
-src/cheutils/feature_generation/feature_intensity.py
 src/cheutils/feature_generation/feature_trends.py
 src/cheutils/feature_generation/geospatial_features.py
 src/cheutils/feature_generation/interaction_features.py
 src/cheutils/feature_generation/pct_change_features.py
 src/cheutils/interceptor/__init__.py
 src/cheutils/interceptor/drop_selected_cols.py
+src/cheutils/interceptor/feature_intensity.py
 src/cheutils/interceptor/feature_selection.py
 src/cheutils/interceptor/interceptors.py
 src/cheutils/interceptor/numeric_data.py
