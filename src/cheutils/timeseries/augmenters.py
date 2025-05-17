@@ -24,7 +24,6 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.include_target = include_target
         self.lagged_features = None
         self.suffix = '_lag'
-        self.additional_feats = []
         self.fitted = False
 
     def fit(self, X=None, y=None):
@@ -44,13 +43,11 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         timeseries_container = timeseries_container.sort_values(base_feats)
         for col in self.rel_cols:
             for period in self.col_periods:
-                if self.freq is not None:
-                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()
-                else:
-                    shifted_data = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()
                 suffix = f'{self.suffix}_{period}'
-                self.lagged_features.loc[:, col + suffix] = shifted_data[col].values
-                self.additional_feats.append(col + suffix)
+                if self.freq is not None:
+                    self.lagged_features.loc[:, col + suffix] = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()[col].values
+                else:
+                    self.lagged_features.loc[:, col + suffix] = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()[col].values
         self.lagged_features.bfill(inplace=True)
         self.fitted = True
         return self
@@ -67,13 +64,11 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         # add newly created features to dataset
         column_id = self.group_by.copy()
         column_id.append(self.ts_index_col)
-        additional_lag_feats = X[column_id]
         timeseries_container = safe_copy(X)
         if self.include_target:
-            dataset_with_target = pd.merge(timeseries_container, self.lagged_with_target, on=column_id, how='left')
-            dataset_with_target.set_index(X.index, inplace=True)
-            timeseries_container = pd.concat([timeseries_container, dataset_with_target[dataset_with_target.columns[-1]]], axis=1)
-            del dataset_with_target
+            timeseries_container = pd.concat([timeseries_container, self.lagged_with_target[self.lagged_with_target.columns[-1]]], axis=1)
+            is_surplus = timeseries_container[column_id].isna().any(axis=1)
+            timeseries_container = timeseries_container[~is_surplus]
         if self.ts_index_col in timeseries_container.columns:
             timeseries_container.set_index(self.ts_index_col, inplace=True)
         timeseries_container = timeseries_container.sort_values(column_id)
