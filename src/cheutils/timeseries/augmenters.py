@@ -66,9 +66,12 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         column_id.append(self.ts_index_col)
         timeseries_container = safe_copy(X)
         if self.include_target:
-            timeseries_container = pd.concat([timeseries_container, self.lagged_with_target[self.lagged_with_target.columns[-1]]], axis=1)
+            target_col = str(self.lagged_with_target.columns[-1])
+            timeseries_container = pd.concat([timeseries_container, self.lagged_with_target[target_col]], axis=1)
             is_surplus = timeseries_container[column_id].isna().any(axis=1)
             timeseries_container = timeseries_container[~is_surplus]
+            timeseries_container[target_col] = timeseries_container[target_col].fillna(self.lagged_with_target[target_col])
+            timeseries_container[target_col] = timeseries_container[target_col].fillna(self.lagged_with_target[target_col].mean())
         if self.ts_index_col in timeseries_container.columns:
             timeseries_container.set_index(self.ts_index_col, inplace=True)
         timeseries_container = timeseries_container.sort_values(column_id)
@@ -77,9 +80,12 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
             for period in self.col_periods:
                 suffix = f'{self.suffix}_{period}'
                 if self.freq is not None:
-                    new_X.loc[:, col + suffix] = timeseries_container.groupby(self.group_by)[col].shift(period, freq=self.freq).reset_index()[col].values
+                    shifted_data = timeseries_container.groupby(self.group_by, level=0)[col].shift(period, freq=self.freq).reset_index()[col]
                 else:
-                    new_X.loc[:, col + suffix] = timeseries_container.groupby(self.group_by)[col].shift(period).reset_index()[col].values
+                    shifted_data = timeseries_container.groupby(self.group_by, level=0)[col].shift(period).reset_index()[col]
+                if isinstance(shifted_data, pd.DataFrame):
+                    shifted_data = shifted_data.loc[:, ~shifted_data.columns.duplicated(keep='last')]
+                new_X.loc[:, col + suffix] = shifted_data.values
                 new_X.loc[:, col + suffix] = new_X[col + suffix].fillna(self.lagged_features[col + suffix])
                 new_X.loc[:, col + suffix] = new_X[col + suffix].fillna(self.lagged_features[col + suffix].mean())
         #new_X.set_index(X.index, inplace=True)
