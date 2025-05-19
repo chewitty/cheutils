@@ -1089,72 +1089,75 @@ class DSWrapper(object):
         """
         return super().__new__(cls)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, is_file_ds: bool=False, *args, **kwargs):
         """
         Initializes the properties utility.
         """
         # log message on completion
         LOGGER.debug('Preparing DSWrapper ...')
-        __data_handler: DataPropertiesHandler = AppProperties().get_subscriber('data_handler')
-        DSWrapper.ds_props__ = __data_handler.get_ds_props(ds_key='ds_main', ds_config_file_name=DEFAULT_DS_CONFIG)
-        assert DSWrapper.ds_props__ is not None, 'Failure with processing datasource config file (ds-config.properties'
-        def get_ds_properties(prop_key=None):
-            """
-            Parameters:
-                prop_key(str): the full property name, as in the properties file, for which a value is required
-            Returns:
-                list(dict): a list of dictionaries based on the specified key and configured datasources.
-            """
-            if prop_key is None:
-                return None
-            prop_value = DSWrapper.ds_props__.get_list_properties(prop_key=prop_key)
-            if prop_value is None:
-                return None
-            ds_properties = []
-            for prop in prop_value:
-                ds_properties.append(prop)
-            return ds_properties
-        loaded_configs = get_ds_properties('project.ds.supported')
-        db_configs = {}
-        for loaded_config in loaded_configs:
-            key = loaded_config.keys()
-            LOGGER.debug('Found config for the following DB = {}', key)
-            db_info = loaded_configs.get(key)
-            assert db_info is not None, 'There may be an issue with the datasource configuration or properties file'
-            # setup the DB parameters
-            # see: https://stackoverflow.com/questions/15784357/sqlalchemy-setting-mysql-charset-as-create-engine-argument
-            # see: https://dev.mysql.com/doc/connector-python/en/connector-python-connectargs.html
-            direct_conn: bool = bool(eval(str(db_info.get('direct_conn'))))
-            verbose: bool = bool(eval(str(db_info.get('verbose'))))
-            timeout = db_info.get('timeout')
-            timeout = '0' if (timeout is None) or ('' == timeout) else str(timeout)
-            db_config = {'drivername': db_info.get('drivername'), 'host': db_info.get('db_server'), 'port': db_info.get('db_port'),
-                         'username'  : db_info.get('username'), 'password': quote_plus(db_info.get('password')),
-                         'database'  : db_info.get('db_name'), }
-            if 'postgres' in db_info.get('drivername'):
-                if db_info.get('encoding') is not None:
-                    db_config['query'] = {'client_encoding': db_info.get('encoding'), 'verbose': str(verbose), 'timeout': timeout, }
+        if not is_file_ds:
+            __data_handler: DataPropertiesHandler = AppProperties().get_subscriber('data_handler')
+            DSWrapper.ds_props__ = __data_handler.get_ds_config(ds_key='ds_main', ds_config_file_name=DEFAULT_DS_CONFIG)
+            assert DSWrapper.ds_props__ is not None, 'Failure with processing datasource config file (ds-config.properties'
+            def get_ds_properties(prop_key=None):
+                """
+                Parameters:
+                    prop_key(str): the full property name, as in the properties file, for which a value is required
+                Returns:
+                    list(dict): a list of dictionaries based on the specified key and configured datasources.
+                """
+                if prop_key is None:
+                    return None
+                prop_value = DSWrapper.ds_props__.get_list_properties(prop_key=prop_key)
+                if prop_value is None:
+                    return None
+                ds_properties = []
+                for prop in prop_value:
+                    ds_properties.append(prop)
+                return ds_properties
+            loaded_configs = get_ds_properties('project.ds.supported')
+            db_configs = {}
+            for loaded_config in loaded_configs:
+                key = loaded_config.keys()
+                LOGGER.debug('Found config for the following DB = {}', key)
+                db_info = loaded_configs.get(key)
+                assert db_info is not None, 'There may be an issue with the datasource configuration or properties file'
+                # setup the DB parameters
+                # see: https://stackoverflow.com/questions/15784357/sqlalchemy-setting-mysql-charset-as-create-engine-argument
+                # see: https://dev.mysql.com/doc/connector-python/en/connector-python-connectargs.html
+                direct_conn: bool = bool(eval(str(db_info.get('direct_conn'))))
+                verbose: bool = bool(eval(str(db_info.get('verbose'))))
+                timeout = db_info.get('timeout')
+                timeout = '0' if (timeout is None) or ('' == timeout) else str(timeout)
+                db_config = {'drivername': db_info.get('drivername'), 'host': db_info.get('db_server'), 'port': db_info.get('db_port'),
+                             'username'  : db_info.get('username'), 'password': quote_plus(db_info.get('password')),
+                             'database'  : db_info.get('db_name'), }
+                if 'postgres' in db_info.get('drivername'):
+                    if db_info.get('encoding') is not None:
+                        db_config['query'] = {'client_encoding': db_info.get('encoding'), 'verbose': str(verbose), 'timeout': timeout, }
+                    else:
+                        db_config['query'] = {'verbose': str(verbose), 'timeout': timeout, }
+                elif 'pyodbc' in db_info.get('drivername'):
+                    if db_info.get('encoding') is not None:
+                        db_config['query'] = {'encoding': db_info.get('encoding'), 'driver': db_info.get('db_driver'), 'verbose': str(verbose), 'timeout': timeout, }
+                    else:
+                        db_config['query'] = {'driver': db_info.get('db_driver'),
+                                              'verbose' : str(verbose), 'timeout': timeout, }
+                    if db_info.get('MULTI_HOST') is not None:
+                        db_config['connect_args'] = {'MULTI_HOST': db_info.get('MULTI_HOST'), }
                 else:
-                    db_config['query'] = {'verbose': str(verbose), 'timeout': timeout, }
-            elif 'pyodbc' in db_info.get('drivername'):
-                if db_info.get('encoding') is not None:
-                    db_config['query'] = {'encoding': db_info.get('encoding'), 'driver': db_info.get('db_driver'), 'verbose': str(verbose), 'timeout': timeout, }
-                else:
-                    db_config['query'] = {'driver': db_info.get('db_driver'),
-                                          'verbose' : str(verbose), 'timeout': timeout, }
-                if db_info.get('MULTI_HOST') is not None:
-                    db_config['connect_args'] = {'MULTI_HOST': db_info.get('MULTI_HOST'), }
-            else:
-                if db_info.get('encoding') is not None:
-                    db_config['query'] = {'encoding': db_info.get('encoding'), 'driver': db_info.get('db_driver'),
-                                          'timeout' : timeout, 'direct_conn': str(direct_conn),
-                                          'verbose' : str(verbose), }
-                else:
-                    db_config['query'] = {'driver': db_info.get('db_driver'),
-                                          'timeout' : timeout, 'direct_conn': str(direct_conn),
-                                          'verbose' : str(verbose), }
-            db_configs[key] = db_config
-        self.dbtool_factory__ = DBToolFactory(db_configs)
+                    if db_info.get('encoding') is not None:
+                        db_config['query'] = {'encoding': db_info.get('encoding'), 'driver': db_info.get('db_driver'),
+                                              'timeout' : timeout, 'direct_conn': str(direct_conn),
+                                              'verbose' : str(verbose), }
+                    else:
+                        db_config['query'] = {'driver': db_info.get('db_driver'),
+                                              'timeout' : timeout, 'direct_conn': str(direct_conn),
+                                              'verbose' : str(verbose), }
+                db_configs[key] = db_config
+            self.dbtool_factory__ = DBToolFactory(db_configs)
+        else:
+            LOGGER.debug('Using file datasource only')
 
     def __str__(self):
         info = 'DSWrapper'
@@ -1323,11 +1326,12 @@ class DSWrapper(object):
             cur_date = dt.date.today()
             if chunksize is None:
                 if is_csv:
-                    data_df = pd.read_csv(path_to_data_file)
+                    data_df = pd.read_csv(path_to_data_file, parse_dates=parse_date_cols)
                 else:
-                    data_df = pd.read_excel(path_to_data_file, dtype=input_types)
+                    data_df = pd.read_excel(path_to_data_file, dtype=input_types, parse_dates=parse_date_cols)
                 try:
-                    data_df.drop_duplicates(subset=unique_key, inplace=True)
+                    if unique_key is not None:
+                        data_df.drop_duplicates(subset=unique_key, inplace=True)
                 except Exception as ignore:
                     if is_raw:
                         msg = 'WARNING only: Processing a raw-templated file --> ' + str(ignore)
@@ -1337,20 +1341,15 @@ class DSWrapper(object):
                 # do any additional processing
                 if dropna_cols is not None:
                     data_df.dropna(subset=dropna_cols, inplace=True)
-                if parse_date_cols is not None:
-                    for date_col in parse_date_cols:
-                        data_df[date_col] = pd.to_datetime(data_df[date_col]).dt.date
                 if rename_cols is not None:
                     LOGGER.debug('Renaming columns: {}', rename_cols)
                     data_df.rename(columns=rename_cols, inplace=True)
                 # add the obligatory modified date, that may or may not be used
-                data_df['modified_date'] = dt.date.today()
                 if rel_cols is None:
                     pass
                 else:
                     if not is_raw:
                         data_df = data_df[rel_cols]
-                data_df.fillna(0, inplace=True)
                 if col_mappings is not None:
                     if isinstance(data_df, list):
                         for item_df in data_df:
@@ -1383,12 +1382,10 @@ class DSWrapper(object):
                         LOGGER.debug('Renaming columns: {}', rename_cols)
                         data_df.rename(columns=rename_cols, inplace=True)
                     # add the obligatory modified date, that may or may not be used
-                    data_df['modified_date'] = cur_date
                     if rel_cols is None:
                         pass
                     else:
                         data_df = data_df[rel_cols]
-                    data_df.fillna(0, inplace=True)
                     data_dfs.append(data_df)
                     if col_mappings is not None:
                         if isinstance(data_df, list):
@@ -1470,7 +1467,7 @@ class DSWrapper(object):
     @track_duration(name='read_in_chunks')
     @debug_func(enable_debug=True, prefix='read_in_chunks')
     def read_file_in_chunks(self, path_to_data_file=None, is_raw=False, chunksize=None, is_csv=False, input_types=None,
-                            rel_cols=None, force_parallelize=False):
+                            rel_cols=None, force_parallelize=False, **kwargs):
         """
         Reads the specified Excel file in chunks, presuming that the file is large.
         See also: https://www.giacomodebidda.com/posts/reading-large-excel-files-with-pandas/
@@ -1499,19 +1496,19 @@ class DSWrapper(object):
             return chunks
         else:
             # then it is Excel
-            xl = pd.ExcelFile(path_to_data_file)
+            xl = pd.ExcelFile(path_to_data_file, **kwargs)
             sheet_name = xl.sheet_names[0]
             if force_parallelize:
                 # make sure sheet_name=0; any other value may cause underlying result to a a dict of DataFrame
                 # but this is not effectively handled at present
                 return self.read_large_excel(path_to_data_file, is_raw=is_raw, rel_cols=rel_cols,
-                                             input_types=input_types, sheet_name=0)
+                                             input_types=input_types, sheet_name=0, **kwargs)
             else:
                 return DSWrapper.__read_excel_chunks(path_to_data_file, sheet_name=sheet_name,
-                                                     chunksize=chunksize, input_types=input_types)
+                                                     chunksize=chunksize, input_types=input_types, **kwargs)
 
     @staticmethod
-    def __read_excel_chunks(path_to_data_file, sheet_name=0, chunksize=None, input_types=None):
+    def __read_excel_chunks(path_to_data_file, sheet_name=0, chunksize=None, input_types=None, **kwargs):
         """
         Read the specified excel and return a list of DataFrames
         :param path_to_data_file: path_to_data_file: the path to the Excel file
@@ -1524,10 +1521,10 @@ class DSWrapper(object):
         i_chunk = 0
         # The first row is the header. We have already read it, so we skip it.
         skiprows = 1
-        df_header = pd.read_excel(path_to_data_file, sheet_name=sheet_name, nrows=1)
+        df_header = pd.read_excel(path_to_data_file, sheet_name=sheet_name, nrows=1, **kwargs)
         while True:
             df_chunk = pd.read_excel(path_to_data_file, sheet_name=sheet_name, nrows=chunksize, skiprows=skiprows,
-                                     header=None, converters=input_types)
+                                     header=None, converters=input_types, **kwargs)
             skiprows += chunksize
             # When there is no data, we know we can break out of the loop.
             if not df_chunk.shape[0]:
@@ -1553,7 +1550,7 @@ class DSWrapper(object):
 
     @track_duration(name='read_large_csv')
     @debug_func(enable_debug=True, prefix='read_large_csv')
-    def read_large_csv(self, path_to_data_file=None, input_types=None):
+    def read_large_csv(self, path_to_data_file=None, input_types=None, **kwargs):
         """
         Reads a large csv file efficiently (see: https://tutorial.dask.org/01_dataframe.html)
         :param path_to_data_file: the path to the Excel file
@@ -1562,7 +1559,7 @@ class DSWrapper(object):
         """
         if path_to_data_file is None:
             return None
-        dd_df = dd.read_csv(path_to_data_file, dtype=input_types)
+        dd_df = dd.read_csv(path_to_data_file, dtype=input_types, **kwargs)
         return dd_df.compute()
 
     '''
@@ -1571,7 +1568,7 @@ class DSWrapper(object):
 
     @track_duration(name='read_large_xl')
     @debug_func(enable_debug=True, prefix='read_large_xl')
-    def read_large_excel(self, path_to_data_file=None, is_raw=False, rel_cols=None, input_types=None, sheet_name=0):
+    def read_large_excel(self, path_to_data_file=None, is_raw=False, rel_cols=None, input_types=None, sheet_name=0, **kwargs):
         """
         Reads a large Excel file efficiently (see: https://tutorial.dask.org/01_dataframe.html; and
         https://stackoverflow.com/questions/44654906/parallel-excel-sheet-read-from-dask)
@@ -1597,13 +1594,13 @@ class DSWrapper(object):
         # avoid passing a sheet_name because it can lead to a dict of DataFrames in the delayed read_excel
         # which is not adequately catered for yet
         parts = [delayed(DSWrapper.__delayed_read_excel)(path_to_data_file, input_types=input_types, rel_cols=rel_cols,
-                                                         sheet_name=sheet_name)]
+                                                         sheet_name=sheet_name, **kwargs)]
         meta_info = parts[0].compute()
         data_df = dd.from_delayed(parts, meta=meta_info).compute()
         return [data_df]
 
     @staticmethod
-    def __delayed_read_excel(path_to_data_file, input_types=None, rel_cols=None, sheet_name=0):
+    def __delayed_read_excel(path_to_data_file, input_types=None, rel_cols=None, sheet_name=0, **kwargs):
         """
         Uses Dask to do a delayed but efficient read of an underlying excel file
         :param path_to_data_file: the path to the excel file
@@ -1617,15 +1614,14 @@ class DSWrapper(object):
         LOGGER.debug('Input types: {}', input_types)
         LOGGER.debug('Relevant columns: {}', rel_cols)
         # do the read
-        data_read = pd.read_excel(path_to_data_file, dtype=input_types, sheet_name=sheet_name)
-        data_read['modified_date'] = dt.date.today()
+        data_read = pd.read_excel(path_to_data_file, dtype=input_types, sheet_name=sheet_name, **kwargs)
         if rel_cols is not None:
             data_read = data_read[rel_cols]
         return data_read
 
     @track_duration(name='__save_to_file')
     @debug_func(enable_debug=True, prefix='__save_to_file')
-    def __save_to_datafile(self, data_df, ds_config=None):
+    def __save_to_datafile(self, data_df, ds_config=None, **kwargs):
         if data_df is None:
             msg = 'The dataframe containing required data must be specified'
             LOGGER.debug(msg)
@@ -1658,7 +1654,7 @@ class DSWrapper(object):
                 raise DSWrapperException(err)
         else:
             try:
-                data_df.to_excel(path_to_data_file, index=False)
+                data_df.to_excel(path_to_data_file, index=False, **kwargs)
                 LOGGER.debug('Saved data to: {}', path_to_data_file)
             except Exception as err:
                 LOGGER.error('FAILED attempt to save data to excelfile: {}', path_to_data_file, err)
