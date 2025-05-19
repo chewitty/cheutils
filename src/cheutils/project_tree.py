@@ -10,6 +10,7 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.common_utils import label, datestamp
 from cheutils.properties_util import AppProperties
 from cheutils.project_tree_handler import ProjectTreeProperties
+from cheutils.datasource_utils import DSWrapper
 from typing import cast
 
 LOGGER = LoguruWrapper().get_logger()
@@ -52,7 +53,7 @@ def get_namespace():
     __proj_handler: ProjectTreeProperties = cast(ProjectTreeProperties, AppProperties().get_subscriber('proj_handler'))
     return __proj_handler.get_proj_namespace()
 
-def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = None, ):
+def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = None, chunksize: int=None, ):
     """
     Load the project dataset provided. The specified file is expected to be in either a CSV or Excel.
     :param file_name: the file name to be read from the data folder - so, only the file name and not the path is required
@@ -63,10 +64,11 @@ def load_dataset(file_name: str = None, is_csv: bool = True, date_cols: list = N
     assert file_name is not None, 'file_name must be specified'
     path_to_dataset = os.path.join(get_data_dir(), file_name)
     dataset_df = None
-    if is_csv:
-        dataset_df = pd.read_csv(path_to_dataset, parse_dates=date_cols)
-    else:
-        dataset_df = pd.read_excel(path_to_dataset, parse_dates=date_cols)
+    ds_wrapper = DSWrapper(is_file_ds=True)
+    ds_config = {'data_file': path_to_dataset, 'is_csv': is_csv, 'is_raw': True, }
+    dataset_df = ds_wrapper.read_from_datasource(ds_config=ds_config, parse_date_cols=date_cols, chunksize=chunksize, )
+    if chunksize is not None:
+        dataset_df = pd.concat(dataset_df)
     LOGGER.info('Loaded dataset ({}) shape = {}', file_name, dataset_df.shape)
     return dataset_df
 
