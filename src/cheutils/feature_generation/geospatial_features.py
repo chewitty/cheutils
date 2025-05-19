@@ -80,7 +80,7 @@ class GeohashAugmenter(BaseEstimator, TransformerMixin):
             self.target_encoder = TargetEncoder(cols=[self.to_col], return_df=True,
                                                 smoothing=self.smoothing, min_samples_leaf=self.min_samples_leaf, )
             # fit the encoder
-            new_y = safe_copy(y)
+            new_y = pd.Series(data=y.values, name=y.name, index=X.index)
             self.target_encoder.fit(new_X, new_y)
             self.fitted = True
         return self

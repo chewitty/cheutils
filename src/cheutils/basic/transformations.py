@@ -177,12 +177,12 @@ class TSSelectiveTargetEncoder(BasicTransformer):
         freq = self.lag_features.get('freq')
         sort_by_cols = self.lag_features.get('sort_by_cols')
         timeseries_container: pd.DataFrame = safe_copy(X)
-        timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+        timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=target_name, index=X.index)], axis=1)
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
         timeseries_container['index'] = timeseries_container[self.column_ts_index]
         timeseries_container.set_index('index', inplace=True)
         timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
-        new_y = pd.Series(timeseries_container[target_name].values, index=y.index, name=target_name)
+        new_y = pd.Series(timeseries_container[target_name].values, index=X.index, name=target_name)
         del timeseries_container
         self.fitted = True
         return super().fit(X, new_y, **fit_params)
@@ -305,10 +305,10 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         # add back the target column, in case it is needed
         if y is not None:
             if isinstance(y, pd.Series):
-                new_X[y.name] = safe_copy(y)
+                new_X[y.name] = pd.Series(data=y.values, name=y.name, index=X.index)
             else:
                 if target_col is not None and not (not target_col):
-                    new_X[target_col] = safe_copy(y)
+                    new_X[target_col] = pd.Series(data=y.values, name=y.name, index=X.index)
         try:
             for col, val_gen_func in gen_cols.items():
                 new_X[col] = new_X.apply(val_gen_func[0], axis=1)

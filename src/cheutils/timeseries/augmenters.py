@@ -36,8 +36,8 @@ class TSBasicFeatureAugmenter(BaseEstimator, TransformerMixin):
         self.lagged_with_target = safe_copy(X[base_feats])
         timeseries_container = safe_copy(X)
         if self.include_target:
-            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
-            self.lagged_with_target = pd.concat([self.lagged_with_target, safe_copy(y)], axis=1)
+            timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=y.name, index=X.index)], axis=1)
+            self.lagged_with_target = pd.concat([self.lagged_with_target, pd.Series(data=y.values, name=y.name, index=X.index)], axis=1)
         if self.ts_index_col in timeseries_container.columns:
             timeseries_container.set_index(self.ts_index_col, inplace=True)
         timeseries_container = timeseries_container.sort_values(base_feats)
@@ -229,7 +229,7 @@ class TSFeatureAugmenter(BaseEstimator, TransformerMixin):
         if timeseries_container is None:
             raise RuntimeError('You have to provide a time series using the set_timeseries_container function before.')
         if self.include_target:
-            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+            timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=y.name, index=X.index)], axis=1)
         # extract the features
         self.extracted_features = extract_features(timeseries_container,
                                                   default_fc_parameters=self.default_fc_parameters,
@@ -449,7 +449,7 @@ class TSLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         timeseries_container: pd.DataFrame = safe_copy(X)
         if self.lag_target:
             if y is not None:
-                timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+                timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=y.name, index=X.index)], axis=1)
             else:
                 timeseries_container.loc[:, self.target_name] = 0
         periods = self.lag_features.get('periods')
@@ -555,7 +555,7 @@ class TSRollingLagFeatureAugmenter(BaseEstimator, TransformerMixin):
         timeseries_container: pd.DataFrame = safe_copy(X)
         if self.roll_target:
             # roll target variable/feature
-            timeseries_container = pd.concat([timeseries_container, safe_copy(y)], axis=1)
+            timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=y.name, index=X.index)], axis=1)
             all_cols_to_roll.append(y.name)
         timeseries_container.set_index(self.ts_index_col, inplace=True)
         # extract the features

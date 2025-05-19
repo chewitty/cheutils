@@ -58,7 +58,7 @@ def exclude_nulls(X, y):
     assert y is not None, "A valid y expected"
     # The prediction step does not need null values
     X_pred = safe_copy(X)
-    y_pred = safe_copy(y)
+    y_pred = pd.Series(data=y.values, name=y.name, index=X.index)
     X_pred.reset_index(drop=True, inplace=True)
     y_pred.reset_index(drop=True, inplace=True)
     null_rows = X_pred.isna().any(axis=1)
