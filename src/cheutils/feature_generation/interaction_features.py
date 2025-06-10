@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, is_classifier
 from sklearn.model_selection import cross_val_score
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from typing import cast
 from cheutils import ModelProperties, AppProperties
@@ -136,21 +138,28 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
         promising_feats = []
         train = safe_copy(X)
-        for i, c1 in enumerate(self.candidate_feats):
-            for j, c2 in enumerate(self.candidate_feats[i + 1:]):
-                n = f'{c1}_with_{c2}'
-                train[n] = (self.transformed_X[c1] * self.transformed_X[c2]).values
-                cv_score = cross_val_score(self.estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
-                                           cv=__model_handler.get_cross_val_num_folds(),
-                                           n_jobs=__model_handler.get_n_jobs(), error_score='raise')
-                mean_score = -np.nanmean(cv_score) if is_classifier(self.estimator) else abs(np.nanmean(cv_score))
-                LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), n)
-                test_val = self.baseline_score * (1 + self.error_margin) if is_classifier(
+        poly = PolynomialFeatures(degree=2, include_bias=False)
+        ct = ColumnTransformer([('poly', poly, self.candidate_feats)], remainder='drop',
+                               force_int_remainder_cols=True, verbose=True, n_jobs=__model_handler.get_n_jobs())
+        train_polys = ct.fit_transform(self.transformed_X)
+        feature_names_out = ct.get_feature_names_out().tolist()
+        feature_names = [feature_name.split('__')[-1].replace('^', '_pow_').replace(' ', '_with_') for feature_name in feature_names_out]
+        feature_interactions = [feature_name for feature_name in feature_names if feature_name not in self.candidate_feats]
+        train_interactions = pd.DataFrame(train_polys, columns=feature_names, )[feature_interactions]
+        for feat_interaction in feature_interactions:
+            train[feat_interaction] = train_interactions[feat_interaction].values
+            cv_score = cross_val_score(self.estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
+                                       cv=__model_handler.get_cross_val_num_folds(),
+                                       n_jobs=__model_handler.get_n_jobs(), error_score='raise')
+            mean_score = -np.nanmean(cv_score) if is_classifier(self.estimator) else abs(np.nanmean(cv_score))
+            LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), feat_interaction)
+            test_val = self.baseline_score * (1 + self.error_margin) if is_classifier(
                     self.estimator) else self.baseline_score * (1 - self.error_margin)
-                if mean_score >= test_val if is_classifier(self.estimator) else mean_score < test_val:
-                    promising_feats.append(n)
-                train.drop(columns=[n], inplace=True)
+            if mean_score >= test_val if is_classifier(self.estimator) else mean_score < test_val:
+                promising_feats.append(feat_interaction)
+            train.drop(columns=[feat_interaction], inplace=True)
         del train
+        del train_interactions
         # cache the promising interaction features to SQLite
         if len(promising_feats) > 0:
             if self.tb_name is not None:
