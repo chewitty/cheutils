@@ -56,7 +56,7 @@ def augment_with_interactions(X: pd.DataFrame, quali_left_cols: list, quali_righ
         interaction_feats.append((c1, c2))
     if len(interaction_srs) > 1:
         new_X = pd.concat(interaction_srs, axis=1)
-    LOGGER.debug('\nInteraction features:\n{}', interaction_feats)
+    LOGGER.debug('\nInteraction features:\n{}\n', interaction_feats)
     return new_X
 
 class PromisingInteractions(BaseEstimator, TransformerMixin):
@@ -128,12 +128,6 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
                 self.transformed_X = self.transform_pipeline.fit_transform(X, y, **fit_params) if isinstance(self.transform_pipeline, Pipeline) else X
             self.fitted = True
             return self
-        # otherwise, re-generate those and save in sqlite for future reuse.
-        cv_score = cross_val_score(self.estimator, X, y, scoring=self.scoring, cv=self.cv, n_jobs=self.n_jobs,
-                                   error_score='raise',
-                                   verbose=10, )
-        LOGGER.debug('PromisingInteractions: Baseline CV Score = \n{}, \n{}, \n{}', -cv_score, -cv_score.mean(), -cv_score.std())
-        self.baseline_score = abs(cv_score.mean())
         self.transformed_X = self.transform_pipeline.fit_transform(X, y, **fit_params) if isinstance(self.transform_pipeline, Pipeline) else X
         __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
         promising_feats = []
@@ -146,18 +140,8 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         feature_names = [feature_name.split('__')[-1].replace('^', '_pow_').replace(' ', '_with_') for feature_name in feature_names_out]
         feature_interactions = [feature_name for feature_name in feature_names if feature_name not in self.candidate_feats]
         train_interactions = pd.DataFrame(train_polys, columns=feature_names, )[feature_interactions]
-        for feat_interaction in feature_interactions:
-            train[feat_interaction] = train_interactions[feat_interaction].values
-            cv_score = cross_val_score(self.estimator, train, y, scoring=__model_handler.get_cross_val_scoring(),
-                                       cv=__model_handler.get_cross_val_num_folds(),
-                                       n_jobs=__model_handler.get_n_jobs(), error_score='raise')
-            mean_score = -np.nanmean(cv_score) if is_classifier(self.estimator) else abs(np.nanmean(cv_score))
-            LOGGER.debug('Mean score = {}, [{}]\n', round(mean_score, 4), feat_interaction)
-            test_val = self.baseline_score * (1 + self.error_margin) if is_classifier(
-                    self.estimator) else self.baseline_score * (1 - self.error_margin)
-            if mean_score >= test_val if is_classifier(self.estimator) else mean_score < test_val:
-                promising_feats.append(feat_interaction)
-            train.drop(columns=[feat_interaction], inplace=True)
+        transformed_interations = self.estimator.fit_transform(train_interactions, y)
+        promising_feats = list(transformed_interations.columns)
         del train
         del train_interactions
         # cache the promising interaction features to SQLite

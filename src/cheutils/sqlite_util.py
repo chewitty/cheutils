@@ -328,7 +328,11 @@ def get_promising_interactions_from_sqlite_db(tb_name: str='promising_interactio
         promising_feats = []
         for data_row in data_rows:
             feat_parts = data_row[0].split('_with_')
-            promising_feats.append((feat_parts[0], feat_parts[1]))
+            if len(feat_parts) > 1:
+                promising_feats.append((feat_parts[0], feat_parts[1]))
+            else:
+                feat_parts = data_row[0].split('_pow_')
+                promising_feats.append((feat_parts[0], feat_parts[0]))
         return promising_feats
     except Exception as warning:
         LOGGER.warning('SQLite DB error: {}, {}', sqlite_db, warning)
