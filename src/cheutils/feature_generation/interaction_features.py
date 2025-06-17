@@ -131,7 +131,6 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         self.transformed_X = self.transform_pipeline.fit_transform(X, y, **fit_params) if isinstance(self.transform_pipeline, Pipeline) else X
         __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
         promising_feats = []
-        train = safe_copy(X)
         poly = PolynomialFeatures(degree=2, include_bias=False)
         ct = ColumnTransformer([('poly', poly, self.candidate_feats)], remainder='drop',
                                force_int_remainder_cols=True, verbose=True, n_jobs=__model_handler.get_n_jobs())
@@ -140,9 +139,10 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         feature_names = [feature_name.split('__')[-1].replace('^', '_pow_').replace(' ', '_with_') for feature_name in feature_names_out]
         feature_interactions = [feature_name for feature_name in feature_names if feature_name not in self.candidate_feats]
         train_interactions = pd.DataFrame(train_polys, columns=feature_names, )[feature_interactions]
-        transformed_interations = self.estimator.fit_transform(train_interactions, y)
-        promising_feats = list(transformed_interations.columns)
-        del train
+        train_with_interactions = pd.concat([self.transformed_X, train_interactions], axis=1)
+        transformed_interations = self.estimator.fit_transform(train_with_interactions, y)
+        promising_feats = [feature_name for feature_name in transformed_interations.columns if feature_name not in self.transformed_X.columns]
+        del train_with_interactions
         del train_interactions
         # cache the promising interaction features to SQLite
         if len(promising_feats) > 0:

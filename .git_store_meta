@@ -14,8 +14,8 @@ dist/cheutils-2.8.13-py3-none-any.whl	f	2025-05-15T16:54:06Z
 dist/cheutils-2.8.13.tar.gz	f	2025-05-15T16:53:44Z
 dist/cheutils-2.8.14-py3-none-any.whl	f	2025-05-19T13:53:56Z
 dist/cheutils-2.8.14.tar.gz	f	2025-05-19T13:53:36Z
-dist/cheutils-2.8.15-py3-none-any.whl	f	2025-06-10T23:35:46Z
-dist/cheutils-2.8.15.tar.gz	f	2025-06-10T23:35:21Z
+dist/cheutils-2.8.15-py3-none-any.whl	f	2025-06-17T13:41:26Z
+dist/cheutils-2.8.15.tar.gz	f	2025-06-17T13:41:03Z
 pyproject.toml	f	2025-06-10T15:21:03Z
 src	d	2024-07-20T18:57:23Z
 src/cheutils	d	2025-05-17T11:03:42Z
@@ -44,7 +44,7 @@ src/cheutils/feature_generation/date_features.py	f	2025-04-14T22:48:17Z
 src/cheutils/feature_generation/extreme_states.py	f	2025-04-25T12:42:03Z
 src/cheutils/feature_generation/feature_trends.py	f	2025-04-25T12:45:31Z
 src/cheutils/feature_generation/geospatial_features.py	f	2025-05-19T13:36:43Z
-src/cheutils/feature_generation/interaction_features.py	f	2025-06-11T09:36:37Z
+src/cheutils/feature_generation/interaction_features.py	f	2025-06-17T13:40:29Z
 src/cheutils/feature_generation/pct_change_features.py	f	2025-05-17T13:34:05Z
 src/cheutils/interceptor	d	2025-05-17T11:17:02Z
 src/cheutils/interceptor/__init__.py	f	2025-05-17T11:02:58Z
