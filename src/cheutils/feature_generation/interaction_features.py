@@ -141,7 +141,8 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         train_interactions = pd.DataFrame(train_polys, columns=feature_names, )[feature_interactions]
         train_with_interactions = pd.concat([self.transformed_X, train_interactions], axis=1)
         transformed_interations = self.estimator.fit_transform(train_with_interactions, y)
-        promising_feats = [feature_name for feature_name in transformed_interations.columns if feature_name not in self.transformed_X.columns]
+        all_selected_cols = self.estimator.get_support()
+        promising_feats = [feature_name for feature_name, selected in zip(transformed_interations.columns, all_selected_cols) if selected and feature_name not in self.transformed_X.columns]
         del train_with_interactions
         del train_interactions
         # cache the promising interaction features to SQLite

@@ -15,7 +15,7 @@ from typing import cast
 from abc import ABC, abstractmethod
 
 LOGGER = LoguruWrapper().get_logger()
-class OutputTidying(ABC):
+class TidyOutput(ABC):
     def __init__(self):
         super().__init__()
 
@@ -29,7 +29,7 @@ class OutputTidying(ABC):
     def tidy(self, transformed_X: [pd.DataFrame, np.ndarray], feature_names_out: list, **params) -> (pd.DataFrame, list):
         raise NotImplementedError
 
-class OutputWrapper(OutputTidying):
+class TidyOutputWrapper(TidyOutput):
     def __init__(self, num_transformers: int=1, feature_names: list=None,):
         super().__init__()
         self.num_transformers = num_transformers
@@ -70,7 +70,7 @@ class OutputWrapper(OutputTidying):
 
 class BasicTransformer(TransformerMixin, BaseEstimator):
     def __init__(self, transformers, remainder='passthrough', force_int_remainder_cols: bool = False,
-                 verbose=False, n_jobs=None, worker: OutputTidying=None, **kwargs):
+                 verbose=False, n_jobs=None, worker: TidyOutput=None, **kwargs):
         super().__init__()
         self.transformers = transformers
         self.remainder = remainder
@@ -104,7 +104,7 @@ class SelectiveScaler(BasicTransformer):
         super().__init__(transformers=transformers, remainder=remainder,
                          force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
-                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         worker=TidyOutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
                          **kwargs)
 
 class SelectiveEncoder(BasicTransformer):
@@ -114,7 +114,7 @@ class SelectiveEncoder(BasicTransformer):
         super().__init__(transformers=transformers, remainder=remainder,
                          force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
-                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         worker=TidyOutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
                          **kwargs)
 
 class SelectiveBinarizer(BasicTransformer):
@@ -124,7 +124,7 @@ class SelectiveBinarizer(BasicTransformer):
         super().__init__(transformers=transformers, remainder=remainder,
                          force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
-                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         worker=TidyOutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
                          **kwargs)
 
 class SelectiveTargetEncoder(BasicTransformer):
@@ -133,7 +133,7 @@ class SelectiveTargetEncoder(BasicTransformer):
         super().__init__(transformers=transformers, remainder=remainder,
                          force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
-                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         worker=TidyOutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
                          **kwargs)
 
 class TSSelectiveTargetEncoder(BasicTransformer):
@@ -163,7 +163,7 @@ class TSSelectiveTargetEncoder(BasicTransformer):
         super().__init__(transformers=transformers, remainder=remainder,
                          force_int_remainder_cols=force_int_remainder_cols,
                          verbose_feature_names_out=True, verbose=verbose, n_jobs=n_jobs,
-                         worker=OutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
+                         worker=TidyOutputWrapper(num_transformers=len(transformers), feature_names=transformers[0][2]),
                          **kwargs)
         self.lag_features = lag_features
         self.column_ts_index = column_ts_index
@@ -187,15 +187,15 @@ class TSSelectiveTargetEncoder(BasicTransformer):
         self.fitted = True
         return super().fit(X, new_y, **fit_params)
 
-class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
+class DataPrep(TransformerMixin, BaseEstimator):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
                  masked_cols: dict=None, special_features: dict=None, drop_feats_cols: bool=True,
                  calc_features: dict=None, synthetic_features: dict=None, lag_features: dict=None,
-                 gen_target: dict=None, correlated_cols: list=None, replace_patterns: list=None,
+                 correlated_cols: list=None, replace_patterns: list=None,
                  gen_cat_col: dict=None, pot_leak_cols: list=None, clip_data: dict=None,
                  include_target: bool=False, **kwargs):
         """
-        Preprocessing dataframe columns to ensure consistent data types and formatting, and optionally extracting any
+        Apply specified preprocessing and postprocessing on the dataframe columns to ensure consistent data types and formatting, and optionally extracting any
         special features described by dictionaries of feature mappings - e.g.,
         special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }.
         :param date_cols: any date columns to be concerted to datetime
@@ -212,7 +212,6 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'delay': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'delay': False, 'kwargs': {}}
         :param synthetic_features: dictionary of calculated column labels with their corresponding column generation functions, for cases involving features not present in test data - e.g., {'new_col1': {'func': col_gen_func1, 'agg_col': 'col_label1', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}, 'new_col2': {'func': col_gen_func2, 'agg_col': 'col_label2', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'col_label1': {'filter_by': ['filter_col1', 'filter_col2'], period=0, 'drop_rel_cols': False, }, 'col_label2': {'filter_by': ['filter_col3', 'filter_col4'], period=0, 'drop_rel_cols': False, }}
-        :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func, 'other_val': 0}
         :param correlated_cols: columns that are moderately to highly correlated and should be dropped
         :param gen_cat_col: dictionary specifying a categorical column label to be generated from a numeric column, with corresponding bins and labels - e.g., {'cat_col': 'num_col_label', 'bins': [1, 2, 3, 4, 5], 'labels': ['A', 'B', 'C', 'D', 'E']})
         :param pot_leak_cols: columns that could potentially introduce data leakage and should be dropped
@@ -229,7 +228,6 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         self.masked_cols = masked_cols
         self.special_features = special_features
         self.drop_feats_cols = drop_feats_cols
-        self.gen_target = gen_target
         self.calc_features = calc_features
         self.synthetic_features = synthetic_features
         self.lag_features = lag_features
@@ -239,7 +237,6 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         self.pot_leak_cols = pot_leak_cols
         self.clip_data = clip_data
         self.include_target = include_target
-        self.target = None
         self.gen_calc_features = {} # to hold generated features from the training set - i.e., these features are generated during fit()
         self.gen_global_aggs = {}
         self.basic_calc_features = {}
@@ -250,14 +247,13 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
     def fit(self, X, y=None, **fit_params):
         if self.fitted:
             return self
-        LOGGER.debug('PreOrPostDataPrep: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('DataPrep: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         # do any necessary pre-processing
-        new_X, new_y = self.__pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols,
-                                          float_cols=self.float_cols,
-                                          masked_cols=self.masked_cols, special_features=self.special_features,
-                                          drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
-                                          gen_cat_col=self.gen_cat_col,
-                                          clip_data=self.clip_data, include_target=self.include_target, )
+        new_X = self.__pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols,
+                                          float_cols=self.float_cols, masked_cols=self.masked_cols,
+                                          special_features=self.special_features, drop_feats_cols=self.drop_feats_cols,
+                                          clip_data=self.clip_data, gen_cat_col=self.gen_cat_col,
+                                          include_target=self.include_target)
         # sort of sequence of calculated features
         if self.calc_features is not None:
             for col, col_gen_func_dict in self.calc_features.items():
@@ -267,17 +263,15 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
                 else:
                     self.basic_calc_features[col] = col_gen_func_dict
         # then, generate any features that may depend on synthetic features (i.e., features not present in test data)
-        self.__gen_synthetic_features(new_X, new_y if new_y is not None else y)
-        self.target = new_y if new_y is not None else y
+        self.__gen_synthetic_features(new_X, y if y is not None else y)
         self.fitted = True
         return self
 
     def transform(self, X):
-        LOGGER.debug('PreOrPostDataPrep: Transforming dataset, shape = {}', X.shape)
+        LOGGER.debug('DataPrep: Transforming dataset, shape = {}', X.shape)
         # be sure to patch in any generated target column
-        new_X, new_y = self.__do_transform(X)
-        self.target = new_y if new_y is not None else self.target
-        LOGGER.debug('PreOrPostDataPrep: Transformed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        new_X = self.__do_transform(X)
+        LOGGER.debug('DataPrep: Transformed dataset, out shape = {}', new_X.shape, )
         return new_X
 
     def __generate_features(self, X: pd.DataFrame, y: pd.Series = None, gen_cols: dict = None, return_y: bool = False,
@@ -327,46 +321,14 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
             LOGGER.error('Something went wrong with feature generation, skipping: {}', err)
             raise FeatureGenException(f'Something went wrong with feature generation, skipping: {err}')
 
-    def __generate_target(self, X: pd.DataFrame, y: pd.Series = None, gen_target: dict = None, include_target: bool = False,
-                        **kwargs):
-        """
-        Generate the target variable from available data in X, and y.
-        :param X: the raw input dataframe, may or may not contain the features that contribute to generating the target variable
-        :type X:
-        :param y: part or all of the raw target variable, may contribute to generating the actual target
-        :type y:
-        :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
-        :type gen_target:
-        :param include_target: include the target Series in the returned first item of the tuple if True; default is False
-        :type include_target:
-        :param kwargs:
-        :type kwargs:
-        :return:
-        :rtype:
-        """
-        assert X is not None, 'A valid DataFrame expected as input'
-        new_X = X
-        new_y = y
-        try:
-            if gen_target is not None:
-                target_gen_col = {
-                        gen_target.get('target_col'): (gen_target.get('target_gen_func'), gen_target.get('alter_val'))}
-                new_X = self.__generate_features(new_X, new_y, gen_cols=target_gen_col, return_y=include_target,
-                                          target_col=gen_target.get('target_col'), )
-                new_y = new_X[gen_target.get('target_col')]
-        except Exception as warnEx:
-            LOGGER.warning('Something went wrong with target variable generation, skipping: {}', warnEx)
-            pass
-        return new_X, new_y
-
     def __pre_process(self, X, y=None, date_cols: list = None, int_cols: list = None, float_cols: list = None,
                       masked_cols: dict = None, special_features: dict = None, drop_feats_cols: bool = True,
-                      gen_target: dict = None, replace_patterns: list = None, pot_leak_cols: list = None,
+                      replace_patterns: list = None, pot_leak_cols: list = None,
                       clip_data: dict = None, gen_cat_col: dict = None, include_target: bool = False, ):
         """
-        Pre-process dataset by handling date conversions, type casting of columns, clipping data,
-        generating special features, calculating new features, masking columns, dropping correlated
-        and potential leakage columns, and generating target variables if needed.
+        Apply any pre-processing on the dataset - e.g., handling date conversions, type casting of columns, clipping data,
+        generating special features, calculating new features, masking columns, dropping identified correlated
+        and potential leakage columns, and generating or transforming target variables if needed.
         :param X: Input dataframe with data to be processed
         :param y: Optional target Series; default is None
         :param date_cols: any date columns to be concerted to datetime
@@ -381,8 +343,6 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         :type special_features: dict
         :param drop_feats_cols: drop special_features cols if True
         :type drop_feats_cols: bool
-        :param gen_target: dictionary of target column label and target generation function (e.g., a lambda expression to be applied to rows (i.e., axis=1), such as {'target_col': 'target_collabel', 'target_gen_func': target_gen_func}
-        :type gen_target: dict
         :param clip_data: clip the data based on categories defined by the filterby key and whether to enforce positive threshold defined by the pos_thres key - e.g., clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'col_label1', 'pos_thres': False}
         :type clip_data: dict
         :param gen_cat_col: dictionary specifying a categorical column label to be generated from a numeric column, with corresponding bins and labels - e.g., {'cat_col': 'num_col_label', 'bins': [1, 2, 3, 4, 5], 'labels': ['A', 'B', 'C', 'D', 'E']})
@@ -390,9 +350,9 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         :param replace_patterns: list of dictionaries of pattern (e.g., regex strings with values as replacements) - e.g., [{'rel_col': 'col_with_strs', 'replace_dict': {}, 'regex': False, }]
         :type replace_patterns: list
         :return: Processed dataframe and updated target Series
-        :rtype: tuple(pd.DataFrame, pd.Series or None)
+        :rtype: pd.DataFrame
         """
-        LOGGER.debug('PreOrPostDataPrep: Pre-processing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
+        LOGGER.debug('DataPrep: Pre-processing dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = X
         new_y = y
         # process columns with  strings to replace patterns
@@ -465,17 +425,12 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
                 if col not in new_X.columns:
                     continue
                 new_X.loc[:, col] = np.where(new_X.agg(mask, axis=1), 1, 0)
-        # generate any target variables as needed
-        # do this safely so that if any missing features is encountered, as with real unseen data situation where
-        # future variable is not available at the time of testing, then ignore the target generation as it ought
-        # to be predicted
-        new_X, new_y = self.__generate_target(new_X, new_y, gen_target=gen_target, include_target=include_target, )
-        LOGGER.debug('PreOrPostDataPrep: Pre-processed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
-        return new_X, new_y
+        LOGGER.debug('DataPrep: Pre-processed dataset, out shape = {}, {}', new_X.shape, new_y.shape if new_y is not None else None)
+        return new_X
 
     def __post_process(self, X, correlated_cols: list = None, pot_leak_cols: list = None, ):
         """
-        Post-processing that may be required.
+        Apply any post-processing as required.
         :param X: dataset
         :type X: pd.DataFrame
         :param correlated_cols: columns that are moderately to highly correlated and should be dropped
@@ -485,7 +440,7 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         :return:
         :rtype:
         """
-        LOGGER.debug('PreOrPostDataPrep: Post-processing dataset, out shape = {}', X.shape)
+        LOGGER.debug('DataPrep: Post-processing dataset, out shape = {}', X.shape)
         new_X = X
         if correlated_cols is not None or not (not correlated_cols):
             to_drop = [col for col in correlated_cols if col in new_X.columns]
@@ -493,7 +448,7 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
         if pot_leak_cols is not None or not (not pot_leak_cols):
             to_drop = [col for col in pot_leak_cols if col in new_X.columns]
             new_X.drop(columns=to_drop, inplace=True)
-        LOGGER.debug('PreOrPostDataPrep: Post-processed dataset, out shape = {}', new_X.shape)
+        LOGGER.debug('DataPrep: Post-processed dataset, out shape = {}', new_X.shape)
         return new_X
 
     def __gen_lag_features(self, X, y=None):
@@ -535,9 +490,9 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
                 if col_gen_func is not None:
                     if inc_target is not None and inc_target:
                         if (func_kwargs is not None) or not (not func_kwargs):
-                            new_X[:, col] = new_X.apply(col_gen_func, func_kwargs, target=self.target, axis=1, )
+                            new_X[:, col] = new_X.apply(col_gen_func, func_kwargs, target=y, axis=1, )
                         else:
-                            new_X[:, col] = new_X.apply(col_gen_func, target=self.target, axis=1, )
+                            new_X[:, col] = new_X.apply(col_gen_func, target=y, axis=1, )
                     else:
                         if (func_kwargs is not None) or not (not func_kwargs):
                             new_X[:, col] = new_X.apply(col_gen_func, func_kwargs, axis=1)
@@ -605,11 +560,11 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
 
     def __do_transform(self, X, y=None, **fit_params):
         # do any required pre-processing
-        new_X, new_y = self.__pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols, float_cols=self.float_cols,
-                                   masked_cols=self.masked_cols, special_features=self.special_features,
-                                   drop_feats_cols=self.drop_feats_cols, gen_target=self.gen_target,
-                                   gen_cat_col=self.gen_cat_col,
-                                   clip_data=self.clip_data, include_target=self.include_target,)
+        new_X = self.__pre_process(X, y, date_cols=self.date_cols, int_cols=self.int_cols,
+                                   float_cols=self.float_cols, masked_cols=self.masked_cols,
+                                   special_features=self.special_features, drop_feats_cols=self.drop_feats_cols,
+                                   clip_data=self.clip_data, gen_cat_col=self.gen_cat_col,
+                                   include_target=self.include_target)
         # apply any basic calculated features
         calc_feats = self.__transform_calc_features(X, y=y, calc_features=self.basic_calc_features)
         new_X = self.__merge_features(new_X, calc_feats, )
@@ -627,7 +582,7 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
             new_X = self.__merge_features(new_X, gen_features, key, left_on=keys, right_on=keys, synthetic=True)
         # then apply any post-processing
         new_X = self.__post_process(new_X, correlated_cols=self.correlated_cols, pot_leak_cols=self.pot_leak_cols,)
-        return new_X, new_y
+        return new_X
 
     def get_params(self, deep=True):
         return {
@@ -637,7 +592,6 @@ class PreOrPostDataPrep(TransformerMixin, BaseEstimator):
             'masked_cols': self.masked_cols,
             'special_features': self.special_features,
             'drop_feats_cols': self.drop_feats_cols,
-            'gen_target': self.gen_target,
             'calc_features': self.calc_features,
             'correlated_cols': self.correlated_cols,
             'gen_cat_col': self.gen_cat_col,

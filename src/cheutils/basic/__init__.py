@@ -1,4 +1,4 @@
-from cheutils.basic.transformations import PreOrPostDataPrep
+from cheutils.basic.transformations import DataPrep
 from cheutils.basic.transformations import SelectiveTargetEncoder
 from cheutils.basic.transformations import TSSelectiveTargetEncoder
 from cheutils.basic.transformations import SelectiveBinarizer
