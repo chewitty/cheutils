@@ -7,8 +7,6 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
 from cheutils.data_properties import DataPropertiesHandler
 from cheutils.exceptions import FeatureGenException
-from cheutils.data_prep_support import apply_replace_patterns, apply_calc_feature, force_joblib_cleanup
-from joblib import Parallel, delayed
 from pandas.api.types import is_datetime64_any_dtype
 from scipy.stats import iqr
 from typing import cast
@@ -357,15 +355,11 @@ class DataPrep(TransformerMixin, BaseEstimator):
         new_y = y
         # process columns with  strings to replace patterns
         if self.replace_patterns is not None:
-            if len(self.replace_patterns) > 1:
-                result_out = Parallel(n_jobs=-1)(delayed(apply_replace_patterns)(new_X, replace_dict) for replace_dict in self.replace_patterns)
-                for result in result_out:
-                    new_X.loc[:, result[0]] = result[1]
-                # free up memory usage by joblib pool
-                force_joblib_cleanup()
-            else:
-                if self.replace_patterns is not None and not (not self.replace_patterns):
-                    new_X.loc[:, self.replace_patterns[0].get('rel_col')] = apply_replace_patterns(new_X, self.replace_patterns[0])[1]
+            for replace_dict in self.replace_patterns:
+                rel_col = replace_dict.get('rel_col')
+                col_repl_dict = replace_dict.get('replace_dict')
+                is_regex = replace_dict.get('regex')
+                new_X.loc[:, rel_col] = new_X[rel_col].replace(col_repl_dict, regex=is_regex)
         # parse date columns
         if date_cols is not None:
             for col in date_cols:
@@ -506,19 +500,22 @@ class DataPrep(TransformerMixin, BaseEstimator):
         if calc_features is not None:
             indices = X.index
             calc_feats = {}
-            results_out = Parallel(n_jobs=-1)(delayed(apply_calc_feature)(X, col, col_gen_func_dict) for col, col_gen_func_dict in calc_features.items())
-            for result in results_out:
-                calc_feats[result[0]] = result[1]
-                is_numeric = calc_features.get(result[0]).get('is_numeric')
-                is_numeric = True if is_numeric is None else is_numeric
-                impute_agg_func = calc_features.get(result[0]).get('impute_agg_func')
-                if is_numeric:
-                    self.transform_global_aggs[result[0]] = result[1].agg(impute_agg_func if impute_agg_func is not None else 'median')
+            for col, col_gen_func_dict in calc_features.items():
+                col_gen_func = col_gen_func_dict.get('func')
+                func_kwargs: dict = col_gen_func_dict.get('kwargs')
+                inc_target = col_gen_func_dict.get('inc_target')
+                if inc_target is not None and inc_target:
+                    if (func_kwargs is not None) or not (not func_kwargs):
+                        calc_feats[col] = X.apply(col_gen_func, **func_kwargs, axis=1, )
+                    else:
+                        calc_feats[col] = X.apply(col_gen_func, axis=1, )
                 else:
-                    self.transform_global_aggs[result[0]] = result[1].value_counts().index[0]
-            trans_calc_features = pd.DataFrame(calc_feats, index=indices)
-            # free up memory usage by joblib pool
-            force_joblib_cleanup()
+                    if (func_kwargs is not None) or not (not func_kwargs):
+                        calc_feats[col] = X.apply(col_gen_func, **func_kwargs, axis=1)
+                    else:
+                        calc_feats[col] = X.apply(col_gen_func, axis=1)
+
+            trans_calc_features = pd.DataFrame(calc_feats, index=indices) if calc_feats is not None and not (not calc_feats) else None
         return trans_calc_features
 
     def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None, synthetic: bool = False):

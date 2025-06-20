@@ -1,7 +1,3 @@
-import os
-import contextlib
-import joblib
-from tqdm import tqdm
 import pandas as pd
 from cheutils.loggers import LoguruWrapper
 from pandas.api.types import is_datetime64_any_dtype, is_categorical_dtype, is_bool_dtype, is_float_dtype, is_integer_dtype, is_string_dtype
@@ -43,14 +39,14 @@ def apply_calc_feature(df: pd.DataFrame, rel_col: str, col_gen_func_dict):
     inc_target = col_gen_func_dict.get('inc_target')
     if inc_target is not None and inc_target:
         if (func_kwargs is not None) or not (not func_kwargs):
-            calc_feat = df.agg(col_gen_func, **func_kwargs, target=self.target, axis=1, )
+            calc_feat = df.apply(col_gen_func, **func_kwargs, axis=1, )
         else:
-            calc_feat = df.agg(col_gen_func, target=self.target, axis=1, )
+            calc_feat = df.apply(col_gen_func, axis=1, )
     else:
         if (func_kwargs is not None) or not (not func_kwargs):
-            calc_feat = df.agg(col_gen_func, **func_kwargs, axis=1)
+            calc_feat = df.apply(col_gen_func, **func_kwargs, axis=1)
         else:
-            calc_feat = df.agg(col_gen_func, axis=1)
+            calc_feat = df.apply(col_gen_func, axis=1)
     return rel_col, calc_feat
 
 def force_joblib_cleanup():
