@@ -58,12 +58,13 @@ class TidyOutputWrapper(TidyOutput):
         df_indx = transformed_X.index if isinstance(transformed_X, pd.DataFrame) else params.get('prevailing_index')
         new_X = pd.DataFrame(transformed_X, columns=desired_feature_names, index=df_indx)
         # re-order columns, so the altered columns appear at the end
-        add_back_feats = []
-        for feature_name in self.feature_names:
-            if feature_name in desired_feature_names:
-                desired_feature_names.remove(feature_name)
-                add_back_feats.append(feature_name)
-        desired_feature_names.extend(add_back_feats)
+        names_to_del = [(indx, name) for indx, name in enumerate(self.feature_names) if name in desired_feature_names]
+        desired_feature_names = np.array(desired_feature_names)
+        if len(names_to_del) > 0:
+            del_feats, add_back_feats = zip(*names_to_del)
+            if len(del_feats) > 0:
+                desired_feature_names = np.delete(desired_feature_names, list(del_feats)).tolist()
+                desired_feature_names.extend(list(add_back_feats))
         return new_X[desired_feature_names]
 
 class BasicTransformer(TransformerMixin, BaseEstimator):
