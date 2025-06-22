@@ -7,10 +7,12 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
 from cheutils.data_properties import DataPropertiesHandler
 from cheutils.exceptions import FeatureGenException
-from joblib import Parallel, delayed
+from cheutils.data_prep_support import PickleableLambdaFunc, force_joblib_cleanup
+from joblib import Parallel, delayed, wrap_non_picklable_objects
+from joblib.externals.loky import set_loky_pickler
 from pandas.api.types import is_datetime64_any_dtype
 from scipy.stats import iqr
-from typing import cast, Callable
+from typing import cast
 from abc import ABC, abstractmethod
 
 LOGGER = LoguruWrapper().get_logger()
@@ -209,7 +211,7 @@ class DataPrep(TransformerMixin, BaseEstimator):
         :param special_features: dictionaries of feature mappings - e.g., special_features = {'col_label1': {'feat_mappings': {'Trailers': 'trailers', 'Deleted Scenes': 'deleted_scenes', 'Behind the Scenes': 'behind_scenes', 'Commentaries': 'commentaries'}, 'sep': ','}, }
         :type special_features:
         :param drop_feats_cols: drop special_features cols if True
-        :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'delay': False, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'delay': False, 'kwargs': {}}
+        :param calc_features: dictionary of calculated column labels with their corresponding column generation functions - e.g., {'col_label1': {'func': col_gen_func1, 'is_numeric': True, 'inc_target': False, 'delay': False, 'req_cols': None, 'kwargs': {}}, 'col_label2': {'func': col_gen_func2, 'is_numeric': True, 'inc_target': False, 'delay': False, 'req_cols': None, 'kwargs': {}}
         :param synthetic_features: dictionary of calculated column labels with their corresponding column generation functions, for cases involving features not present in test data - e.g., {'new_col1': {'func': col_gen_func1, 'agg_col': 'col_label1', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}, 'new_col2': {'func': col_gen_func2, 'agg_col': 'col_label2', 'agg_func': 'median', 'id_by_col': 'id', 'sort_by_cols': 'date', 'inc_target': False, 'impute_agg_func': 'mean', 'kwargs': {}}
         :param lag_features: dictionary of calculated column labels to hold lagging calculated values with their corresponding column lagging calculation functions - e.g., {'col_label1': {'filter_by': ['filter_col1', 'filter_col2'], period=0, 'drop_rel_cols': False, }, 'col_label2': {'filter_by': ['filter_col3', 'filter_col4'], period=0, 'drop_rel_cols': False, }}
         :param correlated_cols: columns that are moderately to highly correlated and should be dropped
@@ -356,12 +358,17 @@ class DataPrep(TransformerMixin, BaseEstimator):
         new_X = X
         new_y = y
         # process columns with  strings to replace patterns
-        if self.replace_patterns is not None:
-            for replace_dict in self.replace_patterns:
-                rel_col = replace_dict.get('rel_col')
-                col_repl_dict = replace_dict.get('replace_dict')
-                is_regex = replace_dict.get('regex')
-                new_X.loc[:, rel_col] = new_X[rel_col].replace(col_repl_dict, regex=is_regex)
+        @wrap_non_picklable_objects
+        def apply_pattern(col, rep_pattern, is_regex: bool=False, ):
+            result_dict = {col: new_X[col].replace(rep_pattern, regex=is_regex).values, }
+            return result_dict
+        if self.replace_patterns is not None and not (not self.replace_patterns):
+            apply_results = Parallel(n_jobs=-1)(delayed(apply_pattern)(replace_dict.get('rel_col'), replace_dict.get('replace_dict'), is_regex=replace_dict.get('regex')) for replace_dict in self.replace_patterns)
+            for result in apply_results:
+                for col, vals in result.items():
+                    new_X.loc[:, col] = vals
+            # free up memory usage by joblib pool
+            force_joblib_cleanup()
         # parse date columns
         if date_cols is not None:
             for col in date_cols:
@@ -498,37 +505,24 @@ class DataPrep(TransformerMixin, BaseEstimator):
     def __transform_calc_features(self, X, y=None, calc_features: dict=None):
         # generate any calculated columns as needed - the input features
         # includes only features present in test data - i.e., non-synthetic features
-        def apply_func(col: str, func: Callable, **func_kwargs, ):
-            results_dict = {col: X.apply(func, **func_kwargs, axis=1, ).values, }
+        @wrap_non_picklable_objects
+        def apply_func(col: str, func, req_cols: list=None, **func_kwargs, ):
+            if req_cols is not None and not (not req_cols):
+                results_dict = {col: X[req_cols].apply(func, **func_kwargs, axis=1, ).values, }
+            else:
+                results_dict = {col: X.apply(func, **func_kwargs, axis=1, ).values, }
             return results_dict
-
-        trans_calc_features = None
+        new_X = None
         if calc_features is not None:
             new_X = safe_copy(X)
-            """indices = X.index
-            calc_feats = {}
-            for col, col_gen_func_dict in calc_features.items():
-                col_gen_func = col_gen_func_dict.get('func')
-                func_kwargs: dict = col_gen_func_dict.get('kwargs')
-                inc_target = col_gen_func_dict.get('inc_target')
-                if inc_target is not None and inc_target:
-                    if (func_kwargs is not None) or not (not func_kwargs):
-                        calc_feats[col] = X.apply(col_gen_func, **func_kwargs, axis=1, )
-                    else:
-                        calc_feats[col] = X.apply(col_gen_func, axis=1, )
-                else:
-                    if (func_kwargs is not None) or not (not func_kwargs):
-                        calc_feats[col] = X.apply(col_gen_func, **func_kwargs, axis=1)
-                    else:
-                        calc_feats[col] = X.apply(col_gen_func, axis=1)"""
-
-            apply_results = Parallel(n_jobs=-1)(delayed(apply_func)(col, col_gen_func_dict.get('func'), ) for col, col_gen_func_dict in calc_features.items())
+            #set_loky_pickler('pickle')
+            apply_results = Parallel(n_jobs=-1)(delayed(apply_func)(col, PickleableLambdaFunc(col_gen_func_dict.get('func')), req_cols=col_gen_func_dict.get('req_cols'), ) for col, col_gen_func_dict in calc_features.items())
             for result in apply_results:
                 for col, vals in result.items():
                     new_X.loc[:, col] = vals
-            trans_calc_features = new_X
-            """trans_calc_features = pd.DataFrame(calc_feats, index=indices) if calc_feats is not None and not (not calc_feats) else None"""
-        return trans_calc_features
+            # free up memory usage by joblib pool
+            force_joblib_cleanup()
+        return new_X
 
     def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None, synthetic: bool = False):
         assert source is not None, 'Source dataframe cannot be None'

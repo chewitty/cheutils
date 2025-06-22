@@ -1,9 +1,23 @@
 import pandas as pd
+import dill as pickle
 from cheutils.loggers import LoguruWrapper
 from pandas.api.types import is_datetime64_any_dtype, is_categorical_dtype, is_bool_dtype, is_float_dtype, is_integer_dtype, is_string_dtype
 from loky import get_reusable_executor
 
 LOGGER = LoguruWrapper().get_logger()
+
+class PickleableLambdaFunc:
+    def __init__(self, lambda_func):
+        self.lambda_func = lambda_func
+
+    def __getstate__(self):
+        return pickle.dumps(self.lambda_func)
+
+    def __setstate__(self, state):
+        self.lambda_func = pickle.loads(state)
+
+    def __call__(self, *args, **kwargs):
+        return self.lambda_func(*args, **kwargs)
 
 def apply_replace_patterns(df: pd.DataFrame, replace_dict: dict):
     assert df is not None, 'A valid dataframe is required'
@@ -30,24 +44,6 @@ def apply_type(df: pd.DataFrame, rel_col: str, req_type: str='int'):
     elif req_type == 'categorical' and not is_categorical_dtype(df[rel_col]):
         df.loc[:, rel_col] = df[rel_col].astype('category')
     return rel_col, df[rel_col]
-
-def apply_calc_feature(df: pd.DataFrame, rel_col: str, col_gen_func_dict):
-    assert df is not None, 'A valid dataframe is required'
-    assert rel_col is not None, 'A valid column is required'
-    col_gen_func = col_gen_func_dict.get('func')
-    func_kwargs: dict = col_gen_func_dict.get('kwargs')
-    inc_target = col_gen_func_dict.get('inc_target')
-    if inc_target is not None and inc_target:
-        if (func_kwargs is not None) or not (not func_kwargs):
-            calc_feat = df.apply(col_gen_func, **func_kwargs, axis=1, )
-        else:
-            calc_feat = df.apply(col_gen_func, axis=1, )
-    else:
-        if (func_kwargs is not None) or not (not func_kwargs):
-            calc_feat = df.apply(col_gen_func, **func_kwargs, axis=1)
-        else:
-            calc_feat = df.apply(col_gen_func, axis=1)
-    return rel_col, calc_feat
 
 def force_joblib_cleanup():
     get_reusable_executor().shutdown(wait=True, kill_workers=True)
