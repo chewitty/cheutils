@@ -364,26 +364,29 @@ class DataPrep(TransformerMixin, BaseEstimator):
             return result_dict
         if self.replace_patterns is not None and not (not self.replace_patterns):
             apply_results = Parallel(n_jobs=-1)(delayed(apply_pattern)(replace_dict.get('rel_col'), replace_dict.get('replace_dict'), is_regex=replace_dict.get('regex')) for replace_dict in self.replace_patterns)
-            for result in apply_results:
+            def apply_back(col, vals):
+                new_X.loc[:, col] = vals
+            [apply_back(col, vals) for result in apply_results for col, vals in result.items()]
+            """for result in apply_results:
                 for col, vals in result.items():
-                    new_X.loc[:, col] = vals
+                    new_X.loc[:, col] = vals"""
             # free up memory usage by joblib pool
             force_joblib_cleanup()
         # parse date columns
         if date_cols is not None:
-            for col in date_cols:
+            def parse_dates(col):
                 if col in new_X.columns and not is_datetime64_any_dtype(new_X[col]):
                     new_X.loc[:, col] = pd.to_datetime(new_X[col], errors='coerce', utc=True)
+            [parse_dates(col) for col in date_cols]
         # parse int columns
+        def parse_type(col, item_type):
+            if col in new_X.columns:
+                new_X.loc[:, col] = new_X[col].astype(item_type)
         if int_cols is not None:
-            for col in int_cols:
-                if col in new_X.columns:
-                    new_X.loc[:, col] = new_X[col].astype(int)
+            [parse_type(col, int) for col in int_cols]
         # parse float columns
         if float_cols is not None:
-            for col in float_cols:
-                if col in new_X.columns:
-                    new_X.loc[:, col] = new_X[col].astype(float)
+            [parse_type(col, float) for col in float_cols]
         # generate any categorical column
         if gen_cat_col is not None:
             num_col = gen_cat_col.get('num_col')
@@ -517,9 +520,12 @@ class DataPrep(TransformerMixin, BaseEstimator):
             new_X = safe_copy(X)
             #set_loky_pickler('pickle')
             apply_results = Parallel(n_jobs=-1)(delayed(apply_func)(col, PickleableLambdaFunc(col_gen_func_dict.get('func')), req_cols=col_gen_func_dict.get('req_cols'), ) for col, col_gen_func_dict in calc_features.items())
-            for result in apply_results:
+            def apply_back(col, vals):
+                new_X.loc[:, col] = vals
+            [apply_back(col, vals) for result in apply_results for col, vals in result.items()]
+            """for result in apply_results:
                 for col, vals in result.items():
-                    new_X.loc[:, col] = vals
+                    new_X.loc[:, col] = vals"""
             # free up memory usage by joblib pool
             force_joblib_cleanup()
         return new_X
