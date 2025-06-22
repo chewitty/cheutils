@@ -7,9 +7,10 @@ from cheutils.loggers import LoguruWrapper
 from cheutils.properties_util import AppProperties
 from cheutils.data_properties import DataPropertiesHandler
 from cheutils.exceptions import FeatureGenException
+from joblib import Parallel, delayed
 from pandas.api.types import is_datetime64_any_dtype
 from scipy.stats import iqr
-from typing import cast
+from typing import cast, Callable
 from abc import ABC, abstractmethod
 
 LOGGER = LoguruWrapper().get_logger()
@@ -497,9 +498,14 @@ class DataPrep(TransformerMixin, BaseEstimator):
     def __transform_calc_features(self, X, y=None, calc_features: dict=None):
         # generate any calculated columns as needed - the input features
         # includes only features present in test data - i.e., non-synthetic features
+        def apply_func(col: str, func: Callable, **func_kwargs, ):
+            results_dict = {col: X.apply(func, **func_kwargs, axis=1, ).values, }
+            return results_dict
+
         trans_calc_features = None
         if calc_features is not None:
-            indices = X.index
+            new_X = safe_copy(X)
+            """indices = X.index
             calc_feats = {}
             for col, col_gen_func_dict in calc_features.items():
                 col_gen_func = col_gen_func_dict.get('func')
@@ -514,9 +520,14 @@ class DataPrep(TransformerMixin, BaseEstimator):
                     if (func_kwargs is not None) or not (not func_kwargs):
                         calc_feats[col] = X.apply(col_gen_func, **func_kwargs, axis=1)
                     else:
-                        calc_feats[col] = X.apply(col_gen_func, axis=1)
+                        calc_feats[col] = X.apply(col_gen_func, axis=1)"""
 
-            trans_calc_features = pd.DataFrame(calc_feats, index=indices) if calc_feats is not None and not (not calc_feats) else None
+            apply_results = Parallel(n_jobs=-1)(delayed(apply_func)(col, col_gen_func_dict.get('func'), ) for col, col_gen_func_dict in calc_features.items())
+            for result in apply_results:
+                for col, vals in result.items():
+                    new_X.loc[:, col] = vals
+            trans_calc_features = new_X
+            """trans_calc_features = pd.DataFrame(calc_feats, index=indices) if calc_feats is not None and not (not calc_feats) else None"""
         return trans_calc_features
 
     def __merge_features(self, source: pd.DataFrame, features: pd.DataFrame, rel_col: str=None, left_on: list=None, right_on: list=None, synthetic: bool = False):
@@ -548,12 +559,14 @@ class DataPrep(TransformerMixin, BaseEstimator):
                             source[rel_col] = source[rel_col].fillna(global_agg)
                         else:
                             for col in cols_in_source:
-                                global_agg = self.gen_global_aggs[col]
-                                source[rel_col] = source[col].fillna(global_agg)
+                                if col in self.gen_global_aggs:
+                                    global_agg = self.gen_global_aggs[col]
+                                    source[rel_col] = source[col].fillna(global_agg)
             else:
                 for col in cols_in_source:
-                    global_agg = self.transform_global_aggs[col]
-                    source[col] = source[rel_col].fillna(global_agg)
+                    if col in self.transform_global_aggs:
+                        global_agg = self.transform_global_aggs[col]
+                        source[col] = source[rel_col].fillna(global_agg)
         return source
 
     def __do_transform(self, X, y=None, **fit_params):
