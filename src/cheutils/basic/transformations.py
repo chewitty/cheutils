@@ -45,12 +45,13 @@ class TidyOutputWrapper(TidyOutput):
             duplicate_feature_idxs = []
             desired_feature_names_s = set()
             desired_feature_names = []
-            for idx, feature_name in enumerate(feature_names):
+            [(desired_feature_names_s.add(feature_name), desired_feature_names.append(feature_name)) if feature_name not in desired_feature_names_s else duplicate_feature_idxs.append(idx) for idx, feature_name in enumerate(feature_names)]
+            """for idx, feature_name in enumerate(feature_names):
                 if feature_name not in desired_feature_names_s:
                     desired_feature_names_s.add(feature_name)
                     desired_feature_names.append(feature_name)
                 else:
-                    duplicate_feature_idxs.append(idx)
+                    duplicate_feature_idxs.append(idx)"""
             desired_feature_names.reverse()
             duplicate_feature_idxs = [len(feature_names) - 1 - idx for idx in duplicate_feature_idxs]
             if duplicate_feature_idxs is not None and not (not duplicate_feature_idxs):
@@ -179,15 +180,16 @@ class TSSelectiveTargetEncoder(BasicTransformer):
         freq = self.lag_features.get('freq')
         sort_by_cols = self.lag_features.get('sort_by_cols')
         timeseries_container: pd.DataFrame = safe_copy(X)
-        timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=target_name, index=X.index)], axis=1)
+        #timeseries_container = pd.concat([timeseries_container, pd.Series(data=y.values, name=target_name, index=X.index)], axis=1)
         timeseries_container.sort_values(by=sort_by_cols, inplace=True)
         timeseries_container['index'] = timeseries_container[self.column_ts_index]
         timeseries_container.set_index('index', inplace=True)
         timeseries_container = timeseries_container.shift(periods=periods + 1, freq=freq).bfill()
-        new_y = pd.Series(timeseries_container[target_name].values, index=X.index, name=target_name)
-        del timeseries_container
+        #new_y = pd.Series(timeseries_container[target_name].values, index=X.index, name=target_name)
+        #del timeseries_container
+        timeseries_container = timeseries_container.reset_index()
         self.fitted = True
-        return super().fit(X, new_y, **fit_params)
+        return super().fit(timeseries_container, y, **fit_params)
 
 class DataPrep(TransformerMixin, BaseEstimator):
     def __init__(self, date_cols: list=None, int_cols: list=None, float_cols: list=None,
