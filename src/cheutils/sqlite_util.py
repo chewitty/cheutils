@@ -77,6 +77,30 @@ def save_param_grid_to_sqlite_db(param_grid: dict, tb_name: str='promising_grids
         except:
             pass
 
+def save_optimal_grid_to_sqlite_db(param_grid: dict, tb_name: str='params_grid', grid_resolution: int=1,
+                                 grid_size: int=0, model_prefix: str=None, **kwargs):
+    """
+    Save the input data to the underlying project SQLite database (see app-config.properties for DB details).
+    :param param_grid: input parameter grid data to be saved or persisted
+    :type param_grid:
+    :param grid_resolution: the prevailing parameter grid resolution or maximum number of parameters supported by grid
+    :param grid_size: the grid size or number of parameters supported or in the configured estimator grid; defaults to zero
+    :param model_prefix: any prevailing model prefix
+    :param tb_name: the name of the table - this could be a project-specific name, for example, the configured
+    estimator name if caching promising hyperparameter grid
+    :type tb_name:
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
+    assert param_grid is not None, 'Input parameter grid data must be provided'
+    assert grid_resolution > 0, 'A valid grid resolution (>0) expected'
+    assert grid_size > 0, 'A valid grid size (>0) - i.e., len(param_grid) expected'
+    assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
+    save_param_grid_to_sqlite_db(param_grid, tb_name=tb_name + '_optimal',
+                                 grid_resolution=grid_resolution, grid_size=grid_size, model_prefix=model_prefix, **kwargs)
+
 def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolution: int=1, grid_size: int=0, model_option: str=None, model_prefix: str=None, **kwargs):
     """
     Fetches data from the underlying SQLite DB using the query string.
@@ -132,6 +156,25 @@ def get_param_grid_from_sqlite_db(tb_name: str='promising_grids', grid_resolutio
             conn.close()
         except:
             pass
+
+def get_optimal_grid_from_sqlite_db(tb_name: str='params_grid', grid_resolution: int=1, grid_size: int=0, model_option: str=None, model_prefix: str=None, **kwargs):
+    """
+    Fetches data from the underlying SQLite DB using the query string.
+    :param tb_name: the table name to be queried
+    :param grid_resolution: the prevailing parameter grid resolution or maximum number of parameters supported by grid
+    :param grid_size: the grid size or number of parameters supported or in the configured estimator grid
+    :param model_option: the prevailing model option
+    :param model_prefix: any prevailing model prefix, which is often the same as the model_option
+    :param kwargs:
+    :type kwargs:
+    :return:
+    :rtype:
+    """
+    assert tb_name is not None and len(tb_name) > 0, 'Table name must be provided'
+    assert grid_resolution > 0, 'A valid grid resolution (>0) expected'
+    assert grid_size > 0, 'A valid grid size (>0) - i.e., len(param_grid) expected'
+    return get_param_grid_from_sqlite_db(tb_name=tb_name + '_optimal', grid_resolution=grid_resolution, grid_size=grid_size,
+                                         model_option=model_option, model_prefix=model_prefix, )
 
 def save_narrow_grid_to_sqlite_db(param_grid: dict, tb_name: str=None, cache_key: str=None, model_prefix: str=None, **kwargs):
     """

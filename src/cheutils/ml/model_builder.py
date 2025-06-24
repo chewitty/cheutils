@@ -18,8 +18,8 @@ from cheutils.ml.bayesian_search import HyperoptSearchCV
 from cheutils.ml.model_support import get_params_grid, get_params_pounds
 from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.loggers import LoguruWrapper
-from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
-                                  save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db,
+from cheutils.sqlite_util import (save_param_grid_to_sqlite_db, save_optimal_grid_to_sqlite_db, get_param_grid_from_sqlite_db,
+                                  save_narrow_grid_to_sqlite_db, get_narrow_grid_from_sqlite_db, get_optimal_grid_from_sqlite_db,
                                   save_promising_interactions_to_sqlite_db, get_promising_interactions_from_sqlite_db)
 from cheutils.properties_util import AppProperties
 from cheutils.ml.model_properties import ModelProperties
@@ -147,82 +147,94 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict,
     :param mlflow_exp: dict such as {'log': False, 'uri': None} indicating if this is part of a Mlflow experiment in which logging should be enabled - BUT only valid for "hyperoptcv"
     :param kwargs:
     :type kwargs:
-    :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_)
+    :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_) or optimal_params ONLY if previously cached
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"
     __model_handler: ModelProperties = cast(ModelProperties, AppProperties().get_subscriber('model_handler'))
-    cv_strategy = cv if cv is not None else __model_handler.get_cross_val_num_folds()
-    if mlflow_exp is not None:
-        if mlflow_exp.get('log') is True:
-            LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
-            LOGGER.warning('Make sure that you have set the MLFLOW_TRACKING_URI environment variable')
-            LOGGER.warning('Alternatively, make sure that you have called  appropriately')
-            mlflow_uri = mlflow_exp.get('uri')
-            if mlflow_uri is None:
-                mlflow_uri = 'http://localhost:8080'
-            mlflow.set_tracking_uri(uri=mlflow_uri)
-            # check the version endpoint of mlflow server is running
-            response = requests.get(mlflow_uri + '/version')
-            LOGGER.info('Remote tracking server version: {}', mlflow.__version__)
-            LOGGER.info('Client-side version of MLflow: {}', response.text)
-            assert response.status_code == 200, 'The remote MLflow tracking server must be running ...'
-            if not (response.text == mlflow.__version__):
-                LOGGER.warning('The client-side version of MLflow is not aligned with the remote tracking server')
-    if random_state is None:
-        random_state = __model_handler.get_random_seed()
-    name = None
-    if "name" in kwargs:
-        name = kwargs.get("name")
-        del kwargs["name"]
-    LOGGER.debug('Promising hyperparameters = \n{}', str(promising_params_grid))
-    # get the parameter boundaries from the range specified in properties file
-    params_bounds = get_params_pounds(__model_handler.get_model_option(), prefix=prefix)
-    # fetch promising params grid from cache if possible
-    num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
-    best_params = promising_params_grid
-    if best_params is None:
-        best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds),
-                                                    model_option=__model_handler.get_model_option(),
-                                                    model_prefix=prefix, tb_name=__model_handler.get_model_option())
-    # fetch narrow params grid from cache if possible
-    narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
-                                              params_bounds=params_bounds, model_prefix=prefix)
-    narrow_param_grid = narrow_param_grid if with_narrower_grid else get_params_grid(__model_handler.get_model_option(), prefix=prefix)
-    # phase 2: perform finer search
-    search_cv = None
-    if __model_handler.get_find_grid_resolution():
-        num_params = get_optimal_grid_resolution(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
-                                                 fine_search=fine_search, random_state=random_state)
-    if "hyperoptcv" == fine_search:
-        search_cv = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(narrow_param_grid,
-                                                                                     num_params=num_params,
-                                                                                     params_bounds=params_bounds,
-                                                                                     fine_search=fine_search,
-                                                                                     random_state=random_state),
-                                     cv=cv_strategy, scoring=__model_handler.get_cross_val_scoring(), algo=__get_hyperopt_algos(),
-                                     max_evals=__model_handler.get_n_trials(), n_jobs=__model_handler.get_n_jobs(), mlflow_exp=mlflow_exp,
-                                     trial_timeout=__model_handler.get_trial_timeout(), model_prefix=prefix, random_state=random_state)
-    elif 'skoptimize' == fine_search:
-        search_cv = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(narrow_param_grid,
-                                                                                   num_params=num_params,
-                                                                                   params_bounds=params_bounds,
-                                                                                   fine_search=fine_search,
-                                                                                   random_state=random_state),
-                                  scoring=__model_handler.get_cross_val_scoring(), cv=cv_strategy, n_iter=__model_handler.get_n_iters(),
-                                  n_jobs=__model_handler.get_n_jobs(),
-                                  random_state=random_state, verbose=10, )
-    else:
-        LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
-        raise KeyError('Unspecified or unsupported finer search type')
+    # check if cached previously
+    params_grid = get_params_grid(__model_handler.get_model_option(), prefix=prefix)
+    # attempt to fetch promising grid from SQLite DB
+    optimal_params = get_optimal_grid_from_sqlite_db(grid_resolution=__model_handler.get_grid_resolution(), grid_size=len(params_grid),
+                                                     model_option=__model_handler.get_model_option(), model_prefix=prefix,
+                                                     tb_name=__model_handler.get_model_option())
+    if optimal_params is None or not optimal_params:
+        cv_strategy = cv if cv is not None else __model_handler.get_cross_val_num_folds()
+        if mlflow_exp is not None:
+            if mlflow_exp.get('log') is True:
+                LOGGER.warning('Parameter optimization as part of Mlflow experiment run: \n')
+                LOGGER.warning('Make sure that you have set the MLFLOW_TRACKING_URI environment variable')
+                LOGGER.warning('Alternatively, make sure that you have called  appropriately')
+                mlflow_uri = mlflow_exp.get('uri')
+                if mlflow_uri is None:
+                    mlflow_uri = 'http://localhost:8080'
+                mlflow.set_tracking_uri(uri=mlflow_uri)
+                # check the version endpoint of mlflow server is running
+                response = requests.get(mlflow_uri + '/version')
+                LOGGER.info('Remote tracking server version: {}', mlflow.__version__)
+                LOGGER.info('Client-side version of MLflow: {}', response.text)
+                assert response.status_code == 200, 'The remote MLflow tracking server must be running ...'
+                if not (response.text == mlflow.__version__):
+                    LOGGER.warning('The client-side version of MLflow is not aligned with the remote tracking server')
+        if random_state is None:
+            random_state = __model_handler.get_random_seed()
+        name = None
+        if "name" in kwargs:
+            name = kwargs.get("name")
+            del kwargs["name"]
+        LOGGER.debug('Promising hyperparameters = \n{}', str(promising_params_grid))
+        # get the parameter boundaries from the range specified in properties file
+        params_bounds = get_params_pounds(__model_handler.get_model_option(), prefix=prefix)
+        # fetch promising params grid from cache if possible
+        num_params = __model_handler.get_grid_resolution() if (grid_resolution is None) else grid_resolution
+        best_params = promising_params_grid
+        if best_params is None:
+            best_params = get_param_grid_from_sqlite_db(grid_resolution=num_params, grid_size=len(params_bounds),
+                                                        model_option=__model_handler.get_model_option(),
+                                                        model_prefix=prefix, tb_name=__model_handler.get_model_option())
+        # fetch narrow params grid from cache if possible
+        narrow_param_grid = get_narrow_param_grid(best_params, num_params, scaling_factor=scaling_factor,
+                                                  params_bounds=params_bounds, model_prefix=prefix)
+        narrow_param_grid = narrow_param_grid if with_narrower_grid else get_params_grid(__model_handler.get_model_option(), prefix=prefix)
+        # phase 2: perform finer search
+        search_cv = None
+        if __model_handler.get_find_grid_resolution():
+            num_params = get_optimal_grid_resolution(pipeline, X, y, search_space=narrow_param_grid, params_bounds=params_bounds,
+                                                     fine_search=fine_search, random_state=random_state)
+        if "hyperoptcv" == fine_search:
+            search_cv = HyperoptSearchCV(estimator=pipeline, params_space=__parse_params(narrow_param_grid,
+                                                                                         num_params=num_params,
+                                                                                         params_bounds=params_bounds,
+                                                                                         fine_search=fine_search,
+                                                                                         random_state=random_state),
+                                         cv=cv_strategy, scoring=__model_handler.get_cross_val_scoring(), algo=__get_hyperopt_algos(),
+                                         max_evals=__model_handler.get_n_trials(), n_jobs=__model_handler.get_n_jobs(), mlflow_exp=mlflow_exp,
+                                         trial_timeout=__model_handler.get_trial_timeout(), model_prefix=prefix, random_state=random_state)
+        elif 'skoptimize' == fine_search:
+            search_cv = BayesSearchCV(estimator=pipeline, search_spaces=__parse_params(narrow_param_grid,
+                                                                                       num_params=num_params,
+                                                                                       params_bounds=params_bounds,
+                                                                                       fine_search=fine_search,
+                                                                                       random_state=random_state),
+                                      scoring=__model_handler.get_cross_val_scoring(), cv=cv_strategy, n_iter=__model_handler.get_n_iters(),
+                                      n_jobs=__model_handler.get_n_jobs(),
+                                      random_state=random_state, verbose=10, )
+        else:
+            LOGGER.error('Failure encountered: Unspecified or unsupported finer search type')
+            raise KeyError('Unspecified or unsupported finer search type')
 
-    if name is not None:
-        show_pipeline(search_cv, name=name, save_to_file=True)
+        if name is not None:
+            show_pipeline(search_cv, name=name, save_to_file=True)
+        else:
+            show_pipeline(search_cv)
+        search_cv.fit(X, y)
+        # save or cache best parameters
+        save_optimal_grid_to_sqlite_db(param_grid=search_cv.best_params_, model_prefix=prefix, grid_resolution=num_params,
+                                       grid_size=len(params_grid), tb_name=__model_handler.get_model_option(), )
+        # return the results accordingly
+        return search_cv.best_estimator_, abs(search_cv.best_score_), search_cv.best_params_, search_cv.cv_results_
     else:
-        show_pipeline(search_cv)
-    search_cv.fit(X, y)
-    # return the results accordingly
-    return search_cv.best_estimator_, abs(search_cv.best_score_), search_cv.best_params_, search_cv.cv_results_
+        return optimal_params
 
 def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
                                 fine_search: str = 'hyperoptcv', random_state: int=100, **kwargs):

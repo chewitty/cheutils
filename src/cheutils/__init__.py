@@ -19,7 +19,7 @@ from .basic import (SelectiveScaler, SelectiveEncoder, DataPrep, SelectiveTarget
 from .ml.model_support import parse_grid_types
 from .sqlite_util import (save_param_grid_to_sqlite_db, get_param_grid_from_sqlite_db, save_narrow_grid_to_sqlite_db,
                           get_narrow_grid_from_sqlite_db, save_promising_interactions_to_sqlite_db,
-                          get_promising_interactions_from_sqlite_db)
+                          get_promising_interactions_from_sqlite_db, get_optimal_grid_from_sqlite_db)
 from .ml import (get_estimator, exclude_nulls,
                  get_hyperopt_estimator, show_pipeline, plot_pie, plot_reg_predictions,
                  plot_reg_residuals_dist, plot_reg_predictions_dist, plot_reg_residuals, plot_hyperparameter,
@@ -27,7 +27,7 @@ from .ml import (get_estimator, exclude_nulls,
                  get_narrow_param_grid, HyperoptSearchCV, ModelProperties,
                  promising_params_grid, params_optimization, plot_no_skill_line,
                  plot_confusion_matrix, plot_decision_tree, plot_precision_recall, plot_precision_recall_by_threshold,
-                 print_classification_report, recreate_labels, rmsle, nan_rmsle)
+                 print_classification_report, recreate_labels, rmsle, )
 from .interceptor import (PipelineInterceptor, NumericDataInterceptor, DataPipelineInterceptor,
                           FeatureSelectionInterceptor, feature_selector, DropSelectedColsInterceptor, FeatureIntensityInterceptor, )
 from .datasource_utils import DBTool, DBToolFactory, DSWrapper

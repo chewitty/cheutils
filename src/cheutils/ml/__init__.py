@@ -10,4 +10,4 @@ from cheutils.ml.visualize import (plot_hyperparameter, plot_reg_residuals, plot
                                    plot_no_skill_line, print_classification_report)
 from cheutils.ml.pipeline_details import show_pipeline
 from cheutils.ml.model_properties import ModelProperties
-from cheutils.ml.evaluation_metrics import rmsle, nan_rmsle
+from cheutils.ml.evaluation_metrics import rmsle
