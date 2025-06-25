@@ -234,7 +234,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict,
         # return the results accordingly
         return search_cv.best_estimator_, abs(search_cv.best_score_), search_cv.best_params_, search_cv.cv_results_
     else:
-        return optimal_params
+        return None, None, optimal_params, None
 
 def get_optimal_grid_resolution(pipeline: Pipeline, X, y, search_space: dict, params_bounds=None, cache_value: bool = True,
                                 fine_search: str = 'hyperoptcv', random_state: int=100, **kwargs):
