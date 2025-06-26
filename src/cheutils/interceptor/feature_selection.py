@@ -49,7 +49,7 @@ def feature_selector(selector: str, estimator, passthrough: bool=False, ):
 
         def transform(self, X, y=None, **fit_params):
             LOGGER.debug('FeatureSelector: Transforming dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
-            new_X = self.__do_transform(X, y=None)
+            new_X = self.__do_transform(X, y=None, **fit_params)
             LOGGER.debug('FeatureSelector: Transformed dataset, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_cols)
             return new_X
 
@@ -105,6 +105,12 @@ def feature_selector(selector: str, estimator, passthrough: bool=False, ):
         LOGGER.error('Problem encountered instantiating feature selection transformer: {}, {}', selector, err)
     return tf_instance
 
+"""
+Use this interceptor to improve efficiency in the data processing pipeline, by injecting the results of a previously conducted feature selection was previously
+as part of another process or pipeline - the selected features should be available as value to the `model.feat_selection.selected` 
+property in the project `app-config.properties` file. Note that, any attempt to include this interceptor in a data pipeline 
+without specifying the property will fail or produce an error.
+"""
 class FeatureSelectionInterceptor(PipelineInterceptor):
     def __init__(self, selected_features: list, **kwargs):
         super().__init__(**kwargs)
@@ -115,6 +121,6 @@ class FeatureSelectionInterceptor(PipelineInterceptor):
         assert X is not None, 'Valid dataframe with data required'
         LOGGER.debug('FeatureSelectionInterceptor: dataset in, shape = {}, {}', X.shape, y.shape if y is not None else None)
         new_X = X[self.selected_features]
-        LOGGER.debug('FeatureSelectionInterceptor: dataset out, shape = {}, {}\nFeatures selected:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_features)
+        LOGGER.debug('FeatureSelectionInterceptor: dataset out, shape = {}, {}\nUsing previously selected features:\n{}', new_X.shape, y.shape if y is not None else None, self.selected_features)
         return new_X
 

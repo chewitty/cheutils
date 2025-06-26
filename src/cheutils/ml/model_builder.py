@@ -128,7 +128,9 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict,
     """
     Perform a fine hyperparameter optimization or search - a fine search using bayesian optimization
     for a more detailed search within the narrower, promising hyperparameter space to identify the optimal
-    hyperparameter combination.
+    hyperparameter combination. Note that, the optimal parameters found are cached in SQLite, and any subsequent calls will
+    reuse the cached version unless the underlying SQLite table (name related to the `model.active.model_option` in the
+    app-config.properties) was specifically dropped by an offline action prior to calling this method.
     :param pipeline: estimator or pipeline instance with estimator
     :type pipeline:
     :param X: pandas DataFrame or numpy array
@@ -147,7 +149,7 @@ def params_optimization(pipeline: Pipeline, X, y, promising_params_grid: dict,
     :param mlflow_exp: dict such as {'log': False, 'uri': None} indicating if this is part of a Mlflow experiment in which logging should be enabled - BUT only valid for "hyperoptcv"
     :param kwargs:
     :type kwargs:
-    :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_) or optimal_params ONLY if previously cached
+    :return: tuple -e.g., (best_estimator_, best_score_, best_params_, cv_results_) or best_params_ ONLY and all others None, if previously cached
     :rtype:
     """
     assert pipeline is not None, "A valid pipeline instance expected"

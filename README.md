@@ -29,6 +29,7 @@ The module supports application configuration via a properties file. As such, yo
 ##
 # Sample application properties file
 ##
+# It is usefull to include at least the following four minimal properties in your project
 project.namespace=cheutils
 project.root.dir=./
 project.data.dir=./data/
@@ -201,7 +202,7 @@ The `cheutils` module comes with custom transformers for some preprocessing - e.
 You can add a data preprocessing transformer to your pipeline as follows:
 
 ```python
-from cheutils import PreOrPostDataPrep
+from cheutils import DataPrep
 
 date_cols = ['rental_date']
 int_cols = ['release_year', 'length', 'NC-17', 'PG', 'PG-13', 'R',
@@ -209,17 +210,17 @@ int_cols = ['release_year', 'length', 'NC-17', 'PG', 'PG-13', 'R',
 correlated_cols = ['rental_rate_2', 'length_2', 'amount_2']
 drop_missing = True  # drop rows with missing data
 clip_data = None  # no data clipping; but you could clip outliers based on category aggregates with something like clip_data = {'rel_cols': ['col1', 'col2'], 'filterby': 'cat_col', }
-exp_tf = PreOrPostDataPrep(date_cols=date_cols,
-                           int_cols=int_cols,
-                           drop_missing=drop_missing,
-                           clip_data=clip_data,
-                           correlated_cols=correlated_cols, )
+exp_tf = DataPrep(date_cols=date_cols,
+                  int_cols=int_cols,
+                  drop_missing=drop_missing,
+                  clip_data=clip_data,
+                  correlated_cols=correlated_cols, )
 data_prep_pipeline_steps = [('data_prep_step', exp_tf)]  # this can be added to a model pipeline
 ```
 You can also include feature selection by adding the following to the pipeline:
 
 ```python
-from cheutils import feature_selector, get_estimator, AppProperties, ModelProperties, SelectiveScaler
+from cheutils import feature_selector, FeatureSelectionInterceptor, DataPipelineInterceptor, get_estimator, AppProperties, ModelProperties, SelectiveScaler
 
 standard_pipeline_steps = ['some previously defined pipeline steps']
 model_handler: ModelProperties = AppProperties().get_subscriber('model_handler')
@@ -227,7 +228,15 @@ feat_sel_tf = feature_selector(estimator=get_estimator(model_option='xgboost'),
                                random_state=model_handler.get_random_seed())
 # add feature selection to pipeline
 standard_pipeline_steps.append(('feat_selection_step', feat_sel_tf))
-# You can also add a configured selective column transforme.
+# Alternatively, you may have previously conducted feature selection and simply wish to 
+# inject the selected features in the pipeline - in which case, you could simply use the appropriate
+# interceptor as follows:
+APP_PROPS = AppProperties()
+selected_features = APP_PROPS.get_list('model.feat_selection.selected') # the selected features available in app-config.properties
+interceptors = [FeatureSelectionInterceptor(selected_features=selected_features)]
+feat_sel_tf = DataPipelineInterceptor(interceptors=interceptors, )
+standard_pipeline_steps.append(('feat_sel_tf', feat_sel_tf))
+# You can also add a configured selective column transformer.
 # e.g., if you already have configured a list of column transformers in the `app-config.properties` such as in the sample properties file above,
 # you can add it to the pipeline as below. The `SelectiveScaler` uses the configured property to determine 
 # the transformer(s), and the corresponding columns affected, to add to the pipeline. 
