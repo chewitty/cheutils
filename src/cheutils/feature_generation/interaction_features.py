@@ -117,6 +117,20 @@ class PromisingInteractions(BaseEstimator, TransformerMixin):
         self.transformed_X = None
 
     def fit(self, X, y=None, **fit_params):
+        """
+        Use the training data to extract promising interaction feature combinations. If there is a prevailing set of
+        interaction features that was previously cached, then use those for efficiency. That is because any promising interactions
+        found are cached in SQLite in a table `<model.active.model_option>_promising_interactions`; drop the table if need features
+        need to be found or re-extracted.
+        :param X:
+        :type X:
+        :param y:
+        :type y:
+        :param fit_params:
+        :type fit_params:
+        :return:
+        :rtype:
+        """
         if self.fitted:
             return self
         LOGGER.debug('PromisingInteractions: Fitting dataset, shape = {}, {}', X.shape, y.shape if y is not None else None)
